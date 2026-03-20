@@ -1,0 +1,281 @@
+# Template configuration: defines the standard directory structure and file
+# generation order for each template type.
+#
+# Each template lists files with:
+#   - path: Relative path within the Flutter project
+#   - purpose: Description used as context for the code generation prompt
+#   - order: Generation order (lower = earlier). Files are generated in this
+#            order so that later files can reference already-generated ones.
+
+common_files:
+  # --- Config & manifest ---
+  - path: "pubspec.yaml"
+    purpose: >
+      Flutter project manifest. Includes all dependencies from the PRD,
+      Flutter SDK >=3.22.0, Dart SDK >=3.4.0, flutter_localizations (sdk: flutter).
+    order: 0
+
+  - path: "analysis_options.yaml"
+    purpose: "Dart analysis options using flutter_lints recommended rules."
+    order: 1
+
+  # --- Theme ---
+  - path: "lib/theme/app_theme.dart"
+    purpose: >
+      Material Design 3 theme: lightTheme and darkTheme using
+      ColorScheme.fromSeed with useMaterial3: true.
+    order: 10
+
+  # --- Ad config ---
+  - path: "lib/config/ad_config.dart"
+    purpose: >
+      AdMob configuration with test ad unit IDs. Platform-aware helper
+      for Android (ca-app-pub-3940256099942544/6300978111) and
+      iOS (ca-app-pub-3940256099942544/2934735716).
+    order: 11
+
+  # --- Localisation ---
+  - path: "lib/l10n/app_en.arb"
+    purpose: "English ARB localisation file with all user-facing strings."
+    order: 12
+
+  - path: "lib/l10n/app_ja.arb"
+    purpose: "Japanese ARB localisation file with all user-facing strings."
+    order: 13
+
+  # --- Core providers ---
+  - path: "lib/providers/theme_provider.dart"
+    purpose: >
+      Riverpod provider for theme mode (light/dark/system).
+      Persists selection with shared_preferences.
+    order: 20
+
+  - path: "lib/providers/locale_provider.dart"
+    purpose: >
+      Riverpod provider for app locale (en/ja).
+      Persists selection with shared_preferences.
+    order: 21
+
+  # --- Router ---
+  - path: "lib/router/app_router.dart"
+    purpose: >
+      GoRouter configuration with all routes from the PRD.
+      Exposed as a Riverpod provider.
+    order: 30
+
+  # --- Shared widgets ---
+  - path: "lib/widgets/ad_banner_widget.dart"
+    purpose: >
+      Reusable AdMob banner widget using google_mobile_ads.
+      Handles ad loading, error states, and proper disposal.
+    order: 40
+
+  # --- Entry points (generated last) ---
+  - path: "lib/main.dart"
+    purpose: >
+      App entry point: initialise WidgetsBinding, MobileAds,
+      then run the app wrapped in ProviderScope.
+    order: 90
+
+  - path: "lib/app.dart"
+    purpose: >
+      Root MaterialApp.router widget wiring GoRouter, theme,
+      locale, and localisation delegates.
+    order: 91
+
+
+# ============================================================================
+# Template-specific files
+# ============================================================================
+
+templates:
+  single_page_tool:
+    description: >
+      Single-screen utility (converter, calculator, generator).
+      Minimal navigation, one core interaction.
+    extra_files:
+      - path: "lib/providers/tool_provider.dart"
+        purpose: "Riverpod provider for the tool's core state and logic."
+        order: 25
+      - path: "lib/widgets/tool_input_widget.dart"
+        purpose: "Input widget (text fields, sliders, pickers, etc.)."
+        order: 41
+      - path: "lib/widgets/tool_result_widget.dart"
+        purpose: "Widget displaying the tool's output/result."
+        order: 42
+      - path: "lib/screens/home_screen.dart"
+        purpose: "Main screen: tool input, result display, AdMob banner."
+        order: 50
+      - path: "lib/screens/settings_screen.dart"
+        purpose: "Settings: theme toggle, language selector."
+        order: 51
+
+  list_display:
+    description: >
+      List-centric app: display, filter, search items.
+      Examples: recipe browser, todo list, bookmark manager.
+    extra_files:
+      - path: "lib/models/item_model.dart"
+        purpose: "Data model for list items per the PRD."
+        order: 15
+      - path: "lib/services/item_service.dart"
+        purpose: "Service to load, save, manage items (local storage)."
+        order: 22
+      - path: "lib/providers/item_provider.dart"
+        purpose: "Riverpod providers for item list, filtering, search."
+        order: 25
+      - path: "lib/widgets/item_card.dart"
+        purpose: "Card widget for a single list item."
+        order: 41
+      - path: "lib/widgets/search_bar_widget.dart"
+        purpose: "Search/filter bar widget."
+        order: 42
+      - path: "lib/screens/list_screen.dart"
+        purpose: "Main list view with search, filtering, AdMob banner."
+        order: 50
+      - path: "lib/screens/detail_screen.dart"
+        purpose: "Detail view for a selected item."
+        order: 51
+      - path: "lib/screens/add_edit_screen.dart"
+        purpose: "Form for adding/editing an item."
+        order: 52
+      - path: "lib/screens/settings_screen.dart"
+        purpose: "Settings: theme toggle, language selector."
+        order: 53
+
+  timer:
+    description: >
+      Time-based app: countdown, stopwatch, Pomodoro, interval timer.
+    extra_files:
+      - path: "lib/models/timer_model.dart"
+        purpose: "Data model for timer/session state."
+        order: 15
+      - path: "lib/services/timer_service.dart"
+        purpose: "Timer logic: countdown/stopwatch functionality."
+        order: 22
+      - path: "lib/services/notification_service.dart"
+        purpose: "Local notification for timer completion."
+        order: 23
+      - path: "lib/providers/timer_provider.dart"
+        purpose: "Riverpod providers for timer state, controls, history."
+        order: 25
+      - path: "lib/widgets/timer_display.dart"
+        purpose: "Animated circular/digital timer display."
+        order: 41
+      - path: "lib/widgets/timer_controls.dart"
+        purpose: "Start/pause/reset control buttons."
+        order: 42
+      - path: "lib/screens/timer_screen.dart"
+        purpose: "Main timer screen with display, controls, AdMob banner."
+        order: 50
+      - path: "lib/screens/history_screen.dart"
+        purpose: "History of completed timer sessions."
+        order: 51
+      - path: "lib/screens/settings_screen.dart"
+        purpose: "Settings: timer defaults, theme toggle, language."
+        order: 52
+
+  tracker:
+    description: >
+      Data tracking app: habit, expense, mood, workout, any recurring data entry.
+    extra_files:
+      - path: "lib/models/entry_model.dart"
+        purpose: "Data model for tracked entries per the PRD."
+        order: 15
+      - path: "lib/services/storage_service.dart"
+        purpose: "Local storage service for persisting entries."
+        order: 22
+      - path: "lib/services/stats_service.dart"
+        purpose: "Statistics: averages, streaks, trends."
+        order: 23
+      - path: "lib/providers/tracker_provider.dart"
+        purpose: "Riverpod providers for entries, stats, filter state."
+        order: 25
+      - path: "lib/widgets/entry_card.dart"
+        purpose: "Card widget for a single tracked entry."
+        order: 41
+      - path: "lib/widgets/stats_chart.dart"
+        purpose: "Chart widget showing data over time."
+        order: 42
+      - path: "lib/widgets/quick_add_widget.dart"
+        purpose: "Quick-add FAB or inline widget for new entries."
+        order: 43
+      - path: "lib/screens/dashboard_screen.dart"
+        purpose: "Dashboard: today's summary, chart, AdMob banner."
+        order: 50
+      - path: "lib/screens/history_screen.dart"
+        purpose: "Full history with date-range filtering."
+        order: 51
+      - path: "lib/screens/add_entry_screen.dart"
+        purpose: "Form for adding/editing an entry."
+        order: 52
+      - path: "lib/screens/settings_screen.dart"
+        purpose: "Settings: theme toggle, language selector."
+        order: 53
+
+  info_aggregator:
+    description: >
+      Information aggregation: weather, news, prices, dashboards.
+    extra_files:
+      - path: "lib/models/info_model.dart"
+        purpose: "Data model for information items/cards."
+        order: 15
+      - path: "lib/services/api_service.dart"
+        purpose: "HTTP service for external API / local data fetching."
+        order: 22
+      - path: "lib/services/cache_service.dart"
+        purpose: "Local caching for offline support."
+        order: 23
+      - path: "lib/providers/info_provider.dart"
+        purpose: "Riverpod providers for fetching, caching, refresh."
+        order: 25
+      - path: "lib/widgets/info_card.dart"
+        purpose: "Card displaying aggregated information."
+        order: 41
+      - path: "lib/widgets/loading_widget.dart"
+        purpose: "Shimmer/skeleton loading placeholder."
+        order: 42
+      - path: "lib/screens/home_screen.dart"
+        purpose: "Dashboard with info cards and AdMob banner."
+        order: 50
+      - path: "lib/screens/detail_screen.dart"
+        purpose: "Detail view for a selected item."
+        order: 51
+      - path: "lib/screens/settings_screen.dart"
+        purpose: "Settings: data sources, refresh, theme, language."
+        order: 52
+
+  mini_game:
+    description: >
+      Simple casual game: quiz, trivia, puzzle, memory, clicker.
+    extra_files:
+      - path: "lib/models/game_state.dart"
+        purpose: "Data model for game state, score, progress."
+        order: 15
+      - path: "lib/services/game_service.dart"
+        purpose: "Core game logic service."
+        order: 22
+      - path: "lib/services/score_service.dart"
+        purpose: "High score persistence (local storage)."
+        order: 23
+      - path: "lib/providers/game_provider.dart"
+        purpose: "Riverpod providers for game state, score, controls."
+        order: 25
+      - path: "lib/widgets/game_board.dart"
+        purpose: "Main game board/canvas widget."
+        order: 41
+      - path: "lib/widgets/score_display.dart"
+        purpose: "Score and game status display."
+        order: 42
+      - path: "lib/screens/game_screen.dart"
+        purpose: "Main game screen: board, score, AdMob banner."
+        order: 50
+      - path: "lib/screens/menu_screen.dart"
+        purpose: "Start menu: play, high scores, settings."
+        order: 51
+      - path: "lib/screens/high_scores_screen.dart"
+        purpose: "High scores leaderboard."
+        order: 52
+      - path: "lib/screens/settings_screen.dart"
+        purpose: "Settings: difficulty, theme toggle, language."
+        order: 53
