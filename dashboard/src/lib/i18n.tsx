@@ -222,6 +222,26 @@ const translations: Record<Locale, Record<string, string>> = {
     // Sidebar
     "sidebar.connected": "实时连接正常",
     "sidebar.disconnected": "连接已断开",
+
+    // Login
+    "login.title": "AutoDev Agent",
+    "login.subtitle": "AI 驱动的 Flutter 应用工厂",
+    "login.description": "基于 LangGraph 和 Claude 的 24/7 自主应用开发流水线",
+    "login.username": "用户名",
+    "login.password": "密码",
+    "login.submit": "登录",
+    "login.error": "用户名或密码错误",
+    "login.workflow_title": "智能开发工作流",
+    "login.stage_crawl": "爬取",
+    "login.stage_process": "处理",
+    "login.stage_evaluate": "评估",
+    "login.stage_generate": "生成",
+    "login.stage_build": "构建",
+    "login.stage_test": "测试",
+    "login.stage_publish": "发布",
+
+    // Nav extras
+    "nav.logout": "退出登录",
   },
   en: {
     "nav.overview": "Overview",
@@ -432,6 +452,26 @@ const translations: Record<Locale, Record<string, string>> = {
 
     "sidebar.connected": "Connected",
     "sidebar.disconnected": "Disconnected",
+
+    // Login
+    "login.title": "AutoDev Agent",
+    "login.subtitle": "AI-Powered Flutter App Factory",
+    "login.description": "24/7 autonomous app development pipeline powered by LangGraph and Claude",
+    "login.username": "Username",
+    "login.password": "Password",
+    "login.submit": "Login",
+    "login.error": "Invalid username or password",
+    "login.workflow_title": "Intelligent Development Workflow",
+    "login.stage_crawl": "Crawl",
+    "login.stage_process": "Process",
+    "login.stage_evaluate": "Evaluate",
+    "login.stage_generate": "Generate",
+    "login.stage_build": "Build",
+    "login.stage_test": "Test",
+    "login.stage_publish": "Publish",
+
+    // Nav extras
+    "nav.logout": "Logout",
   },
 };
 

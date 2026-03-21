@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Languages,
+  LogOut,
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useI18n } from "@/lib/i18n";
@@ -140,6 +141,31 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             )}
           >
             {locale === "zh" ? "English" : "中文"}
+          </span>
+        </button>
+      </div>
+
+      {/* Logout */}
+      <div className={clsx("border-t border-gray-200 px-3 py-2", collapsed && "px-2")}>
+        <button
+          onClick={() => {
+            localStorage.removeItem("auth");
+            window.location.href = "/login";
+          }}
+          title={t("nav.logout")}
+          className={clsx(
+            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600",
+            collapsed ? "justify-center" : "gap-2",
+          )}
+        >
+          <LogOut className="h-4 w-4 flex-shrink-0" />
+          <span
+            className={clsx(
+              "whitespace-nowrap transition-opacity duration-300",
+              collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
+            )}
+          >
+            {t("nav.logout")}
           </span>
         </button>
       </div>
