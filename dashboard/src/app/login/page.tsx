@@ -138,6 +138,22 @@ export default function LoginPage() {
           transform: translateY(-50%);
           animation: flowDot 8s linear infinite;
         }
+        .connector-dot-v {
+          position: absolute;
+          left: 50%;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          transform: translateX(-50%);
+          animation: flowDotV 8s linear infinite;
+        }
+        @keyframes flowDotV {
+          0% { top: 0%; opacity: 0; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
         .dot-0 { animation-delay: 0s; }
         .dot-1 { animation-delay: 1.14s; }
         .dot-2 { animation-delay: 2.28s; }
@@ -216,148 +232,137 @@ export default function LoginPage() {
         }
       `}</style>
 
-      <div className="login-bg min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-4">
-        {/* Language toggle - top right */}
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-          <button
-            onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors glass-card hover:text-white"
-          >
-            <Languages className="h-4 w-4" />
-            {locale === "zh" ? "English" : "中文"}
-          </button>
-        </div>
+      <div className="login-bg min-h-screen relative overflow-hidden flex">
         {/* Animated grid background */}
         <div className="grid-bg absolute inset-0 z-0" />
-
         {/* Floating shapes */}
         <div className="floating-shape shape-1" />
         <div className="floating-shape shape-2" />
         <div className="floating-shape shape-3" />
         <div className="floating-shape shape-4" />
         <div className="floating-shape shape-5" />
-
-        {/* Gradient overlay at top and bottom */}
+        {/* Gradient overlay */}
         <div className="absolute inset-0 z-0 pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 50% 100%, rgba(139,92,246,0.06) 0%, transparent 60%)"
+            background: "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)"
           }}
         />
 
-        <div className="relative z-10 w-full max-w-4xl flex flex-col items-center gap-8 py-8">
-          {/* Hero Section */}
+        {/* ── Left side: Branding + Workflow ── */}
+        <div className="relative z-10 hidden lg:flex flex-col justify-center items-center flex-1 px-12">
           {mounted && (
-            <div className="hero-section text-center">
-              <h1 className="gradient-text text-5xl md:text-7xl font-bold tracking-tight mb-4">
+            <div className="hero-section text-center max-w-lg">
+              <h1 className="gradient-text text-6xl xl:text-7xl font-bold tracking-tight mb-6">
                 {t("login.title")}
               </h1>
-              <p className="text-lg md:text-xl text-blue-200/80 font-medium mb-2">
+              <p className="text-xl text-blue-200/80 font-medium mb-3">
                 {t("login.subtitle")}
               </p>
-              <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto leading-relaxed">
+              <p className="text-sm text-gray-400 leading-relaxed mb-12">
+                {t("login.description")}
+              </p>
+
+              {/* Workflow Visualization -- vertical */}
+              <div className="workflow-section">
+                <h2 className="text-xs uppercase tracking-widest text-gray-500 mb-8">
+                  {t("login.workflow_title")}
+                </h2>
+                <div className="flex flex-col items-start gap-0 mx-auto w-fit">
+                  {STAGES.map((stage, i) => {
+                    const Icon = stage.icon;
+                    return (
+                      <React.Fragment key={stage.key}>
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`node-${i} w-12 h-12 rounded-xl glass-card flex items-center justify-center transition-all duration-300`}
+                          >
+                            <Icon className="w-5 h-5 text-blue-400/80" />
+                          </div>
+                          <div className="text-left">
+                            <span className="text-sm text-gray-300 font-medium">
+                              {t(stage.key)}
+                            </span>
+                          </div>
+                        </div>
+                        {i < STAGES.length - 1 && (
+                          <div className="ml-[23px] relative w-[2px] h-8 overflow-hidden"
+                            style={{
+                              background: "linear-gradient(180deg, rgba(59,130,246,0.3), rgba(139,92,246,0.3))"
+                            }}
+                          >
+                            <div className={`connector-dot-v dot-${i}`} />
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right side: Login form ── */}
+        <div className="relative z-10 flex flex-col justify-center items-center w-full lg:w-[480px] lg:flex-shrink-0 px-6 sm:px-12 py-8"
+          style={{ background: "rgba(10, 10, 26, 0.6)", backdropFilter: "blur(40px)" }}
+        >
+          {/* Language toggle */}
+          <div className="absolute top-6 right-6 z-20">
+            <button
+              onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors glass-card hover:text-white"
+            >
+              <Languages className="h-4 w-4" />
+              {locale === "zh" ? "EN" : "中文"}
+            </button>
+          </div>
+
+          {/* Mobile hero (shows on small screens where left side is hidden) */}
+          {mounted && (
+            <div className="hero-section text-center mb-8 lg:hidden">
+              <h1 className="gradient-text text-4xl font-bold tracking-tight mb-3">
+                {t("login.title")}
+              </h1>
+              <p className="text-sm text-blue-200/80 font-medium mb-1">
+                {t("login.subtitle")}
+              </p>
+              <p className="text-xs text-gray-400">
                 {t("login.description")}
               </p>
             </div>
           )}
 
-          {/* Workflow Visualization */}
-          {mounted && (
-            <div className="workflow-section w-full">
-              <h2 className="text-center text-sm uppercase tracking-widest text-gray-500 mb-6">
-                {t("login.workflow_title")}
-              </h2>
-
-              {/* Desktop workflow -- horizontal */}
-              <div className="hidden md:flex items-center justify-center gap-0 px-4">
-                {STAGES.map((stage, i) => {
-                  const Icon = stage.icon;
-                  return (
-                    <React.Fragment key={stage.key}>
-                      {/* Node */}
-                      <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                        <div
-                          className={`node-${i} w-16 h-16 rounded-2xl glass-card flex items-center justify-center transition-all duration-300`}
-                        >
-                          <Icon className="w-7 h-7 text-blue-400/80" />
-                        </div>
-                        <span className="text-xs text-gray-400 whitespace-nowrap">
-                          {t(stage.key)}
-                        </span>
-                      </div>
-                      {/* Connector */}
-                      {i < STAGES.length - 1 && (
-                        <div className="relative w-16 h-[2px] mx-1 flex-shrink-0 overflow-hidden"
-                          style={{
-                            background: "linear-gradient(90deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2))"
-                          }}
-                        >
-                          <div className={`connector-dot dot-${i}`} />
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-
-              {/* Mobile workflow -- vertical compact */}
-              <div className="flex md:hidden flex-col items-center gap-0">
-                {STAGES.map((stage, i) => {
-                  const Icon = stage.icon;
-                  return (
-                    <React.Fragment key={stage.key}>
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`node-${i} w-10 h-10 rounded-xl glass-card flex items-center justify-center`}
-                        >
-                          <Icon className="w-5 h-5 text-blue-400/80" />
-                        </div>
-                        <span className="text-xs text-gray-400 w-20">
-                          {t(stage.key)}
-                        </span>
-                      </div>
-                      {i < STAGES.length - 1 && (
-                        <div className="w-[2px] h-4 my-0.5"
-                          style={{
-                            background: "linear-gradient(180deg, rgba(59,130,246,0.3), rgba(139,92,246,0.3))"
-                          }}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Separator line */}
-          <div className="gradient-line w-full max-w-md h-px" />
-
-          {/* Login Card */}
+          {/* Login form */}
           {mounted && (
             <div className="login-card w-full max-w-sm">
-              <form onSubmit={handleLogin} className="glass-card rounded-2xl p-8 space-y-5">
+              <div className="mb-8 text-center lg:text-left">
+                <h2 className="text-2xl font-bold text-white mb-2">{t("login.submit")}</h2>
+                <p className="text-sm text-gray-400">{t("login.description")}</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-5">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
                     {t("login.username")}
                   </label>
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => { setUsername(e.target.value); setError(""); }}
-                    className="input-glow w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none transition-all duration-300"
+                    className="input-glow w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 outline-none transition-all duration-300"
                     placeholder={t("login.username")}
                     autoComplete="username"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
                     {t("login.password")}
                   </label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                    className="input-glow w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none transition-all duration-300"
+                    className="input-glow w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 outline-none transition-all duration-300"
                     placeholder={t("login.password")}
                     autoComplete="current-password"
                   />
@@ -367,11 +372,16 @@ export default function LoginPage() {
                 )}
                 <button
                   type="submit"
-                  className="btn-gradient w-full rounded-lg py-2.5 text-sm font-semibold text-white"
+                  className="btn-gradient w-full rounded-xl py-3 text-sm font-semibold text-white"
                 >
                   {t("login.submit")}
                 </button>
               </form>
+
+              {/* Bottom branding */}
+              <p className="mt-12 text-center text-xs text-gray-600">
+                AutoDev Agent v0.1 -- Powered by LangGraph + Claude
+              </p>
             </div>
           )}
         </div>
