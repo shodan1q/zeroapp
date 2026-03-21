@@ -160,6 +160,16 @@ export interface ApiError {
   detail: string;
 }
 
+export interface RunnerStatus {
+  running: boolean;
+  current_run_id: string | null;
+  started_at: string | null;
+  cycles: number;
+  apps_generated: number;
+  apps_pushed: number;
+  errors: number;
+}
+
 /* ------------------------------------------------------------------ */
 /*  WebSocket events                                                  */
 /* ------------------------------------------------------------------ */

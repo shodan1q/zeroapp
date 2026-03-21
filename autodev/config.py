@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     apple_api_issuer_id: str = Field(default="")
     apple_api_key_path: str = Field(default="")
 
+    # ── Output / GitHub ────────────────────────────────────────
+    output_dir: str = Field(default="/Users/shodan/project/zerodev", description="Output directory for generated app projects")
+    github_org: str = Field(default="", description="GitHub org/user for auto-creating repos (uses gh CLI)")
+
     # ── Pipeline settings ───────────────────────────────────────
     pipeline_crawl_interval_hours: int = Field(default=6, description="Hours between crawl cycles")
     pipeline_max_concurrent_builds: int = Field(default=2, description="Max parallel Flutter builds")

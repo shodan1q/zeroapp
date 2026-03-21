@@ -13,11 +13,19 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import { fetchDashboard, fetchDemands, fetchBuilds } from "@/lib/api";
+import {
+  fetchDashboard,
+  fetchDemands,
+  fetchBuilds,
+  fetchRunnerStatus,
+  startPipeline,
+  stopPipeline,
+} from "@/lib/api";
 import type {
   DashboardSummary,
   DemandOut,
   BuildLogOut,
+  RunnerStatus,
   WsEvent,
 } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -162,6 +170,16 @@ export default function OverviewPage() {
   const [activityLog, setActivityLog] = useState<
     { time: string; message: string }[]
   >([]);
+  const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>({
+    running: false,
+    current_run_id: null,
+    started_at: null,
+    cycles: 0,
+    apps_generated: 0,
+    apps_pushed: 0,
+    errors: 0,
+  });
+  const [runnerLoading, setRunnerLoading] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const { connected, lastEvent, events } = useWebSocket();
 
@@ -197,6 +215,34 @@ export default function OverviewPage() {
     const timer = setInterval(loadData, 30_000);
     return () => clearInterval(timer);
   }, [loadData]);
+
+  /* ---------- Runner status polling ------------------------------ */
+
+  const loadRunnerStatus = useCallback(async () => {
+    const status = await fetchRunnerStatus();
+    setRunnerStatus(status);
+  }, []);
+
+  useEffect(() => {
+    loadRunnerStatus();
+    const interval = runnerStatus.running ? 5_000 : 15_000;
+    const timer = setInterval(loadRunnerStatus, interval);
+    return () => clearInterval(timer);
+  }, [loadRunnerStatus, runnerStatus.running]);
+
+  const handleStartPipeline = useCallback(async () => {
+    setRunnerLoading(true);
+    await startPipeline();
+    await loadRunnerStatus();
+    setRunnerLoading(false);
+  }, [loadRunnerStatus]);
+
+  const handleStopPipeline = useCallback(async () => {
+    setRunnerLoading(true);
+    await stopPipeline();
+    await loadRunnerStatus();
+    setRunnerLoading(false);
+  }, [loadRunnerStatus]);
 
   /* ---------- WebSocket updates --------------------------------- */
 
@@ -326,6 +372,77 @@ export default function OverviewPage() {
           <span>后端服务未连接，当前显示为空数据。请检查后端是否已启动。</span>
         </div>
       )}
+
+      {/* Runner control panel */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {runnerStatus.running ? (
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                </span>
+              ) : (
+                <span className="inline-flex h-3 w-3 rounded-full bg-gray-300" />
+              )}
+              <h2 className="text-lg font-semibold text-gray-900">
+                {runnerStatus.running ? "流水线运行中" : "流水线已停止"}
+              </h2>
+            </div>
+            {runnerStatus.started_at && (
+              <span className="text-sm text-gray-500">
+                {"启动于 " + new Date(runnerStatus.started_at).toLocaleString("zh-CN")}
+              </span>
+            )}
+          </div>
+          <div>
+            {runnerStatus.running ? (
+              <button
+                onClick={handleStopPipeline}
+                disabled={runnerLoading}
+                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {runnerLoading ? "处理中..." : "停止流水线"}
+              </button>
+            ) : (
+              <button
+                onClick={handleStartPipeline}
+                disabled={runnerLoading}
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {runnerLoading ? "处理中..." : "启动流水线"}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-5">
+          <div>
+            <p className="text-xs text-gray-500">运行周期</p>
+            <p className="text-xl font-semibold text-gray-900">{runnerStatus.cycles}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">已生成应用</p>
+            <p className="text-xl font-semibold text-gray-900">{runnerStatus.apps_generated}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">已推送 GitHub</p>
+            <p className="text-xl font-semibold text-gray-900">{runnerStatus.apps_pushed}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">错误次数</p>
+            <p className={`text-xl font-semibold ${runnerStatus.errors > 0 ? "text-red-600" : "text-gray-900"}`}>
+              {runnerStatus.errors}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">当前任务</p>
+            <p className="text-sm font-medium text-gray-700">
+              {runnerStatus.current_run_id ?? "--"}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* A) Stats cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

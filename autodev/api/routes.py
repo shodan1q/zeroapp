@@ -493,3 +493,32 @@ async def trigger_pipeline(
         status="started",
         message="Pipeline run triggered successfully.",
     )
+
+
+# ── Pipeline Loop Control ────────────────────────────────────
+
+
+@router.post("/pipeline/start")
+async def start_pipeline_loop():
+    from autodev.pipeline.runner import PipelineRunner
+
+    runner = PipelineRunner.get_instance()
+    result = runner.start()
+    return result
+
+
+@router.post("/pipeline/stop")
+async def stop_pipeline_loop():
+    from autodev.pipeline.runner import PipelineRunner
+
+    runner = PipelineRunner.get_instance()
+    result = runner.stop()
+    return result
+
+
+@router.get("/pipeline/runner-status")
+async def get_runner_status():
+    from autodev.pipeline.runner import PipelineRunner
+
+    runner = PipelineRunner.get_instance()
+    return runner.stats

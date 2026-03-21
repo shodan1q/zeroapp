@@ -11,6 +11,7 @@ import type {
   MessageResponse,
   PaginatedResponse,
   BuildListResponse,
+  RunnerStatus,
 } from "./types";
 
 const API_BASE = "/api";
@@ -147,4 +148,30 @@ export async function fetchPipelineStatus(
   threadId: string,
 ): Promise<PipelineStatusResponse | null> {
   return request<PipelineStatusResponse>(`/pipeline/status/${threadId}`);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Pipeline Runner (auto-loop)                                        */
+/* ------------------------------------------------------------------ */
+
+const DEFAULT_RUNNER_STATUS: RunnerStatus = {
+  running: false,
+  current_run_id: null,
+  started_at: null,
+  cycles: 0,
+  apps_generated: 0,
+  apps_pushed: 0,
+  errors: 0,
+};
+
+export async function startPipeline(): Promise<{ status: string }> {
+  return (await request<{ status: string }>("/pipeline/start", { method: "POST" })) ?? { status: "error" };
+}
+
+export async function stopPipeline(): Promise<{ status: string }> {
+  return (await request<{ status: string }>("/pipeline/stop", { method: "POST" })) ?? { status: "error" };
+}
+
+export async function fetchRunnerStatus(): Promise<RunnerStatus> {
+  return (await request<RunnerStatus>("/pipeline/runner-status")) ?? DEFAULT_RUNNER_STATUS;
 }
