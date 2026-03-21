@@ -435,9 +435,15 @@ CREATE TABLE app_registry (
 
 ### 6.3 运营看板 Dashboard（已实现）
 
-**技术方案**：FastAPI 内嵌单页 Web 应用（Tailwind CSS + 原生 JS），WebSocket 实时推送，无需前端构建工具。
+**技术方案**：Next.js 15 + TypeScript + Tailwind CSS v4，独立前端应用，通过 API 代理连接 FastAPI 后端。浅色主题，无渐变色，中文界面。
 
-**访问方式**：`uvicorn autodev.api.app:app` 后访问 `http://localhost:8000/`
+**启动方式**：
+```bash
+# 后端
+uvicorn autodev.api.app:app --port 8000
+# 前端
+cd dashboard && npm run dev   # http://localhost:3000
+```
 
 **实时通信**：
 - WebSocket 端点 `/ws`，自动重连（指数退避）
