@@ -260,50 +260,64 @@ class PipelineRunner:
         return {"status": "started", "message": f"开始生成自定义 App: {theme[:50]}"}
 
     async def start_concurrent(self, theme: str) -> dict:
-        """Start a concurrent custom generation (doesn't block other pipelines)."""
+        """Queue a custom generation. Runs sequentially if another is active (LLM proxy limitation)."""
+        if not hasattr(self, "_queue"):
+            self._queue: list[str] = []
+
         run_id = uuid.uuid4().hex[:12]
+
+        if self.is_running:
+            # Queue it for later
+            self._queue.append(theme)
+            await self._log(f"[队列] 已加入队列 (位置 {len(self._queue)}): {theme[:50]}", "stage_change")
+            return {
+                "status": "queued",
+                "run_id": run_id,
+                "message": f"已加入队列 (位置 {len(self._queue)}): {theme[:50]}",
+                "queue_size": len(self._queue),
+            }
+
+        # Start immediately
+        self._running = True
+        self._current_run_id = run_id
         self._stats["cycles"] += 1
-        if not self._stats.get("started_at"):
-            self._stats["started_at"] = datetime.utcnow().isoformat()
-
-        # Track concurrent tasks
-        if not hasattr(self, "_concurrent_tasks"):
-            self._concurrent_tasks: list[asyncio.Task] = []
-
-        task = asyncio.create_task(self._run_concurrent_wrapper(theme, run_id))
-        self._concurrent_tasks.append(task)
-
-        # Clean up finished tasks
-        self._concurrent_tasks = [t for t in self._concurrent_tasks if not t.done()]
-
-        await self._log(f"[并发] 启动并发工作流 {run_id}: {theme[:50]}", "stage_change")
+        self._stats["started_at"] = datetime.utcnow().isoformat()
+        self._task = asyncio.create_task(self._run_queue_wrapper(theme))
+        await self._log(f"[队列] 开始生成: {theme[:50]}", "stage_change")
         return {
             "status": "started",
             "run_id": run_id,
-            "message": f"并发工作流已启动: {theme[:50]}",
-            "concurrent_count": len(self._concurrent_tasks),
+            "message": f"开始生成: {theme[:50]}",
+            "queue_size": len(self._queue),
         }
 
-    async def _run_concurrent_wrapper(self, theme: str, run_id: str) -> None:
-        """Run a concurrent custom cycle with its own run_id."""
-        saved_run_id = self._current_run_id
+    async def _run_queue_wrapper(self, theme: str) -> None:
+        """Run custom cycle then process queued items."""
         try:
-            self._current_run_id = run_id
-            self._running = True
             await self._run_custom_cycle(theme)
         except asyncio.CancelledError:
             pass
         except Exception as e:
             self._stats["errors"] += 1
-            logger.exception("Concurrent pipeline cycle failed: %s", run_id)
-            await self._log(f"[并发 {run_id}] 错误: {e}", "error")
-        finally:
-            self._current_run_id = saved_run_id
-            # Only set running to false if no other tasks are active
-            if hasattr(self, "_concurrent_tasks"):
-                active = [t for t in self._concurrent_tasks if not t.done()]
-                if not active and not (self._task and not self._task.done()):
-                    self._running = False
+            logger.exception("Pipeline cycle failed")
+            await self._log(f"生成错误: {e}", "error")
+
+        # Process queue
+        while hasattr(self, "_queue") and self._queue:
+            next_theme = self._queue.pop(0)
+            self._current_run_id = uuid.uuid4().hex[:12]
+            self._stats["cycles"] += 1
+            await self._log(f"[队列] 开始处理队列中的下一个: {next_theme[:50]}", "stage_change")
+            try:
+                await self._run_custom_cycle(next_theme)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self._stats["errors"] += 1
+                await self._log(f"生成错误: {e}", "error")
+
+        self._running = False
+        self._current_run_id = None
 
     async def _run_custom_wrapper(self, theme: str) -> None:
         """Wrapper that runs the custom cycle and cleans up afterwards."""
