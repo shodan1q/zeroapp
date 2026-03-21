@@ -51,9 +51,9 @@ import { useI18n } from "@/lib/i18n";
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-      <div className="mb-3 h-4 w-24 rounded bg-gray-200 dark:bg-gray-700" />
-      <div className="h-8 w-16 rounded bg-gray-200 dark:bg-gray-700" />
+    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm">
+      <div className="mb-3 h-4 w-24 rounded bg-gray-200 dark:bg-[#161d45]" />
+      <div className="h-8 w-16 rounded bg-gray-200 dark:bg-[#161d45]" />
     </div>
   );
 }
@@ -63,7 +63,7 @@ function SkeletonRow() {
     <tr>
       {Array.from({ length: 4 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-4 w-full animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="h-4 w-full animate-pulse rounded bg-gray-200 dark:bg-[#161d45]" />
         </td>
       ))}
     </tr>
@@ -76,7 +76,7 @@ function SkeletonRow() {
 
 function StatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
   const map: Record<string, string> = {
-    pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+    pending: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300",
     evaluating: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
     approved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     rejected: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -85,7 +85,7 @@ function StatusBadge({ status, t }: { status: string; t: (key: string) => string
     running: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     failed: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
+    cancelled: "bg-gray-100 text-gray-500 dark:bg-[#161d45] dark:text-slate-400",
   };
   const labelKey: Record<string, string> = {
     pending: "status.pending",
@@ -101,7 +101,7 @@ function StatusBadge({ status, t }: { status: string; t: (key: string) => string
   };
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300"}`}
     >
       {labelKey[status] ? t(labelKey[status]) : status}
     </span>
@@ -149,7 +149,7 @@ function stageStatusStyle(
     return { dot: "bg-red-500", card: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" };
   }
   if (stageKey === "error") {
-    return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800", text: "text-gray-400" };
+    return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738]", text: "text-gray-400" };
   }
   if (stageKey === currentStage) {
     return { dot: "bg-blue-500 animate-pulse", card: "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" };
@@ -157,16 +157,16 @@ function stageStatusStyle(
   if (stageIdx < currentIdx && currentIdx >= 0) {
     return { dot: "bg-emerald-500", card: "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" };
   }
-  return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800", text: "text-gray-400" };
+  return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738]", text: "text-gray-400" };
 }
 
 function SkeletonStageCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-      <div className="mb-3 h-5 w-20 rounded bg-gray-200 dark:bg-gray-700" />
+    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-4">
+      <div className="mb-3 h-5 w-20 rounded bg-gray-200 dark:bg-[#161d45]" />
       <div className="space-y-2">
-        <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-full rounded bg-gray-200 dark:bg-[#161d45]" />
+        <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-[#161d45]" />
       </div>
     </div>
   );
@@ -474,7 +474,7 @@ export default function OverviewPage() {
       value: summary?.pending_demands ?? 0,
       icon: Clock,
       color: "text-gray-500",
-      bg: "bg-gray-100 dark:bg-gray-700",
+      bg: "bg-gray-100 dark:bg-[#161d45]",
     },
   ];
 
@@ -484,10 +484,10 @@ export default function OverviewPage() {
     <div className="space-y-6">
       {/* Page title */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("overview.title")}</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("overview.title")}</h1>
         <button
           onClick={loadData}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+          className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-1.5 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
         >
           <RefreshCw className="h-4 w-4" />
           {t("overview.refresh")}
@@ -511,7 +511,7 @@ export default function OverviewPage() {
               return (
                 <div
                   key={card.labelKey}
-                  className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm"
+                  className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm"
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -520,10 +520,10 @@ export default function OverviewPage() {
                       <Icon className={`h-5 w-5 ${card.color}`} />
                     </div>
                     <div>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                      <p className="text-2xl font-semibold text-gray-900 dark:text-slate-200">
                         {card.value}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{t(card.labelKey)}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{t(card.labelKey)}</p>
                     </div>
                   </div>
                 </div>
@@ -532,7 +532,7 @@ export default function OverviewPage() {
       </div>
 
       {/* B) Compact pipeline status indicator */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 py-3 shadow-sm">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-5 py-3 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             {runnerStatus.running ? (
@@ -543,27 +543,27 @@ export default function OverviewPage() {
             ) : (
               <span className="inline-flex h-2.5 w-2.5 rounded-full bg-gray-300 dark:bg-gray-600" />
             )}
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
               {runnerStatus.running ? t("overview.pipeline_running") : t("overview.pipeline_stopped")}
             </span>
           </div>
           <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span className="truncate text-sm text-gray-500 dark:text-gray-400">
+          <span className="truncate text-sm text-gray-500 dark:text-slate-400">
             {t("overview.current_task")}: {runnerStatus.current_run_id ?? pipelineTask}
           </span>
-          <span className="ml-auto shrink-0 text-xs text-gray-400 dark:text-gray-500">
+          <span className="ml-auto shrink-0 text-xs text-gray-400 dark:text-slate-500">
             {t("overview.cycles")} {runnerStatus.cycles} / {t("overview.generated")} {runnerStatus.apps_generated} / {t("overview.pushed")} {runnerStatus.apps_pushed}
           </span>
         </div>
       </div>
 
       {/* C) Custom generation card */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="h-5 w-5 text-indigo-500" />
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("overview.custom_gen")}</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-slate-200">{t("overview.custom_gen")}</h2>
         </div>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mb-4 text-sm text-gray-500 dark:text-slate-400">
           {t("overview.custom_gen_desc")}
         </p>
         <div className="flex gap-3">
@@ -574,7 +574,7 @@ export default function OverviewPage() {
             onKeyDown={(e) => e.key === "Enter" && handleCustomGenerate()}
             disabled={runnerStatus.running || customLoading}
             placeholder={t("overview.custom_gen_placeholder")}
-            className="flex-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-400"
+            className="flex-1 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-4 py-2.5 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-400"
           />
           <button
             onClick={handleCustomGenerate}
@@ -600,7 +600,7 @@ export default function OverviewPage() {
       </div>
 
       {/* D) Pipeline control panel (merged from pipeline page) */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -612,12 +612,12 @@ export default function OverviewPage() {
               ) : (
                 <span className="inline-flex h-3 w-3 rounded-full bg-gray-300 dark:bg-gray-600" />
               )}
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-200">
                 {t("overview.pipeline_control")}
               </h2>
             </div>
             {runnerStatus.started_at && (
-              <span className="text-sm text-gray-500 dark:text-gray-400">
+              <span className="text-sm text-gray-500 dark:text-slate-400">
                 {t("overview.started_at") + " " + new Date(runnerStatus.started_at).toLocaleString("zh-CN")}
               </span>
             )}
@@ -626,7 +626,7 @@ export default function OverviewPage() {
             <button
               onClick={handleTrigger}
               disabled={triggering}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
             >
               {triggering ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -656,28 +656,28 @@ export default function OverviewPage() {
             )}
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-gray-700 pt-4 sm:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-[#1e2756] pt-4 sm:grid-cols-5">
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.cycles")}</p>
-            <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">{runnerStatus.cycles}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.cycles")}</p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-slate-200">{runnerStatus.cycles}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.generated_apps")}</p>
-            <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">{runnerStatus.apps_generated}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.generated_apps")}</p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-slate-200">{runnerStatus.apps_generated}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.pushed_github")}</p>
-            <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">{runnerStatus.apps_pushed}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.pushed_github")}</p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-slate-200">{runnerStatus.apps_pushed}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.error_count")}</p>
-            <p className={`text-xl font-semibold ${runnerStatus.errors > 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-gray-100"}`}>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.error_count")}</p>
+            <p className={`text-xl font-semibold ${runnerStatus.errors > 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-slate-200"}`}>
               {runnerStatus.errors}
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.current_task")}</p>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.current_task")}</p>
+            <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
               {runnerStatus.current_run_id ?? "--"}
             </p>
           </div>
@@ -685,8 +685,8 @@ export default function OverviewPage() {
       </div>
 
       {/* E) Thread search */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
-        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm">
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
           {t("overview.query_pipeline")}
         </label>
         <div className="flex gap-3">
@@ -698,13 +698,13 @@ export default function OverviewPage() {
               value={searchId}
               onChange={(e) => setSearchId(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <button
             onClick={handleSearch}
             disabled={searchLoading}
-            className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
           >
             {searchLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -717,11 +717,11 @@ export default function OverviewPage() {
       </div>
 
       {/* F) Pipeline stage visualization */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
-        <h2 className="mb-5 text-sm font-semibold text-gray-700 dark:text-gray-300">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-6 shadow-sm">
+        <h2 className="mb-5 text-sm font-semibold text-gray-700 dark:text-slate-300">
           {t("overview.pipeline_stages")}
           {pipelineStatus && (
-            <span className="ml-3 text-xs font-normal text-gray-400 dark:text-gray-500">
+            <span className="ml-3 text-xs font-normal text-gray-400 dark:text-slate-500">
               Thread: {pipelineStatus.thread_id}
             </span>
           )}
@@ -751,7 +751,7 @@ export default function OverviewPage() {
                         </div>
                         <Icon className={`h-5 w-5 ${style.text}`} />
                       </div>
-                      <div className="space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="space-y-1.5 text-xs text-gray-500 dark:text-slate-400">
                         <p>
                           {isActive
                             ? t("stage.running")
@@ -770,24 +770,24 @@ export default function OverviewPage() {
         </div>
 
         {pipelineStatus && (
-          <div className="mt-4 flex flex-wrap gap-6 border-t border-gray-100 dark:border-gray-700 pt-4 text-sm text-gray-500 dark:text-gray-400">
+          <div className="mt-4 flex flex-wrap gap-6 border-t border-gray-100 dark:border-[#1e2756] pt-4 text-sm text-gray-500 dark:text-slate-400">
             <span>
               Thread ID:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{pipelineStatus.thread_id}</span>
+              <span className="font-medium text-gray-700 dark:text-slate-300">{pipelineStatus.thread_id}</span>
             </span>
             <span>
               Status:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-300">{pipelineStatus.status}</span>
+              <span className="font-medium text-gray-700 dark:text-slate-300">{pipelineStatus.status}</span>
             </span>
           </div>
         )}
       </div>
 
       {/* G) Pipeline logs */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 px-5 py-4">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
           <Activity className="h-4 w-4 text-gray-400" />
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t("overview.pipeline_logs")}</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.pipeline_logs")}</h2>
           <button
             onClick={loadLogs}
             className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
@@ -804,10 +804,10 @@ export default function OverviewPage() {
         </div>
         <div
           ref={logRef}
-          className="max-h-72 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600 dark:text-gray-300"
+          className="max-h-72 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600 dark:text-slate-300"
         >
           {pipelineLogs.length === 0 ? (
-            <p className="py-6 text-center text-gray-400 dark:text-gray-500">
+            <p className="py-6 text-center text-gray-400 dark:text-slate-500">
               {t("overview.no_logs")}
             </p>
           ) : (
@@ -817,14 +817,14 @@ export default function OverviewPage() {
                 error: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
                 pipeline_update: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
                 build_update: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
-                info: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+                info: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400",
               };
               const badge = entry.type
-                ? badgeColor[entry.type] ?? "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
-                : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400";
+                ? badgeColor[entry.type] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400"
+                : "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400";
               return (
                 <div key={i} className="py-0.5 flex items-start gap-1.5">
-                  <span className="text-gray-400 dark:text-gray-500 shrink-0">{entry.time}</span>
+                  <span className="text-gray-400 dark:text-slate-500 shrink-0">{entry.time}</span>
                   <span
                     className={`inline-block rounded px-1 py-0 text-[10px] font-medium shrink-0 ${badge}`}
                   >
@@ -841,14 +841,14 @@ export default function OverviewPage() {
       {/* H) Two-column tables */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent demands */}
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-          <div className="border-b border-gray-100 dark:border-gray-700 px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t("overview.recent_demands")}</h2>
+        <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+          <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.recent_demands")}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400">
+                <tr className="border-b border-gray-100 dark:border-[#1e2756] text-left text-xs text-gray-500 dark:text-slate-400">
                   <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
                   <th className="px-4 py-3 font-medium">{t("demands.name")}</th>
                   <th className="px-4 py-3 font-medium">{t("demands.status")}</th>
@@ -864,7 +864,7 @@ export default function OverviewPage() {
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-4 py-8 text-center text-gray-400 dark:text-gray-500"
+                      className="px-4 py-8 text-center text-gray-400 dark:text-slate-500"
                     >
                       {t("overview.no_data")}
                     </td>
@@ -873,16 +873,16 @@ export default function OverviewPage() {
                   demands.map((d) => (
                     <tr
                       key={d.demand_id}
-                      className="border-b border-gray-50 dark:border-gray-700/50 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="border-b border-gray-50 dark:border-[#1e2756]/50 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                     >
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">#{d.demand_id}</td>
-                      <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">#{d.demand_id}</td>
+                      <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-slate-200">
                         {d.title}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={d.status} t={t} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                         {new Date(d.created_at).toLocaleDateString("zh-CN")}
                       </td>
                     </tr>
@@ -894,14 +894,14 @@ export default function OverviewPage() {
         </div>
 
         {/* Recent builds */}
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-          <div className="border-b border-gray-100 dark:border-gray-700 px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t("overview.recent_builds")}</h2>
+        <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+          <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.recent_builds")}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400">
+                <tr className="border-b border-gray-100 dark:border-[#1e2756] text-left text-xs text-gray-500 dark:text-slate-400">
                   <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
                   <th className="px-4 py-3 font-medium">{t("builds.step")}</th>
                   <th className="px-4 py-3 font-medium">{t("demands.status")}</th>
@@ -917,7 +917,7 @@ export default function OverviewPage() {
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-4 py-8 text-center text-gray-400 dark:text-gray-500"
+                      className="px-4 py-8 text-center text-gray-400 dark:text-slate-500"
                     >
                       {t("overview.no_data")}
                     </td>
@@ -926,16 +926,16 @@ export default function OverviewPage() {
                   builds.map((b) => (
                     <tr
                       key={b.build_id}
-                      className="border-b border-gray-50 dark:border-gray-700/50 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="border-b border-gray-50 dark:border-[#1e2756]/50 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                     >
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">#{b.build_id}</td>
-                      <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">#{b.build_id}</td>
+                      <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-slate-200">
                         {b.step}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={b.status} t={t} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                         {new Date(b.created_at).toLocaleDateString("zh-CN")}
                       </td>
                     </tr>

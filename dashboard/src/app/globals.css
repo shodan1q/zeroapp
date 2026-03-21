@@ -17,6 +17,18 @@
   --color-text-primary: #111827;
   --color-text-secondary: #6b7280;
   --color-text-muted: #9ca3af;
+
+  /* Dark theme - navy blue tones matching login page */
+  --color-dark-bg: #0a0e27;
+  --color-dark-bg-card: #111738;
+  --color-dark-bg-card-hover: #161d45;
+  --color-dark-border: #1e2756;
+  --color-dark-border-light: #171f4a;
+  --color-dark-text: #e2e8f0;
+  --color-dark-text-secondary: #94a3b8;
+  --color-dark-text-muted: #64748b;
+  --color-dark-sidebar: #0c1130;
+  --color-dark-input: #0f1538;
 }
 
 /* Clean card shadow */
@@ -72,7 +84,7 @@
   }
 
   .dark * {
-    scrollbar-color: #4b5563 transparent;
+    scrollbar-color: #1e2756 transparent;
   }
 
   *::-webkit-scrollbar {
@@ -94,10 +106,21 @@
   }
 
   .dark *::-webkit-scrollbar-thumb {
-    background-color: #4b5563;
+    background-color: #1e2756;
   }
 
   .dark *::-webkit-scrollbar-thumb:hover {
-    background-color: #6b7280;
+    background-color: #2d3a6e;
+  }
+
+  /* Dark mode base overrides for navy theme */
+  .dark {
+    --color-bg: var(--color-dark-bg);
+    --color-bg-card: var(--color-dark-bg-card);
+    --color-border: var(--color-dark-border);
+    --color-border-light: var(--color-dark-border-light);
+    --color-text-primary: var(--color-dark-text);
+    --color-text-secondary: var(--color-dark-text-secondary);
+    --color-text-muted: var(--color-dark-text-muted);
   }
 }

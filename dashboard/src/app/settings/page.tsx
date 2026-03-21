@@ -29,10 +29,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-      <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 px-5 py-4">
+    <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+      <div className="flex items-center gap-2 border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
         <Icon className="h-5 w-5 text-gray-400" />
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -52,7 +52,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-300">
         {label}
       </label>
       {children}
@@ -80,7 +80,7 @@ function TextInput({
       onChange={(e) => onChange?.(e.target.value)}
       placeholder={placeholder}
       readOnly={readOnly}
-      className={`w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${readOnly ? "cursor-not-allowed bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400" : ""}`}
+      className={`w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${readOnly ? "cursor-not-allowed bg-gray-50 dark:bg-[#0a0e27] text-gray-500 dark:text-slate-400" : ""}`}
     />
   );
 }
@@ -94,12 +94,12 @@ function MaskedField({ label, value }: { label: string; value: string }) {
   return (
     <Field label={label}>
       <div className="flex items-center gap-2">
-        <div className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 font-mono text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex-1 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-gray-50 dark:bg-[#0a0e27] px-3 py-2 font-mono text-sm text-gray-500 dark:text-slate-400">
           {visible ? value || t("settings.not_configured") : masked}
         </div>
         <button
           onClick={() => setVisible(!visible)}
-          className="rounded-md border border-gray-200 dark:border-gray-600 p-2 text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300"
+          className="rounded-md border border-gray-200 dark:border-[#1e2756] p-2 text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] hover:text-gray-600 dark:hover:text-gray-300"
         >
           {visible ? (
             <EyeOff className="h-4 w-4" />
@@ -173,8 +173,8 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Settings className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("settings.title")}</h1>
+          <Settings className="h-6 w-6 text-gray-500 dark:text-slate-400" />
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("settings.title")}</h1>
         </div>
         <button
           onClick={handleSave}
@@ -196,7 +196,7 @@ export default function SettingsPage() {
                 className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
                   claudeMode === "api"
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                    : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    : "border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                 }`}
               >
                 <Server className="h-4 w-4" />
@@ -207,7 +207,7 @@ export default function SettingsPage() {
                 className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
                   claudeMode === "local"
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                    : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    : "border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                 }`}
               >
                 <Monitor className="h-4 w-4" />
@@ -220,7 +220,7 @@ export default function SettingsPage() {
             <select
               value={claudeModel}
               onChange={(e) => setClaudeModel(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
               <option value="claude-opus-4-20250514">Claude Opus 4</option>
@@ -295,7 +295,7 @@ export default function SettingsPage() {
         <div className="space-y-5">
           {/* Enabled sources */}
           <div>
-            <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p className="mb-3 text-sm font-medium text-gray-700 dark:text-slate-300">
               {t("settings.enabled_sources")}
             </p>
             <div className="flex flex-wrap gap-3">
@@ -308,9 +308,9 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={enabled}
                     onChange={() => toggleSource(key)}
-                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-gray-300 dark:border-[#1e2756] text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-sm text-gray-700 dark:text-slate-300">
                     {key === "reddit"
                       ? "Reddit"
                       : key === "producthunt"
@@ -327,8 +327,8 @@ export default function SettingsPage() {
           </div>
 
           {/* Reddit credentials */}
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-            <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="border-t border-gray-100 dark:border-[#1e2756] pt-4">
+            <p className="mb-3 text-sm font-medium text-gray-700 dark:text-slate-300">
               {t("settings.reddit_credentials")}
             </p>
             <div className="grid gap-4 sm:grid-cols-2">

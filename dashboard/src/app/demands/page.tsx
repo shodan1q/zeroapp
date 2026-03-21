@@ -51,7 +51,7 @@ const SOURCE_OPTIONS = [
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+    pending: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300",
     evaluating: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
     approved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     rejected: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
@@ -68,7 +68,7 @@ function statusBadge(status: string) {
   };
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300"}`}
     >
       {label[status] ?? status}
     </span>
@@ -80,7 +80,7 @@ function SkeletonRow() {
     <tr>
       {Array.from({ length: 9 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-4 w-full animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="h-4 w-full animate-pulse rounded bg-gray-200 dark:bg-[#161d45]" />
         </td>
       ))}
     </tr>
@@ -188,7 +188,7 @@ export default function DemandsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-6 w-6 text-amber-500" />
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("demands.title")}</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("demands.title")}</h1>
         </div>
 
         {/* Filters */}
@@ -199,7 +199,7 @@ export default function DemandsPage() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -214,7 +214,7 @@ export default function DemandsPage() {
               setSourceFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             {SOURCE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -226,11 +226,11 @@ export default function DemandsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400">
+              <tr className="border-b border-gray-100 dark:border-[#1e2756] text-left text-xs text-gray-500 dark:text-slate-400">
                 <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
                 <th className="px-4 py-3 font-medium">{t("demands.name")}</th>
                 <th className="px-4 py-3 font-medium">{t("demands.category")}</th>
@@ -251,7 +251,7 @@ export default function DemandsPage() {
                 <tr>
                   <td
                     colSpan={9}
-                    className="px-4 py-12 text-center text-gray-400 dark:text-gray-500"
+                    className="px-4 py-12 text-center text-gray-400 dark:text-slate-500"
                   >
                     {t("common.no_data")}
                   </td>
@@ -261,18 +261,18 @@ export default function DemandsPage() {
                   <React.Fragment key={d.demand_id}>
                     <tr
                       onClick={() => handleExpand(d.demand_id)}
-                      className="cursor-pointer border-b border-gray-50 dark:border-gray-700/50 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="cursor-pointer border-b border-gray-50 dark:border-[#1e2756]/50 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                     >
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">#{d.demand_id}</td>
-                      <td className="max-w-[220px] truncate px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">#{d.demand_id}</td>
+                      <td className="max-w-[220px] truncate px-4 py-3 font-medium text-gray-900 dark:text-slate-200">
                         {d.title}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.category ?? "--"}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{d.source ?? "--"}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatScore(d.overall_score)}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatScore(d.trend_score)}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{d.category ?? "--"}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{d.source ?? "--"}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{formatScore(d.overall_score)}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{formatScore(d.trend_score)}</td>
                       <td className="px-4 py-3">{statusBadge(d.status)}</td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                         {new Date(d.created_at).toLocaleDateString("zh-CN")}
                       </td>
                       <td className="px-4 py-3">
@@ -315,11 +315,11 @@ export default function DemandsPage() {
                       <tr key={`detail-${d.demand_id}`}>
                         <td
                           colSpan={9}
-                          className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-6 py-4"
+                          className="border-b border-gray-100 dark:border-[#1e2756] bg-gray-50 dark:bg-[#0a0e27] px-6 py-4"
                         >
                           {detailLoading ? (
                             <div className="flex items-center gap-2 text-sm text-gray-400">
-                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 dark:border-gray-600 border-t-blue-500" />
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 dark:border-[#1e2756] border-t-blue-500" />
                               加载中...
                             </div>
                           ) : detail ? (
@@ -327,12 +327,12 @@ export default function DemandsPage() {
                               {/* Left column */}
                               <div className="space-y-3">
                                 <div>
-                                  <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">描述 / Description</p>
-                                  <p className="text-gray-600 dark:text-gray-400">{detail.description || "--"}</p>
+                                  <p className="mb-1 font-medium text-gray-700 dark:text-slate-300">描述 / Description</p>
+                                  <p className="text-gray-600 dark:text-slate-400">{detail.description || "--"}</p>
                                 </div>
                                 {detail.core_features && (
                                   <div>
-                                    <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">核心功能 / Core Features</p>
+                                    <p className="mb-1 font-medium text-gray-700 dark:text-slate-300">核心功能 / Core Features</p>
                                     <div className="flex flex-wrap gap-1.5">
                                       {(() => {
                                         try {
@@ -345,15 +345,15 @@ export default function DemandsPage() {
                                             ));
                                           }
                                         } catch {}
-                                        return <span className="text-gray-600 dark:text-gray-400">{detail.core_features}</span>;
+                                        return <span className="text-gray-600 dark:text-slate-400">{detail.core_features}</span>;
                                       })()}
                                     </div>
                                   </div>
                                 )}
                                 {detail.target_users && (
                                   <div>
-                                    <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">目标用户 / Target Users</p>
-                                    <p className="text-gray-600 dark:text-gray-400">{detail.target_users}</p>
+                                    <p className="mb-1 font-medium text-gray-700 dark:text-slate-300">目标用户 / Target Users</p>
+                                    <p className="text-gray-600 dark:text-slate-400">{detail.target_users}</p>
                                   </div>
                                 )}
                               </div>
@@ -361,33 +361,33 @@ export default function DemandsPage() {
                               <div className="space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
                                   {detail.complexity && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">复杂度 / Complexity</p>
-                                      <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{detail.complexity}</p>
+                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                      <p className="text-xs text-gray-500 dark:text-slate-400">复杂度 / Complexity</p>
+                                      <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.complexity}</p>
                                     </div>
                                   )}
                                   {detail.monetization && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">变现方式 / Monetization</p>
-                                      <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{detail.monetization}</p>
+                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                      <p className="text-xs text-gray-500 dark:text-slate-400">变现方式 / Monetization</p>
+                                      <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.monetization}</p>
                                     </div>
                                   )}
                                   {detail.competition_score !== null && detail.competition_score !== undefined && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">竞争度 / Competition</p>
-                                      <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{detail.competition_score.toFixed(2)}</p>
+                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                      <p className="text-xs text-gray-500 dark:text-slate-400">竞争度 / Competition</p>
+                                      <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.competition_score.toFixed(2)}</p>
                                     </div>
                                   )}
                                   {detail.feasibility_score !== null && detail.feasibility_score !== undefined && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">可行性 / Feasibility</p>
-                                      <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{detail.feasibility_score.toFixed(2)}</p>
+                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                      <p className="text-xs text-gray-500 dark:text-slate-400">可行性 / Feasibility</p>
+                                      <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.feasibility_score.toFixed(2)}</p>
                                     </div>
                                   )}
                                 </div>
                                 {detail.source_url && (
                                   <div>
-                                    <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">需求来源 / Source</p>
+                                    <p className="mb-1 font-medium text-gray-700 dark:text-slate-300">需求来源 / Source</p>
                                     <a
                                       href={detail.source_url}
                                       target="_blank"
@@ -402,8 +402,8 @@ export default function DemandsPage() {
                                 )}
                                 {!detail.source_url && detail.source && (
                                   <div>
-                                    <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">需求来源 / Source</p>
-                                    <span className="text-gray-600 dark:text-gray-400">{detail.source}</span>
+                                    <p className="mb-1 font-medium text-gray-700 dark:text-slate-300">需求来源 / Source</p>
+                                    <span className="text-gray-600 dark:text-slate-400">{detail.source}</span>
                                   </div>
                                 )}
                               </div>
@@ -425,15 +425,15 @@ export default function DemandsPage() {
 
         {/* Pagination */}
         {data && totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700 px-4 py-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#1e2756] px-4 py-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400">
               共 {data.total} 条，第 {data.page}/{totalPages} 页
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-md border border-gray-200 dark:border-gray-600 p-1.5 text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -446,7 +446,7 @@ export default function DemandsPage() {
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       page === pageNum
                         ? "bg-blue-600 text-white"
-                        : "border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        : "border border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                     }`}
                   >
                     {pageNum}
@@ -456,7 +456,7 @@ export default function DemandsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-md border border-gray-200 dark:border-gray-600 p-1.5 text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

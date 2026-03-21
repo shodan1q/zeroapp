@@ -31,7 +31,7 @@ import { useI18n } from "@/lib/i18n";
 
 function statusBadge(status: string, t: (key: string) => string) {
   const map: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+    draft: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300",
     code_generated: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
     building: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     testing: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
@@ -50,7 +50,7 @@ function statusBadge(status: string, t: (key: string) => string) {
   };
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300"}`}
     >
       {labelKey[status] ? t(labelKey[status]) : status}
     </span>
@@ -59,17 +59,17 @@ function statusBadge(status: string, t: (key: string) => string) {
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm">
+    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-3">
-        <div className="h-12 w-12 rounded-lg bg-gray-200 dark:bg-gray-700" />
+        <div className="h-12 w-12 rounded-lg bg-gray-200 dark:bg-[#161d45]" />
         <div className="flex-1 space-y-2">
-          <div className="h-4 w-32 rounded bg-gray-200 dark:bg-gray-700" />
-          <div className="h-3 w-24 rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="h-4 w-32 rounded bg-gray-200 dark:bg-[#161d45]" />
+          <div className="h-3 w-24 rounded bg-gray-200 dark:bg-[#161d45]" />
         </div>
       </div>
       <div className="space-y-2">
-        <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-full rounded bg-gray-200 dark:bg-[#161d45]" />
+        <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-[#161d45]" />
       </div>
     </div>
   );
@@ -231,7 +231,7 @@ export default function AppsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Smartphone className="h-6 w-6 text-blue-500" />
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("apps.title")}</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("apps.title")}</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -243,7 +243,7 @@ export default function AppsPage() {
               placeholder={t("apps.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-gray-200 shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-slate-200 shadow-sm placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -254,7 +254,7 @@ export default function AppsPage() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">{t("apps.all_status")}</option>
             <option value="draft">{t("status.draft")}</option>
@@ -267,7 +267,7 @@ export default function AppsPage() {
 
           <button
             onClick={loadData}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
           >
             <RefreshCw className="h-4 w-4" />
             {t("overview.refresh")}
@@ -278,11 +278,11 @@ export default function AppsPage() {
       {/* Generated apps section (file system) */}
       {(loading || filteredGenApps.length > 0) && (
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-300">
             <FolderOpen className="h-4 w-4 text-emerald-500" />
             {t("apps.generated_apps")}
             {!loading && (
-              <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+              <span className="text-xs font-normal text-gray-400 dark:text-slate-500">
                 ({filteredGenApps.length})
               </span>
             )}
@@ -293,7 +293,7 @@ export default function AppsPage() {
               : filteredGenApps.map((app) => (
                   <div
                     key={app.id}
-                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     {/* App header */}
                     <div className="mb-4 flex items-start gap-3">
@@ -301,10 +301,10 @@ export default function AppsPage() {
                         <Package className="h-6 w-6 text-emerald-500" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-slate-200">
                           {app.name}
                         </h3>
-                        <p className="truncate text-xs text-gray-400 dark:text-gray-500">
+                        <p className="truncate text-xs text-gray-400 dark:text-slate-500">
                           {app.id}
                         </p>
                       </div>
@@ -319,7 +319,7 @@ export default function AppsPage() {
 
                     {/* Path */}
                     <div className="mb-4">
-                      <p className="truncate font-mono text-xs text-gray-400 dark:text-gray-500" title={app.path}>
+                      <p className="truncate font-mono text-xs text-gray-400 dark:text-slate-500" title={app.path}>
                         {app.path}
                       </p>
                     </div>
@@ -365,14 +365,14 @@ export default function AppsPage() {
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700 pt-3">
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                    <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#1e2756] pt-3">
+                      <p className="text-[10px] text-gray-400 dark:text-slate-500">
                         {new Date(app.created_at).toLocaleDateString("zh-CN")}
                       </p>
                       <div className="flex items-center gap-2">
                         <Link
                           href="/revise"
-                          className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+                          className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#1e2756] px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                         >
                           <Wrench className="h-3 w-3" />
                           {t("apps.revise")}
@@ -388,11 +388,11 @@ export default function AppsPage() {
       {/* DB apps section */}
       {(loading || filteredDbItems.length > 0) && (
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-slate-300">
             <Smartphone className="h-4 w-4 text-blue-500" />
             {t("apps.db_apps")}
             {!loading && (
-              <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+              <span className="text-xs font-normal text-gray-400 dark:text-slate-500">
                 ({data?.total ?? 0})
               </span>
             )}
@@ -403,7 +403,7 @@ export default function AppsPage() {
               : filteredDbItems.map((app) => (
                   <div
                     key={app.app_id}
-                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     {/* App header */}
                     <div className="mb-4 flex items-start gap-3">
@@ -411,10 +411,10 @@ export default function AppsPage() {
                         <Package className="h-6 w-6 text-blue-500" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-slate-200">
                           {app.app_name}
                         </h3>
-                        <p className="truncate text-xs text-gray-400 dark:text-gray-500">
+                        <p className="truncate text-xs text-gray-400 dark:text-slate-500">
                           {app.package_name}
                         </p>
                       </div>
@@ -429,41 +429,41 @@ export default function AppsPage() {
                         <div className="flex items-center justify-center gap-1 text-gray-400">
                           <Download className="h-3.5 w-3.5" />
                         </div>
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
                           {app.total_downloads > 0 ? app.total_downloads.toLocaleString() : "--"}
                         </p>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500">{t("apps.downloads")}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-slate-500">{t("apps.downloads")}</p>
                       </div>
                       <div>
                         <div className="flex items-center justify-center gap-1 text-gray-400">
                           <Star className="h-3.5 w-3.5" />
                         </div>
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
                           {app.rating !== null ? app.rating.toFixed(1) : "--"}
                         </p>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500">{t("apps.rating")}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-slate-500">{t("apps.rating")}</p>
                       </div>
                       <div>
                         <div className="flex items-center justify-center gap-1 text-gray-400">
                           <DollarSign className="h-3.5 w-3.5" />
                         </div>
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
                           {app.revenue_usd > 0 ? `$${app.revenue_usd.toFixed(2)}` : "--"}
                         </p>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500">{t("apps.revenue")}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-slate-500">{t("apps.revenue")}</p>
                       </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700 pt-3">
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                    <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#1e2756] pt-3">
+                      <p className="text-[10px] text-gray-400 dark:text-slate-500">
                         {new Date(app.created_at).toLocaleDateString("zh-CN")}
                       </p>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleRebuild(app.app_id)}
                           disabled={rebuildingId === app.app_id}
-                          className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#1e2756] px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
                         >
                           <RefreshCw
                             className={`h-3 w-3 ${rebuildingId === app.app_id ? "animate-spin" : ""}`}
@@ -475,7 +475,7 @@ export default function AppsPage() {
                             href={app.google_play_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+                            className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#1e2756] px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                           >
                             <ExternalLink className="h-3 w-3" />
                             {t("apps.view_details")}
@@ -491,10 +491,10 @@ export default function AppsPage() {
 
       {/* Empty state */}
       {!loading && !hasAnyData && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-16 shadow-sm">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] py-16 shadow-sm">
           <Smartphone className="mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
-          <p className="text-sm text-gray-400 dark:text-gray-500">{t("common.no_data")}</p>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-sm text-gray-400 dark:text-slate-500">{t("common.no_data")}</p>
+          <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">
             {t("apps.no_apps_hint")}
           </p>
         </div>
@@ -503,14 +503,14 @@ export default function AppsPage() {
       {/* Pagination (for DB apps) */}
       {data && totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-gray-500 dark:text-slate-400">
             {t("apps.db_apps")}: {data.total} / {data.page}/{totalPages}
           </p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="rounded-md border border-gray-200 dark:border-gray-600 p-1.5 text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+              className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -523,7 +523,7 @@ export default function AppsPage() {
                   className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                     page === pageNum
                       ? "bg-blue-600 text-white"
-                      : "border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      : "border border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                   }`}
                 >
                   {pageNum}
@@ -533,7 +533,7 @@ export default function AppsPage() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="rounded-md border border-gray-200 dark:border-gray-600 p-1.5 text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+              className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
