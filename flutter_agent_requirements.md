@@ -2,7 +2,7 @@
 
 > **项目代号**：AutoDev Agent
 > **目标**：24小时不间断从互联网挖掘需求 → AI 自动开发 Flutter App → 自动构建三端 → 自动提交上架
-> **技术栈**：Flutter + Dart | Python (Agent 编排) | Claude API (代码生成)
+> **技术栈**：Flutter + Dart | Python + LangGraph (Agent 编排) | Claude Opus 4.6 (代码生成，支持 API / Max Plan 本地代理)
 
 ---
 
@@ -10,8 +10,9 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Agent 调度中心 (Python)                │
-│         Celery / APScheduler 定时任务 + 状态机             │
+│               Agent 调度中心 (Python + LangGraph)         │
+│       StateGraph 有向图编排 + SQLite Checkpoint 持久化     │
+│       指数退避重试 + 中断恢复 + 人工审核中断点              │
 └──────┬─────────┬──────────┬──────────┬─────────┬────────┘
        │         │          │          │         │
        ▼         ▼          ▼          ▼         ▼
@@ -19,6 +20,9 @@
    │ 需求   │ │ 评估   │ │ 代码   │ │ 构建   │ │ 运营   │
    │ 采集层 │ │ 决策层 │ │ 生成层 │ │ 发布层 │ │ 监控层 │
    └───────┘ └───────┘ └────────┘ └────────┘ └────────┘
+
+主图（批量）：crawl → process → evaluate → decide → [人工审核] → fan_out
+子图（单需求）：generate → build → assets → [人工审核] → publish
 ```
 
 全部 5 层共 **42 个子模块**，以下逐层展开。
@@ -44,7 +48,7 @@
 | 编号 | 子模块 | 说明 | 优先级 |
 |------|--------|------|--------|
 | 1.2.1 | 原始数据清洗管道 | 去重、去噪、语言翻译（统一为中/英文） | P0 |
-| 1.2.2 | LLM 需求提取器 | 调用 Claude API 从非结构化文本中提取：App名称、核心功能、目标用户、变现模式 | P0 |
+| 1.2.2 | LLM 需求提取器 | 调用 Claude Opus 4.6（API 或 Max Plan 本地代理）从非结构化文本中提取：App名称、核心功能、目标用户、变现模式 | P0 |
 | 1.2.3 | 需求去重引擎 | Embedding 向量相似度比对，避免重复开发同类 App | P0 |
 | 1.2.4 | 需求数据库 | PostgreSQL 存储所有采集到的需求，含状态字段（待评估/已通过/已开发/已上架） | P0 |
 
@@ -464,7 +468,7 @@ CREATE TABLE app_registry (
 
 | 用途 | 配置 | 预算/月 |
 |------|------|--------|
-| Agent 主控服务器 | 4C8G Ubuntu 22.04 | ~$40 |
+| Agent 主控服务器（LangGraph + SQLite checkpoint） | 4C8G Ubuntu 22.04 | ~$40 |
 | Flutter 构建服务器 | 8C16G（需要编译资源）| ~$80 |
 | macOS 构建机 | Mac Mini M2（iOS 构建必须 macOS）| ~$100（云Mac）或一次性 $599 |
 | 数据库 | PostgreSQL（可用 Supabase 免费版起步） | $0-25 |
@@ -474,7 +478,7 @@ CREATE TABLE app_registry (
 
 | 服务 | 用途 | 费用 |
 |------|------|------|
-| Claude API | 代码生成 + 需求分析 | ~$100-300/月（按量） |
+| Claude Opus 4.6 | 代码生成 + 需求分析（支持两种模式：API 按量付费 或 Max Plan $100/月通过 claude-max-api 本地代理） | $0（Max Plan）或 ~$100-300/月（API 按量） |
 | DALL-E 3 API | 图标生成 | ~$20/月 |
 | Google Play Console | Android 上架 | $25 一次性 |
 | Apple Developer | iOS 上架 | $99/年 |
@@ -531,7 +535,10 @@ Account Pool:
 
 ### Phase 1：MVP 验证（第 1-2 周）
 
-- [ ] 搭建 Agent 主控框架（Python + Celery）
+- [x] 搭建 Agent 主控框架（Python + LangGraph）
+- [x] 实现 LangGraph StateGraph 编排 + SQLite checkpoint 持久化
+- [x] 实现指数退避重试机制 + 中断恢复
+- [x] 支持 Claude Opus 4.6 API 和 Max Plan 本地代理双模式
 - [ ] 实现 1 个数据源的需求采集（Reddit）
 - [ ] 实现 LLM 需求评估
 - [ ] 实现 1 个模板（单页工具）的代码生成
@@ -573,11 +580,16 @@ Account Pool:
 |--------|------|------|
 | 跨平台框架 | Flutter | LLM 训练数据最多，CLI 工具链最完善 |
 | 状态管理 | Riverpod | 代码生成友好，类型安全 |
-| Agent 编排 | Python + Celery | 生态成熟，异步任务调度 |
-| LLM | Claude API (Sonnet) | 代码生成质量高，性价比好 |
+| Agent 编排 | Python + LangGraph | 有向图编排，内置 checkpoint 持久化 + 中断恢复 + 条件分支，比 Celery 更适合多步骤 LLM 流水线 |
+| 中断恢复 | LangGraph SQLite Checkpoint | 崩溃后从断点恢复，不浪费已完成的 LLM 调用 |
+| 重试策略 | 指数退避（base=2s, max=300s, 3次） | 统一装饰器应用于所有节点，避免散落在各处的重试逻辑 |
+| 人工审核 | LangGraph interrupt_before | 在代码生成和发布前设置中断点，支持人工确认后继续 |
+| LLM | Claude Opus 4.6 | 代码生成质量最高，支持 API 按量付费 或 Max Plan 本地代理（claude-max-api）零额外成本 |
+| LLM 接入 | claude-max-api 本地代理 | OpenAI 兼容接口，通过 Claude Max 订阅调用，autodev/llm.py 自动适配 Anthropic/OpenAI 两种格式 |
 | 数据库 | PostgreSQL | 结构化数据 + JSON 字段灵活 |
 | CI/CD | GitHub Actions + fastlane | 免费额度够用，社区模板多 |
 | 广告 | AdMob | Flutter 官方支持，覆盖三端 |
 | 分析 | Firebase | 免费，Flutter 深度集成 |
 | 图标生成 | DALL-E 3 | API 调用简单，质量稳定 |
 | 鸿蒙适配 | Flutter OHOS 社区版 | 与 Flutter 主线代码复用率最高 |
+| 定时调度 | Celery Beat（可选） | 仅用于定时触发，实际编排走 LangGraph；也可用 asyncio loop 替代 |
