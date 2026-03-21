@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   GitBranch,
   Search,
@@ -9,21 +9,25 @@ import {
   XCircle,
   Loader2,
   Clock,
-  Bug,
   Code2,
   Hammer,
   TestTube,
   Rocket,
   Brain,
-  Globe,
   RefreshCw,
+  Square,
+  Activity,
 } from "lucide-react";
 import {
   fetchPipelineStatus,
   triggerPipeline,
   fetchBuilds,
+  fetchRunnerStatus,
+  fetchPipelineLogs,
+  startPipeline,
+  stopPipeline,
 } from "@/lib/api";
-import type { PipelineState, PipelineStatusResponse, BuildLogOut } from "@/lib/types";
+import type { PipelineStatusResponse, BuildLogOut, RunnerStatus } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 /* ------------------------------------------------------------------ */
@@ -124,7 +128,45 @@ export default function PipelinePage() {
   const [triggering, setTriggering] = useState(false);
   const [error, setError] = useState("");
 
+  // Runner status
+  const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>({
+    running: false,
+    current_run_id: null,
+    started_at: null,
+    cycles: 0,
+    apps_generated: 0,
+    apps_pushed: 0,
+    errors: 0,
+  });
+  const [runnerLoading, setRunnerLoading] = useState(false);
+
+  // Pipeline logs
+  const [pipelineLogs, setPipelineLogs] = useState<
+    { time: string; message: string; type: string }[]
+  >([]);
+  const logRef = useRef<HTMLDivElement>(null);
+
   const { lastEvent } = useWebSocket();
+
+  /* ---------- Load runner status --------------------------------- */
+
+  const loadRunnerStatus = useCallback(async () => {
+    const status = await fetchRunnerStatus();
+    setRunnerStatus(status);
+  }, []);
+
+  /* ---------- Load pipeline logs --------------------------------- */
+
+  const loadLogs = useCallback(async () => {
+    const res = await fetchPipelineLogs();
+    setPipelineLogs(
+      res.logs.map((l) => ({
+        time: new Date(l.time).toLocaleTimeString("zh-CN"),
+        message: l.message,
+        type: l.type,
+      })),
+    );
+  }, []);
 
   /* ---------- Load history -------------------------------------- */
 
@@ -142,7 +184,20 @@ export default function PipelinePage() {
 
   useEffect(() => {
     loadHistory();
-  }, [loadHistory]);
+    loadRunnerStatus();
+    loadLogs();
+  }, [loadHistory, loadRunnerStatus, loadLogs]);
+
+  /* ---------- Polling -------------------------------------------- */
+
+  useEffect(() => {
+    const interval = runnerStatus.running ? 5_000 : 15_000;
+    const timer = setInterval(() => {
+      loadRunnerStatus();
+      loadLogs();
+    }, interval);
+    return () => clearInterval(timer);
+  }, [loadRunnerStatus, loadLogs, runnerStatus.running]);
 
   /* ---------- WebSocket updates --------------------------------- */
 
@@ -171,11 +226,23 @@ export default function PipelinePage() {
               },
         );
       }
+      loadLogs();
     }
     if (lastEvent?.type === "build_update") {
       loadHistory();
     }
-  }, [lastEvent, threadId, loadHistory]);
+    if (lastEvent?.type === "stage_change") {
+      loadLogs();
+      loadRunnerStatus();
+    }
+  }, [lastEvent, threadId, loadHistory, loadLogs, loadRunnerStatus]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [pipelineLogs]);
 
   /* ---------- Actions ------------------------------------------- */
 
@@ -224,6 +291,20 @@ export default function PipelinePage() {
     }
   };
 
+  const handleStartPipeline = async () => {
+    setRunnerLoading(true);
+    await startPipeline();
+    await loadRunnerStatus();
+    setRunnerLoading(false);
+  };
+
+  const handleStopPipeline = async () => {
+    setRunnerLoading(true);
+    await stopPipeline();
+    await loadRunnerStatus();
+    setRunnerLoading(false);
+  };
+
   const currentStage = pipelineStatus?.stage ?? "idle";
 
   return (
@@ -235,18 +316,93 @@ export default function PipelinePage() {
           <h1 className="text-2xl font-semibold text-gray-900">流水线</h1>
         </div>
 
-        <button
-          onClick={handleTrigger}
-          disabled={triggering}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
-        >
-          {triggering ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
-          触发新流水线
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleTrigger}
+            disabled={triggering}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
+          >
+            {triggering ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            触发单次运行
+          </button>
+        </div>
+      </div>
+
+      {/* Runner control panel */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {runnerStatus.running ? (
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                </span>
+              ) : (
+                <span className="inline-flex h-3 w-3 rounded-full bg-gray-300" />
+              )}
+              <h2 className="text-lg font-semibold text-gray-900">
+                {runnerStatus.running ? "流水线运行中" : "流水线已停止"}
+              </h2>
+            </div>
+            {runnerStatus.started_at && (
+              <span className="text-sm text-gray-500">
+                {"启动于 " + new Date(runnerStatus.started_at).toLocaleString("zh-CN")}
+              </span>
+            )}
+          </div>
+          <div>
+            {runnerStatus.running ? (
+              <button
+                onClick={handleStopPipeline}
+                disabled={runnerLoading}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                <Square className="h-4 w-4" />
+                {runnerLoading ? "处理中..." : "停止流水线"}
+              </button>
+            ) : (
+              <button
+                onClick={handleStartPipeline}
+                disabled={runnerLoading}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Play className="h-4 w-4" />
+                {runnerLoading ? "处理中..." : "启动流水线"}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-5">
+          <div>
+            <p className="text-xs text-gray-500">运行周期</p>
+            <p className="text-xl font-semibold text-gray-900">{runnerStatus.cycles}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">已生成应用</p>
+            <p className="text-xl font-semibold text-gray-900">{runnerStatus.apps_generated}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">已推送 GitHub</p>
+            <p className="text-xl font-semibold text-gray-900">{runnerStatus.apps_pushed}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">错误次数</p>
+            <p className={`text-xl font-semibold ${runnerStatus.errors > 0 ? "text-red-600" : "text-gray-900"}`}>
+              {runnerStatus.errors}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">当前任务</p>
+            <p className="text-sm font-medium text-gray-700">
+              {runnerStatus.current_run_id ?? "--"}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Thread search */}
@@ -362,6 +518,54 @@ export default function PipelinePage() {
         )}
       </div>
 
+      {/* Pipeline logs */}
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
+          <Activity className="h-4 w-4 text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-700">流水线日志</h2>
+          <button
+            onClick={loadLogs}
+            className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            刷新
+          </button>
+        </div>
+        <div
+          ref={logRef}
+          className="max-h-72 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600"
+        >
+          {pipelineLogs.length === 0 ? (
+            <p className="py-6 text-center text-gray-400">
+              暂无日志记录。启动流水线后将在此显示运行日志。
+            </p>
+          ) : (
+            pipelineLogs.map((entry, i) => {
+              const badgeColor: Record<string, string> = {
+                stage_change: "bg-blue-100 text-blue-700",
+                error: "bg-red-100 text-red-700",
+                pipeline_update: "bg-emerald-100 text-emerald-700",
+                info: "bg-gray-100 text-gray-600",
+              };
+              const badge = badgeColor[entry.type] ?? "bg-gray-100 text-gray-600";
+              return (
+                <div key={i} className="flex items-start gap-1.5 py-0.5">
+                  <span className="shrink-0 text-gray-400">{entry.time}</span>
+                  <span
+                    className={`inline-block shrink-0 rounded px-1 py-0 text-[10px] font-medium ${badge}`}
+                  >
+                    {entry.type}
+                  </span>
+                  <span className={entry.type === "error" ? "text-red-600" : ""}>
+                    {entry.message}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
       {/* Pipeline run history */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
@@ -400,9 +604,12 @@ export default function PipelinePage() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-4 py-12 text-center text-gray-400"
+                    className="px-4 py-12 text-center"
                   >
-                    暂无数据
+                    <p className="text-gray-400">暂无运行历史</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      流水线运行后将在此显示历史记录。
+                    </p>
                   </td>
                 </tr>
               ) : (

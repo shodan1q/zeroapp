@@ -12,10 +12,13 @@ import {
   ChevronRight,
   ExternalLink,
   Package,
+  FolderOpen,
+  Wrench,
 } from "lucide-react";
-import { fetchApps, rebuildApp } from "@/lib/api";
-import type { AppOut, PaginatedResponse } from "@/lib/types";
+import { fetchApps, rebuildApp, listGeneratedApps } from "@/lib/api";
+import type { AppOut, PaginatedResponse, GeneratedApp } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import Link from "next/link";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -73,6 +76,7 @@ function SkeletonCard() {
 
 export default function AppsPage() {
   const [data, setData] = useState<PaginatedResponse<AppOut> | null>(null);
+  const [generatedApps, setGeneratedApps] = useState<GeneratedApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -84,12 +88,16 @@ export default function AppsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetchApps({
-        page,
-        page_size: 12,
-        status: statusFilter || undefined,
-      });
-      setData(res);
+      const [appsRes, genRes] = await Promise.all([
+        fetchApps({
+          page,
+          page_size: 12,
+          status: statusFilter || undefined,
+        }),
+        listGeneratedApps(),
+      ]);
+      setData(appsRes);
+      setGeneratedApps(genRes.apps);
     } catch (err) {
       console.error("Failed to load apps", err);
     } finally {
@@ -119,13 +127,20 @@ export default function AppsPage() {
     }
   };
 
-  const items = data?.items ?? [];
+  const dbItems = data?.items ?? [];
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
-  // Client-side search filter
-  const filteredItems = search
-    ? items.filter((a) => a.app_name.toLowerCase().includes(search.toLowerCase()))
-    : items;
+  // Client-side search filter for DB apps
+  const filteredDbItems = search
+    ? dbItems.filter((a) => a.app_name.toLowerCase().includes(search.toLowerCase()))
+    : dbItems;
+
+  // Client-side search filter for generated apps
+  const filteredGenApps = search
+    ? generatedApps.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()))
+    : generatedApps;
+
+  const hasAnyData = filteredGenApps.length > 0 || filteredDbItems.length > 0;
 
   return (
     <div className="space-y-6">
@@ -149,7 +164,7 @@ export default function AppsPage() {
             />
           </div>
 
-          {/* Status filter */}
+          {/* Status filter (only applies to DB apps) */}
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -166,115 +181,207 @@ export default function AppsPage() {
             <option value="failed">失败</option>
             <option value="suspended">已下架</option>
           </select>
+
+          <button
+            onClick={loadData}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            刷新
+          </button>
         </div>
       </div>
 
-      {/* Card grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {loading
-          ? Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
-          : filteredItems.length === 0
-            ? null
-            : filteredItems.map((app) => (
-                <div
-                  key={app.app_id}
-                  className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  {/* App header */}
-                  <div className="mb-4 flex items-start gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
-                      <Package className="h-6 w-6 text-blue-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-sm font-semibold text-gray-900">
-                        {app.app_name}
-                      </h3>
-                      <p className="truncate text-xs text-gray-400">
-                        {app.package_name}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Status */}
-                  <div className="mb-4">{statusBadge(app.status)}</div>
-
-                  {/* Stats */}
-                  <div className="mb-4 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <div className="flex items-center justify-center gap-1 text-gray-400">
-                        <Download className="h-3.5 w-3.5" />
+      {/* Generated apps section (file system) */}
+      {(loading || filteredGenApps.length > 0) && (
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <FolderOpen className="h-4 w-4 text-emerald-500" />
+            已生成的应用
+            {!loading && (
+              <span className="text-xs font-normal text-gray-400">
+                ({filteredGenApps.length} 个)
+              </span>
+            )}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {loading
+              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+              : filteredGenApps.map((app) => (
+                  <div
+                    key={app.id}
+                    className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    {/* App header */}
+                    <div className="mb-4 flex items-start gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50">
+                        <Package className="h-6 w-6 text-emerald-500" />
                       </div>
-                      <p className="text-sm font-medium text-gray-700">
-                        {app.total_downloads > 0 ? app.total_downloads.toLocaleString() : "--"}
-                      </p>
-                      <p className="text-[10px] text-gray-400">下载量</p>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-center gap-1 text-gray-400">
-                        <Star className="h-3.5 w-3.5" />
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-semibold text-gray-900">
+                          {app.name}
+                        </h3>
+                        <p className="truncate text-xs text-gray-400">
+                          {app.id}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium text-gray-700">
-                        {app.rating !== null ? app.rating.toFixed(1) : "--"}
-                      </p>
-                      <p className="text-[10px] text-gray-400">评分</p>
                     </div>
-                    <div>
-                      <div className="flex items-center justify-center gap-1 text-gray-400">
-                        <DollarSign className="h-3.5 w-3.5" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-700">
-                        {app.revenue_usd > 0 ? `$${app.revenue_usd.toFixed(2)}` : "--"}
-                      </p>
-                      <p className="text-[10px] text-gray-400">收入</p>
-                    </div>
-                  </div>
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                    <p className="text-[10px] text-gray-400">
-                      {new Date(app.created_at).toLocaleDateString("zh-CN")}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleRebuild(app.app_id)}
-                        disabled={rebuildingId === app.app_id}
-                        className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        <RefreshCw
-                          className={`h-3 w-3 ${rebuildingId === app.app_id ? "animate-spin" : ""}`}
-                        />
-                        重新构建
-                      </button>
-                      {app.google_play_url && (
-                        <a
-                          href={app.google_play_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                    {/* Status */}
+                    <div className="mb-4">
+                      <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                        已生成代码
+                      </span>
+                    </div>
+
+                    {/* Path */}
+                    <div className="mb-4">
+                      <p className="truncate font-mono text-xs text-gray-400" title={app.path}>
+                        {app.path}
+                      </p>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(app.created_at).toLocaleDateString("zh-CN")}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href="/revise"
                           className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
                         >
-                          <ExternalLink className="h-3 w-3" />
-                          详情
-                        </a>
-                      )}
+                          <Wrench className="h-3 w-3" />
+                          修改完善
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-      </div>
-
-      {/* Empty state */}
-      {!loading && filteredItems.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-white py-16 shadow-sm">
-          <Smartphone className="mb-3 h-10 w-10 text-gray-300" />
-          <p className="text-sm text-gray-400">暂无数据</p>
+                ))}
+          </div>
         </div>
       )}
 
-      {/* Pagination */}
+      {/* DB apps section */}
+      {(loading || filteredDbItems.length > 0) && (
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <Smartphone className="h-4 w-4 text-blue-500" />
+            数据库应用
+            {!loading && (
+              <span className="text-xs font-normal text-gray-400">
+                ({data?.total ?? 0} 个)
+              </span>
+            )}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {loading
+              ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+              : filteredDbItems.map((app) => (
+                  <div
+                    key={app.app_id}
+                    className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    {/* App header */}
+                    <div className="mb-4 flex items-start gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+                        <Package className="h-6 w-6 text-blue-500" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-semibold text-gray-900">
+                          {app.app_name}
+                        </h3>
+                        <p className="truncate text-xs text-gray-400">
+                          {app.package_name}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="mb-4">{statusBadge(app.status)}</div>
+
+                    {/* Stats */}
+                    <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <Download className="h-3.5 w-3.5" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-700">
+                          {app.total_downloads > 0 ? app.total_downloads.toLocaleString() : "--"}
+                        </p>
+                        <p className="text-[10px] text-gray-400">下载量</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <Star className="h-3.5 w-3.5" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-700">
+                          {app.rating !== null ? app.rating.toFixed(1) : "--"}
+                        </p>
+                        <p className="text-[10px] text-gray-400">评分</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-center gap-1 text-gray-400">
+                          <DollarSign className="h-3.5 w-3.5" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-700">
+                          {app.revenue_usd > 0 ? `$${app.revenue_usd.toFixed(2)}` : "--"}
+                        </p>
+                        <p className="text-[10px] text-gray-400">收入</p>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(app.created_at).toLocaleDateString("zh-CN")}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleRebuild(app.app_id)}
+                          disabled={rebuildingId === app.app_id}
+                          className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <RefreshCw
+                            className={`h-3 w-3 ${rebuildingId === app.app_id ? "animate-spin" : ""}`}
+                          />
+                          重新构建
+                        </button>
+                        {app.google_play_url && (
+                          <a
+                            href={app.google_play_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            详情
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !hasAnyData && (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-white py-16 shadow-sm">
+          <Smartphone className="mb-3 h-10 w-10 text-gray-300" />
+          <p className="text-sm text-gray-400">暂无应用数据</p>
+          <p className="mt-1 text-xs text-gray-400">
+            启动流水线后将自动生成应用，或在概览页手动触发。
+          </p>
+        </div>
+      )}
+
+      {/* Pagination (for DB apps) */}
       {data && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-gray-500">
-            共 {data.total} 个应用，第 {data.page}/{totalPages} 页
+            数据库应用: 共 {data.total} 个，第 {data.page}/{totalPages} 页
           </p>
           <div className="flex items-center gap-2">
             <button
