@@ -1,12 +1,12 @@
-"""Shared pytest fixtures for the AutoDev test suite."""
+"""Shared pytest fixtures for the ZeroDev test suite."""
 
 from __future__ import annotations
 
 import pytest
 from typing import Any, Dict
 
-from autodev.evaluator.feasibility import FeasibilityResult
-from autodev.evaluator.competition import CompetitionResult
+from zerodev.evaluator.feasibility import FeasibilityResult
+from zerodev.evaluator.competition import CompetitionResult
 
 
 # ── Sample data factories ────────────────────────────────────────

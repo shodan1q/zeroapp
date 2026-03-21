@@ -1,6 +1,6 @@
 """Tests for configuration module."""
 
-from autodev.config import Settings
+from zerodev.config import Settings
 
 
 def test_settings_defaults():

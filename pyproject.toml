@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "autodev"
+name = "zerodev"
 version = "0.1.0"
-description = "AutoDev Agent: Autonomous app development pipeline - crawl requirements, generate Flutter apps, build and publish."
+description = "ZeroDev Agent: Autonomous app development pipeline - crawl requirements, generate Flutter apps, build and publish."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -44,7 +44,7 @@ dev = [
 ]
 
 [project.scripts]
-autodev = "autodev.main:app"
+zerodev = "zerodev.main:app"
 
 [tool.ruff]
 target-version = "py311"

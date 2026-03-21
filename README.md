@@ -1,4 +1,4 @@
-# AutoDev Agent
+# ZeroDev Agent
 
 自动化 Flutter 应用工厂 -- 从互联网挖掘需求，AI 自动生成 Flutter 代码，三端构建（Android / iOS / HarmonyOS），自动上架应用商店。
 
@@ -89,14 +89,14 @@ make dashboard-frontend
 make generate-app
 
 # 或使用 CLI
-autodev pipeline
+zerodev pipeline
 ```
 
 ## 项目结构
 
 ```
 zeroapp/
-├── autodev/                    # Python 主包
+├── zerodev/                    # Python 主包
 │   ├── api/                    # FastAPI 后端（路由、WebSocket、事件）
 │   ├── assets/                 # 资源生成（图标、截图、商店文案）
 │   ├── builder/                # Flutter 构建与发布
@@ -125,12 +125,12 @@ zeroapp/
 ## CLI 命令
 
 ```bash
-autodev run              # 启动完整流水线（持续运行）
-autodev crawl            # 仅运行需求采集
-autodev evaluate         # 评估待处理需求
-autodev generate         # 为已通过需求生成代码
-autodev build            # 构建已通过的应用
-autodev pipeline         # 运行一次完整流水线
+zerodev run              # 启动完整流水线（持续运行）
+zerodev crawl            # 仅运行需求采集
+zerodev evaluate         # 评估待处理需求
+zerodev generate         # 为已通过需求生成代码
+zerodev build            # 构建已通过的应用
+zerodev pipeline         # 运行一次完整流水线
 ```
 
 ## API 端点

@@ -251,7 +251,7 @@ export default function LoginPage() {
             }`}
               style={{ animation: "fadeInUp 0.6s ease-out both" }}
             >
-              AutoDev Agent
+              ZeroDev Agent
             </h1>
 
             <p className="text-blue-200/70 font-medium mb-1"
@@ -397,7 +397,7 @@ export default function LoginPage() {
               </div>
 
               <p className="mt-6 text-center text-[9px] text-gray-700">
-                AutoDev Agent v0.1
+                ZeroDev Agent v0.1
               </p>
             </div>
           )}

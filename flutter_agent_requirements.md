@@ -1,6 +1,6 @@
 # Flutter 自动化开发智能体 — 完整框架开发需求清单
 
-> **项目代号**：AutoDev Agent
+> **项目代号**：ZeroDev Agent
 > **目标**：24小时不间断从互联网挖掘需求 → AI 自动开发 Flutter App → 自动构建三端 → 自动提交上架
 > **技术栈**：Flutter + Dart | Python + LangGraph (Agent 编排) | Claude Opus 4.6 (代码生成，支持 API / Max Plan 本地代理)
 
@@ -334,7 +334,7 @@ fastlane supply \
   --aab build/app/outputs/bundle/release/app-release.aab \
   --track production \
   --json_key /secrets/google-play-api-key.json \
-  --package_name com.autodev.{app_id} \
+  --package_name com.zerodev.{app_id} \
   --skip_upload_metadata false \
   --skip_upload_images false \
   --skip_upload_screenshots false
@@ -351,7 +351,7 @@ fastlane supply \
 # 使用 fastlane deliver
 fastlane deliver \
   --ipa build/ios/ipa/Runner.ipa \
-  --app_identifier com.autodev.{app_id} \
+  --app_identifier com.zerodev.{app_id} \
   --team_id ${APPLE_TEAM_ID} \
   --submit_for_review true \
   --automatic_release true \
@@ -450,7 +450,7 @@ CREATE TABLE app_registry (
 **启动方式**：
 ```bash
 # 后端
-uvicorn autodev.api.app:app --port 9716
+uvicorn zerodev.api.app:app --port 9716
 # 前端
 cd dashboard && npm run dev   # http://localhost:9717
 ```
@@ -464,7 +464,7 @@ cd dashboard && npm run dev   # http://localhost:9717
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  AutoDev Agent Dashboard                  [* WebSocket 已连接] │
+│  ZeroDev Agent Dashboard                  [* WebSocket 已连接] │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌─ 概览卡片（6 个指标，30 秒自动刷新 + WebSocket 推送）──┐  │
@@ -639,7 +639,7 @@ Account Pool:
 | 重试策略 | 指数退避（base=2s, max=300s, 3次） | 统一装饰器应用于所有节点，避免散落在各处的重试逻辑 |
 | 人工审核 | LangGraph interrupt_before | 在代码生成和发布前设置中断点，支持人工确认后继续 |
 | LLM | Claude Opus 4.6 | 代码生成质量最高，支持 API 按量付费 或 Max Plan 本地代理（claude-max-api）零额外成本 |
-| LLM 接入 | claude-max-api 本地代理 | OpenAI 兼容接口，通过 Claude Max 订阅调用，autodev/llm.py 自动适配 Anthropic/OpenAI 两种格式 |
+| LLM 接入 | claude-max-api 本地代理 | OpenAI 兼容接口，通过 Claude Max 订阅调用，zerodev/llm.py 自动适配 Anthropic/OpenAI 两种格式 |
 | 数据库 | PostgreSQL | 结构化数据 + JSON 字段灵活 |
 | CI/CD | GitHub Actions + fastlane | 免费额度够用，社区模板多 |
 | 广告 | AdMob | Flutter 官方支持，覆盖三端 |

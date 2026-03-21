@@ -1,4 +1,4 @@
-"""Tests for autodev.evaluator.scorer -- the weighted scoring system."""
+"""Tests for zerodev.evaluator.scorer -- the weighted scoring system."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from typing import Any, Dict
 
 import pytest
 
-from autodev.evaluator.competition import CompetitionResult
-from autodev.evaluator.feasibility import FeasibilityResult
-from autodev.evaluator.scorer import (
+from zerodev.evaluator.competition import CompetitionResult
+from zerodev.evaluator.feasibility import FeasibilityResult
+from zerodev.evaluator.scorer import (
     W_COMPETITION,
     W_FEASIBILITY,
     W_MONETIZATION,

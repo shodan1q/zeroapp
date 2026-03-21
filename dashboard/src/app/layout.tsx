@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AutoDev Agent",
+  title: "ZeroDev Agent",
   description: "Monitoring dashboard for the automated app development pipeline",
 };
 

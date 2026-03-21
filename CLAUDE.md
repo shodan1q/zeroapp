@@ -1,8 +1,8 @@
-# CLAUDE.md - AutoDev Agent 项目上下文
+# CLAUDE.md - ZeroDev Agent 项目上下文
 
 ## 项目简介
 
-AutoDev Agent -- 自动化 Flutter 应用工厂。从互联网挖掘需求，使用 AI 自动生成 Flutter 代码，构建三端应用（Android / iOS / HarmonyOS），自动上架应用商店。
+ZeroDev Agent -- 自动化 Flutter 应用工厂。从互联网挖掘需求，使用 AI 自动生成 Flutter 代码，构建三端应用（Android / iOS / HarmonyOS），自动上架应用商店。
 
 ## 技术栈
 
@@ -55,10 +55,10 @@ make generate-app         # 运行一次完整流水线
 
 ## 项目结构要点
 
-- `autodev/pipeline/` -- LangGraph 流水线（graph.py 是主图定义）
-- `autodev/generator/` -- 代码生成核心（code_generator.py 逐文件调用 Claude）
-- `autodev/api/` -- FastAPI 后端（含 WebSocket 实时推送）
-- `autodev/llm.py` -- Claude 客户端，自动适配 Anthropic API / 本地代理
+- `zerodev/pipeline/` -- LangGraph 流水线（graph.py 是主图定义）
+- `zerodev/generator/` -- 代码生成核心（code_generator.py 逐文件调用 Claude）
+- `zerodev/api/` -- FastAPI 后端（含 WebSocket 实时推送）
+- `zerodev/llm.py` -- Claude 客户端，自动适配 Anthropic API / 本地代理
 - `dashboard/` -- Next.js 15 前端应用
 - `workspace/` -- 生成的 Flutter 项目（不提交到 git）
 - `data/` -- SQLite checkpoint 数据（不提交到 git）

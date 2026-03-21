@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autodev.evaluator.feasibility import FeasibilityResult, evaluate_feasibility
-from autodev.evaluator.competition import CompetitionResult
-from autodev.evaluator.scorer import calculate_score
-from autodev.evaluator.rules import decide
+from zerodev.evaluator.feasibility import FeasibilityResult, evaluate_feasibility
+from zerodev.evaluator.competition import CompetitionResult
+from zerodev.evaluator.scorer import calculate_score
+from zerodev.evaluator.rules import decide
 
 
 # ── Helpers ──────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ class TestEvaluateFeasibility:
         mock_client.messages.create = AsyncMock(return_value=mock_message)
 
         with patch(
-            "autodev.evaluator.feasibility.anthropic.AsyncAnthropic",
+            "zerodev.evaluator.feasibility.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = await evaluate_feasibility(
@@ -94,7 +94,7 @@ class TestEvaluateFeasibility:
         mock_client.messages.create = AsyncMock(return_value=message)
 
         with patch(
-            "autodev.evaluator.feasibility.anthropic.AsyncAnthropic",
+            "zerodev.evaluator.feasibility.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = await evaluate_feasibility(
@@ -128,7 +128,7 @@ class TestEvaluateFeasibility:
         mock_client.messages.create = AsyncMock(return_value=mock_message)
 
         with patch(
-            "autodev.evaluator.feasibility.anthropic.AsyncAnthropic",
+            "zerodev.evaluator.feasibility.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             result = await evaluate_feasibility(
@@ -150,7 +150,7 @@ class TestEvaluateFeasibility:
         mock_client.messages.create = AsyncMock(return_value=message)
 
         with patch(
-            "autodev.evaluator.feasibility.anthropic.AsyncAnthropic",
+            "zerodev.evaluator.feasibility.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             with pytest.raises(ValueError, match="non-JSON"):
@@ -191,7 +191,7 @@ class TestEndToEndProcessing:
 
         # Step 1: Evaluate feasibility
         with patch(
-            "autodev.evaluator.feasibility.anthropic.AsyncAnthropic",
+            "zerodev.evaluator.feasibility.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             feasibility = await evaluate_feasibility(demand, api_key="test-key")
@@ -235,7 +235,7 @@ class TestEndToEndProcessing:
         }
 
         with patch(
-            "autodev.evaluator.feasibility.anthropic.AsyncAnthropic",
+            "zerodev.evaluator.feasibility.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
             feasibility = await evaluate_feasibility(demand, api_key="test-key")

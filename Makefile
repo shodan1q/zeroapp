@@ -5,22 +5,22 @@ install:
 	pip install -e ".[dev]"
 
 run:
-	autodev run
+	zerodev run
 
 crawl:
-	autodev crawl
+	zerodev crawl
 
 pipeline:
-	autodev pipeline
+	zerodev pipeline
 
 worker:
-	celery -A autodev.celery_app worker --loglevel=info
+	celery -A zerodev.celery_app worker --loglevel=info
 
 worker-beat:
-	celery -A autodev.celery_app beat --loglevel=info
+	celery -A zerodev.celery_app beat --loglevel=info
 
 dashboard:
-	uvicorn autodev.api.app:app --reload --host 0.0.0.0 --port 9716
+	uvicorn zerodev.api.app:app --reload --host 0.0.0.0 --port 9716
 
 dashboard-frontend:
 	cd dashboard && npm run dev
@@ -38,22 +38,22 @@ build-ohos:
 		flutter build hap --release
 
 test:
-	pytest -v --cov=autodev
+	pytest -v --cov=zerodev
 
 test-all:
-	pytest -v --cov=autodev
+	pytest -v --cov=zerodev
 	cd dashboard && npx tsc --noEmit
 
 lint:
-	ruff check autodev/ tests/
-	ruff format --check autodev/ tests/
+	ruff check zerodev/ tests/
+	ruff format --check zerodev/ tests/
 
 format:
-	ruff check --fix autodev/ tests/
-	ruff format autodev/ tests/
+	ruff check --fix zerodev/ tests/
+	ruff format zerodev/ tests/
 
 typecheck:
-	mypy autodev/
+	mypy zerodev/
 
 migrate:
 	alembic upgrade head
@@ -62,7 +62,7 @@ migrate-new:
 	alembic revision --autogenerate -m "$(msg)"
 
 generate-app:
-	autodev pipeline
+	zerodev pipeline
 
 clean:
 	rm -rf __pycache__ .pytest_cache .mypy_cache htmlcov dist build *.egg-info

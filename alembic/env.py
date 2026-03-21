@@ -12,11 +12,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from autodev.config import get_settings
-from autodev.database import Base
+from zerodev.config import get_settings
+from zerodev.database import Base
 
 # Import all model modules so their tables are registered on Base.metadata.
-from autodev.models import (  # noqa: F401
+from zerodev.models import (  # noqa: F401
     Demand,
     AppRegistry,
     BuildLog,
@@ -33,7 +33,7 @@ if config.config_file_name is not None:
 
 logger = logging.getLogger("alembic.env")
 
-# Override sqlalchemy.url with the value from autodev settings.
+# Override sqlalchemy.url with the value from zerodev settings.
 settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url_sync)
 

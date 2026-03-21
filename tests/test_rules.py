@@ -1,4 +1,4 @@
-"""Tests for autodev.evaluator.rules -- the decision rules engine."""
+"""Tests for zerodev.evaluator.rules -- the decision rules engine."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from typing import Any, Dict
 
 import pytest
 
-from autodev.evaluator.competition import CompetitionResult
-from autodev.evaluator.feasibility import FeasibilityResult
-from autodev.evaluator.rules import decide
+from zerodev.evaluator.competition import CompetitionResult
+from zerodev.evaluator.feasibility import FeasibilityResult
+from zerodev.evaluator.rules import decide
 
 
 class TestAutoReject:

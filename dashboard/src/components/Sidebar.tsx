@@ -72,7 +72,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
               collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
             )}
           >
-            AutoDev
+            ZeroDev
           </span>
         </div>
         <button

@@ -228,7 +228,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "sidebar.disconnected": "连接已断开",
 
     // Login
-    "login.title": "AutoDev Agent",
+    "login.title": "ZeroDev Agent",
     "login.subtitle": "AI 驱动的 Flutter 应用工厂",
     "login.description": "基于 LangGraph 和 Claude 的 24/7 自主应用开发流水线",
     "login.username": "用户名",
@@ -462,7 +462,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "sidebar.disconnected": "Disconnected",
 
     // Login
-    "login.title": "AutoDev Agent",
+    "login.title": "ZeroDev Agent",
     "login.subtitle": "AI-Powered Flutter App Factory",
     "login.description": "24/7 autonomous app development pipeline powered by LangGraph and Claude",
     "login.username": "Username",

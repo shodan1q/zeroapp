@@ -1,8 +1,8 @@
 """Tests for ORM model definitions (import check)."""
 
-from autodev.models.demand import Demand, DemandStatus
-from autodev.models.app_registry import AppRegistry, AppStatus
-from autodev.models.build_log import BuildLog, BuildStep, BuildStatus
+from zerodev.models.demand import Demand, DemandStatus
+from zerodev.models.app_registry import AppRegistry, AppStatus
+from zerodev.models.build_log import BuildLog, BuildStep, BuildStatus
 
 
 def test_demand_status_enum():
