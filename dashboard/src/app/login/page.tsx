@@ -11,6 +11,7 @@ import {
   FlaskConical,
   Rocket,
   Search,
+  Languages,
 } from "lucide-react";
 
 const STAGES = [
@@ -24,7 +25,7 @@ const STAGES = [
 ];
 
 export default function LoginPage() {
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -216,6 +217,16 @@ export default function LoginPage() {
       `}</style>
 
       <div className="login-bg min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-4">
+        {/* Language toggle - top right */}
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+          <button
+            onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors glass-card hover:text-white"
+          >
+            <Languages className="h-4 w-4" />
+            {locale === "zh" ? "English" : "中文"}
+          </button>
+        </div>
         {/* Animated grid background */}
         <div className="grid-bg absolute inset-0 z-0" />
 

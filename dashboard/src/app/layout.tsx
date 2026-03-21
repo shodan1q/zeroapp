@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className={inter.className}>
-      <body className="bg-gray-50 text-gray-900 antialiased">
+      <body className="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased">
         <LayoutShell>{children}</LayoutShell>
       </body>
     </html>

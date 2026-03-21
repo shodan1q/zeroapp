@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { I18nProvider } from "@/lib/i18n";
+import { ThemeProvider } from "@/lib/theme";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Sidebar } from "@/components/Sidebar";
 
@@ -34,6 +35,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <I18nProvider>
+      <ThemeProvider>
       <AuthGuard>
         {isLoginPage ? (
           <>{children}</>
@@ -76,7 +78,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               {/* Mobile hamburger */}
               <button
                 onClick={toggleMobile}
-                className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2 text-gray-600 shadow-sm md:hidden"
+                className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-gray-600 dark:text-gray-300 shadow-sm md:hidden"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -85,6 +87,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </AuthGuard>
+      </ThemeProvider>
     </I18nProvider>
   );
 }

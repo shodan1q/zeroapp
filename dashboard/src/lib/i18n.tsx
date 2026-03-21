@@ -218,6 +218,10 @@ const translations: Record<Locale, Record<string, string>> = {
     "common.cancel": "取消",
     "common.confirm": "确认",
     "common.close": "关闭",
+    "common.theme": "主题",
+    "common.light_mode": "浅色模式",
+    "common.dark_mode": "深色模式",
+    "common.toggle_theme": "切换主题",
 
     // Sidebar
     "sidebar.connected": "实时连接正常",
@@ -449,6 +453,10 @@ const translations: Record<Locale, Record<string, string>> = {
     "common.cancel": "Cancel",
     "common.confirm": "Confirm",
     "common.close": "Close",
+    "common.theme": "Theme",
+    "common.light_mode": "Light Mode",
+    "common.dark_mode": "Dark Mode",
+    "common.toggle_theme": "Toggle Theme",
 
     "sidebar.connected": "Connected",
     "sidebar.disconnected": "Disconnected",

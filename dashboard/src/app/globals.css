@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
@@ -69,6 +71,10 @@
     scrollbar-color: #d1d5db transparent;
   }
 
+  .dark * {
+    scrollbar-color: #4b5563 transparent;
+  }
+
   *::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -85,5 +91,13 @@
 
   *::-webkit-scrollbar-thumb:hover {
     background-color: #9ca3af;
+  }
+
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: #4b5563;
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background-color: #6b7280;
   }
 }
