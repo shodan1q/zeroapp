@@ -234,6 +234,7 @@ dev_dependencies:
 7. 代码必须通过 dart analyze 零错误
 8. 遵循 Material Design 3 规范
 9. 适配手机和平板两种屏幕尺寸
+10. 禁止在代码、UI、注释中使用任何 emoji 字符
 
 ## 当前要生成的文件
 文件路径：{file_path}
@@ -440,9 +441,9 @@ CREATE TABLE app_registry (
 **启动方式**：
 ```bash
 # 后端
-uvicorn autodev.api.app:app --port 8000
+uvicorn autodev.api.app:app --port 9716
 # 前端
-cd dashboard && npm run dev   # http://localhost:3000
+cd dashboard && npm run dev   # http://localhost:9717
 ```
 
 **实时通信**：
@@ -454,7 +455,7 @@ cd dashboard && npm run dev   # http://localhost:3000
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  🤖 AutoDev Agent Dashboard                   [● WebSocket] │
+│  AutoDev Agent Dashboard                  [* WebSocket 已连接] │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌─ 概览卡片（6 个指标，30 秒自动刷新 + WebSocket 推送）──┐  │
@@ -464,8 +465,8 @@ cd dashboard && npm run dev   # http://localhost:3000
 │  ┌─ 流水线实时状态（WebSocket 驱动，动画指示当前阶段）───┐   │
 │  │                                                        │   │
 │  │  爬取 → 处理 → 评估 → 决策 → 生成 → 构建 → 资源 → 发布│   │
-│  │  [●]   [●]   [●]   [◉]   [○]   [○]   [○]   [○]      │   │
-│  │  ◉=当前（蓝色脉动） ●=完成（绿色） ○=待执行（灰色）    │   │
+│  │  [*]   [*]   [*]   [>>]  [ ]   [ ]   [ ]   [ ]       │   │
+│  │  >>=当前（蓝色脉动） *=完成（绿色）  =待执行（灰色）    │   │
 │  │  当前: 正在评估 D20260321-003 "极简番茄钟"             │   │
 │  │  耗时: 2m 34s  重试: 0/3                               │   │
 │  └────────────────────────────────────────────────────────┘   │

@@ -84,8 +84,8 @@ def dashboard() -> None:
     """Launch the FastAPI dashboard server."""
     import uvicorn
 
-    console.print("[cyan]Starting dashboard at http://0.0.0.0:8000[/cyan]")
-    uvicorn.run("autodev.api.app:app", host="0.0.0.0", port=8000, reload=True)
+    console.print("[cyan]Starting dashboard at http://0.0.0.0:9716[/cyan]")
+    uvicorn.run("autodev.api.app:app", host="0.0.0.0", port=9716, reload=True)
 
 
 # ── Pipeline sub-commands ────────────────────────────────────────────

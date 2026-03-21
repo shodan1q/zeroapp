@@ -45,6 +45,7 @@ Use test ad unit IDs for now.
   - No TODO comments - write complete, working code.
   - Use const constructors wherever possible.
   - Include proper error handling and loading states.
+  - NEVER use emoji characters anywhere in the code, UI text, or comments.
 
 OUTPUT FORMAT:
   - Respond ONLY with the raw file content. No markdown fences, no explanation.

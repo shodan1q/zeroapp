@@ -19,7 +19,7 @@ worker-beat:
 	celery -A autodev.celery_app beat --loglevel=info
 
 dashboard:
-	uvicorn autodev.api.app:app --reload --host 0.0.0.0 --port 8000
+	uvicorn autodev.api.app:app --reload --host 0.0.0.0 --port 9716
 
 test:
 	pytest -v --cov=autodev
