@@ -308,8 +308,10 @@ export default function LoginPage() {
         {/* ── Login Panel (slides in from right) ── */}
         <div className={`login-panel z-20 ${isLogin ? "login-visible" : "login-hidden"}`}
           style={{
-            background: "linear-gradient(180deg, rgba(12, 12, 35, 0.98) 0%, rgba(6, 6, 26, 0.99) 100%)",
-            borderLeft: isLogin ? "1px solid rgba(255,255,255,0.04)" : "none",
+            background: "linear-gradient(180deg, rgba(15, 22, 66, 0.55) 0%, rgba(6, 6, 26, 0.7) 100%)",
+            backdropFilter: "blur(40px)",
+            WebkitBackdropFilter: "blur(40px)",
+            borderLeft: isLogin ? "1px solid rgba(96,165,250,0.08)" : "none",
           }}
         >
           {/* Language toggle */}
@@ -366,7 +368,12 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <p className="mt-12 text-center text-[9px] text-gray-700">
+              <div className="mt-8 rounded-lg border border-white/5 bg-white/3 px-3 py-2 text-center">
+                <p className="text-[10px] text-gray-500 mb-0.5">Test Credentials</p>
+                <p className="text-[11px] text-gray-400 font-mono">admin / admin123</p>
+              </div>
+
+              <p className="mt-6 text-center text-[9px] text-gray-700">
                 AutoDev Agent v0.1
               </p>
             </div>
