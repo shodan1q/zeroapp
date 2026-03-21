@@ -12,6 +12,8 @@ import type {
   PaginatedResponse,
   BuildListResponse,
   RunnerStatus,
+  GeneratedApp,
+  RevisionResult,
 } from "./types";
 
 const API_BASE = "/api";
@@ -174,4 +176,19 @@ export async function stopPipeline(): Promise<{ status: string }> {
 
 export async function fetchRunnerStatus(): Promise<RunnerStatus> {
   return (await request<RunnerStatus>("/pipeline/runner-status")) ?? DEFAULT_RUNNER_STATUS;
+}
+
+/* ------------------------------------------------------------------ */
+/*  App Revision                                                       */
+/* ------------------------------------------------------------------ */
+
+export async function listGeneratedApps(): Promise<{apps: GeneratedApp[]}> {
+  return (await request<{apps: GeneratedApp[]}>("/apps/generated")) ?? {apps: []};
+}
+
+export async function reviseApp(appDir: string, instruction: string): Promise<RevisionResult> {
+  return (await request<RevisionResult>("/apps/revise", {
+    method: "POST",
+    body: JSON.stringify({ app_dir: appDir, instruction: instruction }),
+  })) ?? { status: "error", message: "Request failed", changes_made: [] };
 }

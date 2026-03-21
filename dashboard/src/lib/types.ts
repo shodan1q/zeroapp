@@ -160,6 +160,22 @@ export interface ApiError {
   detail: string;
 }
 
+export interface GeneratedApp {
+  id: string;
+  name: string;
+  path: string;
+  created_at: string;
+}
+
+export interface RevisionResult {
+  status: string;
+  message?: string;
+  changes_made: string[];
+  analyze_ok?: boolean;
+  analyze_output?: string;
+  instruction?: string;
+}
+
 export interface RunnerStatus {
   running: boolean;
   current_run_id: string | null;

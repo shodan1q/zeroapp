@@ -522,3 +522,57 @@ async def get_runner_status():
 
     runner = PipelineRunner.get_instance()
     return runner.stats
+
+
+# ── App Revision ─────────────────────────────────────────────────
+
+
+@router.post("/apps/revise")
+async def revise_app(body: dict):
+    """Revise an existing generated app."""
+    app_dir = body.get("app_dir", "")
+    instruction = body.get("instruction", "")
+
+    if not app_dir or not instruction:
+        raise HTTPException(status_code=400, detail="app_dir and instruction are required")
+
+    from autodev.pipeline.reviser import AppReviser
+
+    reviser = AppReviser()
+    result = await reviser.revise(app_dir, instruction)
+    return result
+
+
+@router.get("/apps/generated")
+async def list_generated_apps():
+    """List all generated app directories."""
+    from autodev.config import get_settings
+    from pathlib import Path
+
+    settings = get_settings()
+    output_dir = Path(settings.output_dir)
+
+    if not output_dir.exists():
+        return {"apps": []}
+
+    apps = []
+    for d in sorted(output_dir.iterdir()):
+        if d.is_dir() and (d / "pubspec.yaml").exists():
+            # Read pubspec for app name
+            pubspec = (d / "pubspec.yaml").read_text(encoding="utf-8")
+            name = d.name
+            for line in pubspec.split("\n"):
+                if line.startswith("description:"):
+                    name = line.split(":", 1)[1].strip().strip('"').strip("'")
+                    break
+
+            apps.append({
+                "id": d.name,
+                "name": name,
+                "path": str(d),
+                "created_at": datetime.datetime.fromtimestamp(
+                    d.stat().st_ctime
+                ).isoformat(),
+            })
+
+    return {"apps": apps}

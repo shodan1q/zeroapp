@@ -13,6 +13,7 @@ import {
   Settings,
   Wifi,
   WifiOff,
+  Wrench,
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
@@ -26,6 +27,7 @@ const navItems: NavItem[] = [
   { label: "概览", href: "/", icon: LayoutDashboard },
   { label: "需求管理", href: "/demands", icon: Lightbulb },
   { label: "应用管理", href: "/apps", icon: Smartphone },
+  { label: "修改完善", href: "/revise", icon: Wrench },
   { label: "构建日志", href: "/builds", icon: Hammer },
   { label: "流水线", href: "/pipeline", icon: GitBranch },
   { label: "设置", href: "/settings", icon: Settings },
