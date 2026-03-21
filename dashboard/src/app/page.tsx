@@ -209,6 +209,7 @@ export default function OverviewPage() {
     { time: string; message: string; type: string }[]
   >([]);
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null);
+  const [liveStage, setLiveStage] = useState<string>("idle");
   const [threadId, setThreadId] = useState("");
   const [searchId, setSearchId] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -255,7 +256,10 @@ export default function OverviewPage() {
   const loadRunnerStatus = useCallback(async () => {
     const status = await fetchRunnerStatus();
     setRunnerStatus(status);
-  }, []);
+    if (!status.running && liveStage !== "idle" && liveStage !== "done") {
+      setLiveStage("idle");
+    }
+  }, [liveStage]);
 
   /* ---------- Load pipeline logs --------------------------------- */
 
@@ -298,6 +302,24 @@ export default function OverviewPage() {
       };
       if (d.detail?.message) {
         setPipelineTask(d.detail.message);
+      }
+      // Map runner stages to card stages
+      const stageMap: Record<string, string> = {
+        crawl: "demand_analysis",
+        process: "demand_analysis",
+        evaluate: "demand_analysis",
+        decide: "demand_analysis",
+        generate: "code_generation",
+        build: "build",
+        assets: "build",
+        publish: "deploy",
+        info: liveStage, // keep current for info events
+      };
+      const mapped = stageMap[d.stage] ?? liveStage;
+      if (d.status === "completed" && d.stage === "publish") {
+        setLiveStage("done");
+      } else if (d.stage !== "info") {
+        setLiveStage(mapped);
       }
       loadLogs();
       loadRunnerStatus();
@@ -429,7 +451,9 @@ export default function OverviewPage() {
     }
   };
 
-  const currentStage = pipelineStatus?.stage ?? "idle";
+  const currentStage = runnerStatus.running
+    ? liveStage
+    : (pipelineStatus?.stage ?? "idle");
 
   /* ---------- Stats cards --------------------------------------- */
 
