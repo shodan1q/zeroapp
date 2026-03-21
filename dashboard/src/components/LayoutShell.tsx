@@ -12,12 +12,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [dashboardReady, setDashboardReady] = useState(false);
 
   // Restore collapsed state from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("sidebar_collapsed");
     if (stored === "true") setCollapsed(true);
   }, []);
+
+  // Dashboard entrance animation trigger
+  useEffect(() => {
+    if (pathname !== "/login") {
+      const timer = setTimeout(() => setDashboardReady(true), 50);
+      return () => clearTimeout(timer);
+    } else {
+      setDashboardReady(false);
+    }
+  }, [pathname]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
@@ -40,7 +51,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         {isLoginPage ? (
           <>{children}</>
         ) : (
-          <div className="flex h-screen overflow-hidden">
+          <div className={`flex h-screen overflow-hidden transition-all duration-700 ease-out ${
+            dashboardReady ? "opacity-100 scale-100" : "opacity-0 scale-[0.98]"
+          }`}
+            style={{ transformOrigin: "center center" }}
+          >
             {/* Mobile overlay */}
             {mobileOpen && (
               <div
