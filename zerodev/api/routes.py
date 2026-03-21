@@ -593,6 +593,19 @@ async def generate_custom_app(body: dict):
     return result
 
 
+@router.post("/pipeline/generate-concurrent")
+async def generate_concurrent_app(body: dict):
+    """Generate an app concurrently (doesn't block other pipelines)."""
+    theme = body.get("theme", "")
+    if not theme:
+        raise HTTPException(status_code=400, detail="theme is required")
+
+    from zerodev.pipeline.runner import PipelineRunner
+    runner = PipelineRunner.get_instance()
+    result = await runner.start_concurrent(theme)
+    return result
+
+
 @router.get("/pipeline/logs")
 async def get_pipeline_logs():
     from zerodev.pipeline.runner import PipelineRunner
