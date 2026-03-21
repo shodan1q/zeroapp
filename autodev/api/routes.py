@@ -264,8 +264,8 @@ async def run_app_on_device(body: dict):
     platform = body.get("platform", "")
     if not app_dir or not platform:
         raise HTTPException(status_code=400, detail="app_dir and platform are required")
-    from autodev.api.device_manager import run_on_device
-    return await run_on_device(app_dir, platform)
+    from autodev.api.device_manager import start_run_on_device
+    return await start_run_on_device(app_dir, platform)
 
 
 # ── Apps ─────────────────────────────────────────────────────────

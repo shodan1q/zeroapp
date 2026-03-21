@@ -3,10 +3,16 @@
 import asyncio
 import logging
 import os
+import re
+
+from autodev.api.events import emit_stage_change
 
 logger = logging.getLogger(__name__)
 
 ENV = {**os.environ, "NO_PROXY": "127.0.0.1,localhost"}
+
+# Track running builds
+_running_builds: dict[str, str] = {}  # app_id -> status
 
 
 async def check_devices() -> dict:
@@ -21,7 +27,7 @@ async def check_devices() -> dict:
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
         )
         stdout, _ = await proc.communicate()
-        lines = stdout.decode().strip().split("\n")[1:]  # skip header
+        lines = stdout.decode().strip().split("\n")[1:]
         for line in lines:
             if "device" in line and "offline" not in line:
                 result["android"] = True
@@ -41,8 +47,6 @@ async def check_devices() -> dict:
         for line in output.split("\n"):
             if "Booted" in line:
                 result["ios"] = True
-                # Extract device ID from parentheses
-                import re
                 match = re.search(r'\(([A-F0-9-]+)\)', line)
                 if match:
                     result["ios_device"] = match.group(1)
@@ -68,8 +72,8 @@ async def check_devices() -> dict:
     return result
 
 
-async def run_on_device(app_dir: str, platform: str) -> dict:
-    """Build and run a Flutter app on the specified platform's emulator/simulator."""
+async def start_run_on_device(app_dir: str, platform: str) -> dict:
+    """Check device availability, then launch build in background. Returns immediately."""
     from pathlib import Path
     app_path = Path(app_dir)
     if not app_path.exists():
@@ -77,81 +81,161 @@ async def run_on_device(app_dir: str, platform: str) -> dict:
 
     devices = await check_devices()
 
-    if platform == "android":
-        if not devices["android"]:
-            return {"status": "error", "message": "Android 模拟器未启动。请先启动 Android 模拟器。"}
-        device_id = devices["android_device"]
+    platform_names = {"android": "Android", "ios": "iOS", "ohos": "HarmonyOS"}
+    platform_label = platform_names.get(platform, platform)
 
-        # Build APK
-        proc = await asyncio.create_subprocess_exec(
-            "flutter", "build", "apk", "--debug",
-            cwd=str(app_path), env=ENV,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            return {"status": "error", "message": f"APK 构建失败: {stderr.decode()[-500:]}"}
+    if platform == "android" and not devices["android"]:
+        return {"status": "error", "message": "Android 模拟器未启动。请先启动 Android 模拟器。"}
+    if platform == "ios" and not devices["ios"]:
+        return {"status": "error", "message": "iOS 模拟器未启动。请先启动 iOS 模拟器。"}
+    if platform == "ohos" and not devices["ohos"]:
+        return {"status": "error", "message": "HarmonyOS 模拟器未启动。请先通过 DevEco Studio 启动模拟器。"}
+    if platform == "ohos":
+        return {"status": "error", "message": "HarmonyOS 运行需要 Flutter OHOS 版本构建，暂未自动化。"}
 
-        # Install and launch
-        apk = app_path / "build/app/outputs/flutter-apk/app-debug.apk"
-        if not apk.exists():
-            return {"status": "error", "message": "APK 文件未找到"}
+    build_key = f"{app_path.name}_{platform}"
+    if build_key in _running_builds:
+        return {"status": "error", "message": f"{platform_label} 构建已在进行中"}
 
-        proc = await asyncio.create_subprocess_exec(
-            "adb", "-s", device_id, "install", "-r", str(apk),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
-        )
-        await proc.wait()
+    # Launch build in background
+    _running_builds[build_key] = "building"
+    asyncio.create_task(_run_build_background(app_path, platform, devices, build_key))
 
-        # Get package name from app_dir name
-        pkg = f"com.autodev.{app_path.name}"
-        proc = await asyncio.create_subprocess_exec(
-            "adb", "-s", device_id, "shell", "am", "start", "-n", f"{pkg}/.MainActivity",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
-        )
-        await proc.wait()
+    return {"status": "building", "message": f"已开始 {platform_label} 构建，完成后自动部署。请查看活动日志。"}
 
-        return {"status": "success", "message": f"已在 Android 模拟器上启动 ({device_id})"}
 
-    elif platform == "ios":
-        if not devices["ios"]:
-            return {"status": "error", "message": "iOS 模拟器未启动。请先启动 iOS 模拟器。"}
-        device_id = devices["ios_device"]
+async def _run_build_background(app_path, platform: str, devices: dict, build_key: str):
+    """Build and deploy in background, emitting events via WebSocket."""
+    app_name = app_path.name
+    platform_names = {"android": "Android", "ios": "iOS", "ohos": "HarmonyOS"}
+    label = platform_names.get(platform, platform)
 
-        # Build for simulator
-        proc = await asyncio.create_subprocess_exec(
-            "flutter", "build", "ios", "--debug", "--simulator",
-            cwd=str(app_path), env=ENV,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            return {"status": "error", "message": f"iOS 构建失败: {stderr.decode()[-500:]}"}
+    try:
+        if platform == "android":
+            await _build_and_run_android(app_path, devices["android_device"], app_name, label)
+        elif platform == "ios":
+            await _build_and_run_ios(app_path, devices["ios_device"], app_name, label)
+    except Exception as e:
+        logger.exception("Build failed for %s on %s", app_name, platform)
+        try:
+            await emit_stage_change("build", app_name, "failed",
+                                    {"message": f"{label} 构建失败: {str(e)[:200]}"})
+        except Exception:
+            pass
+    finally:
+        _running_builds.pop(build_key, None)
 
-        # Install and launch
-        runner_app = app_path / "build/ios/iphonesimulator/Runner.app"
-        if not runner_app.exists():
-            return {"status": "error", "message": "Runner.app 未找到"}
 
-        await asyncio.create_subprocess_exec(
-            "xcrun", "simctl", "install", device_id, str(runner_app),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
-        )
+async def _build_and_run_android(app_path, device_id: str, app_name: str, label: str):
+    """Build APK and deploy to Android emulator."""
+    try:
+        await emit_stage_change("build", app_name, "active",
+                                {"message": f"正在构建 {app_name} {label} APK..."})
+    except Exception:
+        pass
 
-        bundle_id = f"com.autodev.{app_path.name}"
-        # Try common bundle ID patterns
-        proc = await asyncio.create_subprocess_exec(
-            "xcrun", "simctl", "launch", device_id, bundle_id,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
-        )
-        await proc.wait()
+    proc = await asyncio.create_subprocess_exec(
+        "flutter", "build", "apk", "--debug",
+        cwd=str(app_path), env=ENV,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        err = stderr.decode()[-300:]
+        try:
+            await emit_stage_change("build", app_name, "failed",
+                                    {"message": f"{label} APK 构建失败: {err}"})
+        except Exception:
+            pass
+        return
 
-        return {"status": "success", "message": f"已在 iOS 模拟器上启动 ({device_id})"}
+    apk = app_path / "build/app/outputs/flutter-apk/app-debug.apk"
+    if not apk.exists():
+        try:
+            await emit_stage_change("build", app_name, "failed",
+                                    {"message": f"{label} APK 文件未找到"})
+        except Exception:
+            pass
+        return
 
-    elif platform == "ohos":
-        if not devices["ohos"]:
-            return {"status": "error", "message": "HarmonyOS 模拟器未启动。请先通过 DevEco Studio 启动模拟器。"}
+    try:
+        await emit_stage_change("build", app_name, "active",
+                                {"message": f"正在安装到 {label} 模拟器..."})
+    except Exception:
+        pass
 
-        return {"status": "error", "message": "HarmonyOS 运行需要 Flutter OHOS 版本构建，暂未自动化。请手动构建。"}
+    proc = await asyncio.create_subprocess_exec(
+        "adb", "-s", device_id, "install", "-r", str(apk),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
+    )
+    await proc.wait()
 
-    return {"status": "error", "message": f"未知平台: {platform}"}
+    pkg = f"com.autodev.{app_name}"
+    proc = await asyncio.create_subprocess_exec(
+        "adb", "-s", device_id, "shell", "am", "start", "-n", f"{pkg}/.MainActivity",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
+    )
+    await proc.wait()
+
+    try:
+        await emit_stage_change("build", app_name, "completed",
+                                {"message": f"{app_name} 已在 {label} 模拟器上启动"})
+    except Exception:
+        pass
+
+
+async def _build_and_run_ios(app_path, device_id: str, app_name: str, label: str):
+    """Build and deploy to iOS simulator."""
+    try:
+        await emit_stage_change("build", app_name, "active",
+                                {"message": f"正在构建 {app_name} {label}..."})
+    except Exception:
+        pass
+
+    proc = await asyncio.create_subprocess_exec(
+        "flutter", "build", "ios", "--debug", "--simulator",
+        cwd=str(app_path), env=ENV,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        err = stderr.decode()[-300:]
+        try:
+            await emit_stage_change("build", app_name, "failed",
+                                    {"message": f"{label} 构建失败: {err}"})
+        except Exception:
+            pass
+        return
+
+    runner_app = app_path / "build/ios/iphonesimulator/Runner.app"
+    if not runner_app.exists():
+        try:
+            await emit_stage_change("build", app_name, "failed",
+                                    {"message": "Runner.app 未找到"})
+        except Exception:
+            pass
+        return
+
+    try:
+        await emit_stage_change("build", app_name, "active",
+                                {"message": f"正在安装到 {label} 模拟器..."})
+    except Exception:
+        pass
+
+    await asyncio.create_subprocess_exec(
+        "xcrun", "simctl", "install", device_id, str(runner_app),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
+    )
+
+    bundle_id = f"com.autodev.{app_name}"
+    proc = await asyncio.create_subprocess_exec(
+        "xcrun", "simctl", "launch", device_id, bundle_id,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=ENV,
+    )
+    await proc.wait()
+
+    try:
+        await emit_stage_change("build", app_name, "completed",
+                                {"message": f"{app_name} 已在 {label} 模拟器上启动"})
+    except Exception:
+        pass
