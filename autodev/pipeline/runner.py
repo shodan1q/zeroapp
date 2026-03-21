@@ -295,6 +295,10 @@ class PipelineRunner:
                 "- Custom animated widgets (not just default Material widgets)\n\n"
                 "DO NOT suggest: pomodoro timer, water reminder, noise meter, bill splitter, "
                 "habit tracker, simple calculator, unit converter, flashlight, QR scanner.\n\n"
+                "MANDATORY:\n"
+                "- NO emoji characters anywhere in the app name, description, or any text\n"
+                "- App MUST support Chinese and English (i18n with intl package)\n"
+                "- All user-facing text must be localizable\n\n"
                 "THINK of something creative like: mood-based music color visualizer, "
                 "personal energy level tracker with biometric-style UI, dream journal "
                 "with AI interpretation, plant growth simulator, breathing exercise "
@@ -372,7 +376,11 @@ class PipelineRunner:
                 f"5. ADMOB -- Banner ad on home screen, interstitial on specific actions\n"
                 f"6. VISUAL DESIGN -- Colors (use {json.dumps(idea.get('color_palette', {}))}), "
                 f"typography, spacing, card styles, shadows\n"
-                f"7. STORAGE -- shared_preferences for settings, hive or json files for data\n\n"
+                f"7. STORAGE -- shared_preferences for settings, hive or json files for data\n"
+                f"8. I18N -- All user-facing text must use intl package with Chinese and English localization\n"
+                f"   - Include lib/l10n/ directory with arb files\n"
+                f"   - Default language: Chinese, secondary: English\n"
+                f"9. NO EMOJI -- Absolutely no emoji characters in any UI text, code, or comments\n\n"
                 f"Keep it under 1500 words but be specific about animations and interactions."
             )}],
         )
@@ -400,7 +408,10 @@ class PipelineRunner:
                 f"- AdMob integration (google_mobile_ads banner widget)\n"
                 f"- At least 3 screens\n"
                 f"- Local storage service\n"
-                f"- Data models\n\n"
+                f"- Data models\n"
+                f"- Localization files for Chinese and English (lib/l10n/app_zh.arb, lib/l10n/app_en.arb)\n"
+                f"- A localization helper/delegate file\n\n"
+                f"IMPORTANT: Do NOT exceed 50 files total.\n"
                 f"Return ONLY the JSON array, nothing else."
             )}],
         )
@@ -422,10 +433,10 @@ class PipelineRunner:
                 "HomeScreen", "SettingsScreen", "StatsScreen",
             ]))
 
-        # Safety limit: truncate to 20 files
-        if len(file_plan) > 20:
-            await self._log(f"文件列表过长 ({len(file_plan)})，截断为 20 个", "info")
-            file_plan = file_plan[:20]
+        # Safety limit: truncate to 50 files
+        if len(file_plan) > 50:
+            await self._log(f"文件列表过长 ({len(file_plan)})，截断为 50 个", "info")
+            file_plan = file_plan[:50]
 
         await emit_stage_change("process", run_id, "completed", {
             "message": f"PRD 和文件规划完成: {len(file_plan)} 个文件"
@@ -470,9 +481,11 @@ class PipelineRunner:
             "ARCHITECTURE:\n"
             "- google_mobile_ads for AdMob banner ads (test IDs)\n"
             "- shared_preferences for local storage\n"
+            "- intl package for i18n: Chinese (default) and English localization\n"
+            "- All user-facing strings must go through localization (no hardcoded UI text)\n"
             "- All package imports (never relative imports)\n"
             "- Complete working code, no TODOs, no placeholders\n"
-            "- NO emoji anywhere\n\n"
+            "- ABSOLUTELY NO emoji characters anywhere in code, UI text, strings, or comments\n\n"
             "OUTPUT: Raw file content only. No markdown fences, no explanation, no file path header."
         )
 
@@ -627,7 +640,8 @@ class PipelineRunner:
                         "- Do NOT use super parameters (super.key). Use Key? key with super(key: key)\n"
                         "- Do NOT use records, patterns, sealed classes\n"
                         "- useMaterial3: false, no colorSchemeSeed\n"
-                        "- No emoji\n"
+                        "- No emoji characters anywhere\n"
+                        "- All UI text must use intl localization (Chinese + English)\n"
                         "- Ensure all imports are correct\n"
                         "- Output COMPLETE file contents, not partial"
                     ),
