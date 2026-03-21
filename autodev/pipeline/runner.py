@@ -478,6 +478,18 @@ class PipelineRunner:
             "- Page transitions: use PageRouteBuilder with SlideTransition or FadeTransition\n"
             "- Add subtle shadows, rounded corners (16+), and generous padding for premium feel\n"
             "- Use Google Fonts or custom TextStyle with proper hierarchy (headline, body, caption)\n\n"
+            "LAYOUT RULES (CRITICAL - prevents overflow and occlusion):\n"
+            "- ALL layouts MUST use Flexible/Expanded widgets inside Row/Column to prevent overflow\n"
+            "- NEVER use fixed height/width for content containers that may grow -- use Flexible\n"
+            "- Long text MUST use Expanded + Text with overflow: TextOverflow.ellipsis or wrap\n"
+            "- Scrollable content MUST be wrapped in SingleChildScrollView or ListView\n"
+            "- Bottom elements (ads, nav bars) MUST NOT overlap content -- use Column with Expanded for main content area\n"
+            "- Scaffold body pattern: Column(children: [Expanded(child: mainContent), AdBannerWidget()])\n"
+            "- Use SafeArea to avoid notch/status bar occlusion\n"
+            "- Use MediaQuery.of(context).size for responsive sizing, never hardcoded pixel values for layout\n"
+            "- Card/List layouts: use LayoutBuilder or ConstrainedBox for adaptive sizing\n"
+            "- Forms: wrap in SingleChildScrollView to handle keyboard appearance\n"
+            "- BottomNavigationBar or TabBar: place inside Scaffold bottomNavigationBar, not in body\n\n"
             "ARCHITECTURE:\n"
             "- google_mobile_ads for AdMob banner ads (test IDs)\n"
             "- shared_preferences for local storage\n"
@@ -698,6 +710,79 @@ class PipelineRunner:
             "message": f"构建完成: {analyze_status}"
         })
         await self._log(f"dart analyze 结果: {analyze_status}", "stage_change")
+
+        # ── Stage: layout/route check -- 检查布局和路由 ────────────────
+        await emit_stage_change("assets", run_id, "active", {
+            "message": "正在检查路由和布局..."
+        })
+        await self._log("正在检查路由和布局合理性...", "stage_change")
+
+        # Collect all generated code for review
+        all_code_summary = "\n".join(
+            f"--- {p} ---\n{c[:80]}...\n"
+            for p, c in generated_files.items()
+            if p.endswith(".dart")
+        )
+
+        review_resp = await client.messages.create(
+            model=settings.claude_model,
+            max_tokens=8192,
+            system=(
+                "You are a Flutter code reviewer. Check for layout and routing issues. "
+                "For each file that needs fixing, output:\n"
+                "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n\n"
+                "If no issues found, output: NO_ISSUES_FOUND\n\n"
+                "CRITICAL RULES:\n"
+                "- Dart 2.19, no super parameters, no dot shorthands\n"
+                "- No emoji\n"
+                "- All text must use intl localization"
+            ),
+            messages=[{"role": "user", "content": (
+                f"Review these Flutter files for layout and routing issues:\n\n"
+                f"CHECK FOR:\n"
+                f"1. ROUTE INTEGRITY: All named routes must be registered, "
+                f"Navigator.push targets must exist, no broken route references\n"
+                f"2. OVERFLOW PREVENTION: Every Row/Column with dynamic content "
+                f"must use Expanded/Flexible, no unbounded height/width\n"
+                f"3. SCAFFOLD PATTERN: body must be Column([Expanded(mainContent), adBanner]) "
+                f"not Stack that causes occlusion\n"
+                f"4. SAFE AREA: all screens must use SafeArea\n"
+                f"5. SCROLLABILITY: long content must be in SingleChildScrollView/ListView\n"
+                f"6. BOTTOM NAV/ADS: must be in Scaffold.bottomNavigationBar or "
+                f"at bottom of Column, never floating over content\n\n"
+                f"Source files:\n"
+                + "\n".join(
+                    f"--- {p} ---\n{c}\n"
+                    for p, c in generated_files.items()
+                    if p.endswith(".dart")
+                )[:15000]
+            )}],
+        )
+
+        review_text = review_resp.content[0].text
+        if "NO_ISSUES_FOUND" not in review_text:
+            matches = re.findall(
+                r"===FILE:\s*(.+?)===\n(.*?)===END===", review_text, re.DOTALL
+            )
+            if matches:
+                fix_count = 0
+                for fix_path, fix_code in matches:
+                    fix_path = fix_path.strip()
+                    fix_code = fix_code.strip()
+                    full_path = app_dir / fix_path
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_path.write_text(fix_code + "\n", encoding="utf-8")
+                    generated_files[fix_path] = fix_code
+                    fix_count += 1
+                await self._log(f"布局/路由检查修复了 {fix_count} 个文件", "stage_change")
+            else:
+                await self._log("布局/路由检查未发现需要修复的问题", "info")
+        else:
+            await self._log("布局/路由检查通过，无问题", "stage_change")
+
+        await emit_stage_change("assets", run_id, "completed", {
+            "message": "路由和布局检查完成"
+        })
 
         # ── Stage: evaluate -- 生成测试并运行 ─────────────────────────
         await emit_stage_change("evaluate", run_id, "active", {
