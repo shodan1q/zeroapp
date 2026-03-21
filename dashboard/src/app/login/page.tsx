@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [phase, setPhase] = useState<"splash" | "login">("splash");
+  const [phase, setPhase] = useState<"splash" | "login" | "leaving">("splash");
   const [activeNode, setActiveNode] = useState(0);
 
   useEffect(() => { setMounted(true); }, []);
@@ -49,7 +49,8 @@ export default function LoginPage() {
     e.preventDefault();
     if (username === "admin" && password === "admin123") {
       localStorage.setItem("auth", "true");
-      router.replace("/");
+      setPhase("leaving");
+      setTimeout(() => router.replace("/"), 800);
     } else {
       setError(t("login.error"));
     }
@@ -207,9 +208,31 @@ export default function LoginPage() {
           box-shadow: 0 6px 24px rgba(59, 130, 246, 0.3);
           transform: translateY(-1px);
         }
+        /* Leaving transition */
+        .page-leaving {
+          animation: pageLeave 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes pageLeave {
+          0% { opacity: 1; transform: scale(1); filter: blur(0); }
+          50% { opacity: 0.6; transform: scale(1.02); filter: blur(2px); }
+          100% { opacity: 0; transform: scale(1.05); filter: blur(8px); }
+        }
+        /* White flash overlay */
+        .flash-overlay {
+          position: fixed; inset: 0; z-index: 100; pointer-events: none;
+          background: radial-gradient(circle at center, rgba(96,165,250,0.3), rgba(6,6,26,1));
+          animation: flashIn 0.8s ease-out forwards;
+        }
+        @keyframes flashIn {
+          0% { opacity: 0; }
+          20% { opacity: 0.8; }
+          100% { opacity: 1; }
+        }
       `}</style>
 
-      <div className="page-bg min-h-screen relative overflow-hidden flex flex-row">
+      <div className={`page-bg min-h-screen relative overflow-hidden flex flex-row ${phase === "leaving" ? "page-leaving" : ""}`}>
+        {/* Flash overlay on leaving */}
+        {phase === "leaving" && <div className="flash-overlay" />}
         {/* Grid background */}
         <div className="grid-bg absolute inset-0 z-0" />
         {/* Scan beam on entrance */}
