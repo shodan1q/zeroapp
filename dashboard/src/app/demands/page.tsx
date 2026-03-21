@@ -11,6 +11,7 @@ import {
   Check,
   X,
   Lightbulb,
+  ExternalLink,
 } from "lucide-react";
 import {
   fetchDemands,
@@ -320,65 +321,90 @@ export default function DemandsPage() {
                               加载中...
                             </div>
                           ) : detail ? (
-                            <div className="space-y-2 text-sm">
-                              <p>
-                                <span className="font-medium text-gray-700">
-                                  描述:
-                                </span>{" "}
-                                <span className="text-gray-600">
-                                  {detail.description || "--"}
-                                </span>
-                              </p>
-                              {detail.target_users && (
-                                <p>
-                                  <span className="font-medium text-gray-700">
-                                    目标用户:
-                                  </span>{" "}
-                                  <span className="text-gray-600">
-                                    {detail.target_users}
-                                  </span>
-                                </p>
-                              )}
-                              {detail.core_features && (
-                                <p>
-                                  <span className="font-medium text-gray-700">
-                                    核心功能:
-                                  </span>{" "}
-                                  <span className="text-gray-600">
-                                    {detail.core_features}
-                                  </span>
-                                </p>
-                              )}
-                              {detail.complexity && (
-                                <p>
-                                  <span className="font-medium text-gray-700">
-                                    复杂度:
-                                  </span>{" "}
-                                  <span className="text-gray-600">
-                                    {detail.complexity}
-                                  </span>
-                                </p>
-                              )}
-                              {detail.competition_score !== null && detail.competition_score !== undefined && (
-                                <p>
-                                  <span className="font-medium text-gray-700">
-                                    竞争分:
-                                  </span>{" "}
-                                  <span className="text-gray-600">
-                                    {detail.competition_score.toFixed(1)}
-                                  </span>
-                                </p>
-                              )}
-                              {detail.monetization && (
-                                <p>
-                                  <span className="font-medium text-gray-700">
-                                    变现方式:
-                                  </span>{" "}
-                                  <span className="text-gray-600">
-                                    {detail.monetization}
-                                  </span>
-                                </p>
-                              )}
+                            <div className="grid gap-4 text-sm md:grid-cols-2">
+                              {/* Left column */}
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="mb-1 font-medium text-gray-700">描述 / Description</p>
+                                  <p className="text-gray-600">{detail.description || "--"}</p>
+                                </div>
+                                {detail.core_features && (
+                                  <div>
+                                    <p className="mb-1 font-medium text-gray-700">核心功能 / Core Features</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {(() => {
+                                        try {
+                                          const features = JSON.parse(detail.core_features);
+                                          if (Array.isArray(features)) {
+                                            return features.map((f: string, i: number) => (
+                                              <span key={i} className="inline-block rounded-md bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">
+                                                {f}
+                                              </span>
+                                            ));
+                                          }
+                                        } catch {}
+                                        return <span className="text-gray-600">{detail.core_features}</span>;
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
+                                {detail.target_users && (
+                                  <div>
+                                    <p className="mb-1 font-medium text-gray-700">目标用户 / Target Users</p>
+                                    <p className="text-gray-600">{detail.target_users}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {/* Right column */}
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                  {detail.complexity && (
+                                    <div className="rounded-lg border border-gray-100 bg-white p-3">
+                                      <p className="text-xs text-gray-500">复杂度 / Complexity</p>
+                                      <p className="mt-1 font-semibold text-gray-800">{detail.complexity}</p>
+                                    </div>
+                                  )}
+                                  {detail.monetization && (
+                                    <div className="rounded-lg border border-gray-100 bg-white p-3">
+                                      <p className="text-xs text-gray-500">变现方式 / Monetization</p>
+                                      <p className="mt-1 font-semibold text-gray-800">{detail.monetization}</p>
+                                    </div>
+                                  )}
+                                  {detail.competition_score !== null && detail.competition_score !== undefined && (
+                                    <div className="rounded-lg border border-gray-100 bg-white p-3">
+                                      <p className="text-xs text-gray-500">竞争度 / Competition</p>
+                                      <p className="mt-1 font-semibold text-gray-800">{detail.competition_score.toFixed(2)}</p>
+                                    </div>
+                                  )}
+                                  {detail.feasibility_score !== null && detail.feasibility_score !== undefined && (
+                                    <div className="rounded-lg border border-gray-100 bg-white p-3">
+                                      <p className="text-xs text-gray-500">可行性 / Feasibility</p>
+                                      <p className="mt-1 font-semibold text-gray-800">{detail.feasibility_score.toFixed(2)}</p>
+                                    </div>
+                                  )}
+                                </div>
+                                {detail.source_url && (
+                                  <div>
+                                    <p className="mb-1 font-medium text-gray-700">需求来源 / Source</p>
+                                    <a
+                                      href={detail.source_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {detail.source || "查看来源"}
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  </div>
+                                )}
+                                {!detail.source_url && detail.source && (
+                                  <div>
+                                    <p className="mb-1 font-medium text-gray-700">需求来源 / Source</p>
+                                    <span className="text-gray-600">{detail.source}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <p className="text-sm text-gray-400">
