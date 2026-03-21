@@ -233,3 +233,9 @@ export async function reviseApp(appDir: string, instruction: string): Promise<Re
     body: JSON.stringify({ app_dir: appDir, instruction: instruction }),
   })) ?? { status: "error", message: "Request failed", changes_made: [] };
 }
+
+export async function generateConcurrentApp(theme: string): Promise<{status: string; message: string; run_id?: string; concurrent_count?: number}> {
+  return (await request<{status: string; message: string; run_id?: string; concurrent_count?: number}>("/pipeline/generate-concurrent", {
+    method: "POST", body: JSON.stringify({ theme }),
+  })) ?? { status: "error", message: "Request failed" };
+}
