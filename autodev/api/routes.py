@@ -557,6 +557,19 @@ async def get_runner_status():
     return runner.stats
 
 
+@router.post("/pipeline/generate-custom")
+async def generate_custom_app(body: dict):
+    """Generate an app from a user-specified theme/description."""
+    theme = body.get("theme", "")
+    if not theme:
+        raise HTTPException(status_code=400, detail="theme is required")
+
+    from autodev.pipeline.runner import PipelineRunner
+    runner = PipelineRunner.get_instance()
+    result = await runner.start_custom(theme)
+    return result
+
+
 @router.get("/pipeline/logs")
 async def get_pipeline_logs():
     from autodev.pipeline.runner import PipelineRunner

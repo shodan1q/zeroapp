@@ -221,6 +221,12 @@ export async function runAppOnDevice(appDir: string, platform: string): Promise<
 /*  App Revision                                                       */
 /* ------------------------------------------------------------------ */
 
+export async function generateCustomApp(theme: string): Promise<{status: string; message: string}> {
+  return (await request<{status: string; message: string}>("/pipeline/generate-custom", {
+    method: "POST", body: JSON.stringify({ theme }),
+  })) ?? { status: "error", message: "请求失败" };
+}
+
 export async function reviseApp(appDir: string, instruction: string): Promise<RevisionResult> {
   return (await request<RevisionResult>("/generated-apps/revise", {
     method: "POST",

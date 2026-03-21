@@ -8,10 +8,11 @@ import {
   Lightbulb,
   Hammer,
   Clock,
-  ArrowRight,
   Activity,
   RefreshCw,
   AlertTriangle,
+  Sparkles,
+  Send,
 } from "lucide-react";
 import {
   fetchDashboard,
@@ -19,84 +20,15 @@ import {
   fetchBuilds,
   fetchRunnerStatus,
   fetchPipelineLogs,
-  startPipeline,
-  stopPipeline,
+  generateCustomApp,
 } from "@/lib/api";
 import type {
   DashboardSummary,
   DemandOut,
   BuildLogOut,
   RunnerStatus,
-  WsEvent,
 } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
-
-/* ------------------------------------------------------------------ */
-/*  Pipeline stage definitions                                        */
-/* ------------------------------------------------------------------ */
-
-const PIPELINE_STAGES = [
-  "需求爬取",
-  "数据处理",
-  "需求评估",
-  "决策",
-  "代码生成",
-  "构建",
-  "资源生成",
-  "发布",
-] as const;
-
-const STAGE_MAP: Record<string, number> = {
-  crawl: 0,
-  process: 1,
-  evaluate: 2,
-  decide: 3,
-  generate: 4,
-  build: 5,
-  assets: 6,
-  publish: 7,
-};
-
-type StageStatus = "pending" | "active" | "completed" | "failed";
-
-function stageColor(s: StageStatus) {
-  switch (s) {
-    case "completed":
-      return "bg-emerald-500";
-    case "active":
-      return "bg-blue-500 animate-pulse";
-    case "failed":
-      return "bg-red-500";
-    default:
-      return "bg-gray-300";
-  }
-}
-
-function stageTextColor(s: StageStatus) {
-  switch (s) {
-    case "completed":
-      return "text-emerald-600";
-    case "active":
-      return "text-blue-600";
-    case "failed":
-      return "text-red-600";
-    default:
-      return "text-gray-400";
-  }
-}
-
-function lineColor(s: StageStatus) {
-  switch (s) {
-    case "completed":
-      return "bg-emerald-400";
-    case "active":
-      return "bg-blue-400";
-    case "failed":
-      return "bg-red-400";
-    default:
-      return "bg-gray-200";
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton helpers                                                   */
@@ -171,14 +103,6 @@ export default function OverviewPage() {
   const [builds, setBuilds] = useState<BuildLogOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiConnected, setApiConnected] = useState(true);
-  const [pipelineStages, setPipelineStages] = useState<StageStatus[]>(
-    Array(8).fill("pending") as StageStatus[],
-  );
-  const [pipelineInfo, setPipelineInfo] = useState({
-    demandTitle: "--",
-    elapsed: "--",
-    retries: 0,
-  });
   const [activityLog, setActivityLog] = useState<
     { time: string; message: string; type?: string }[]
   >([]);
@@ -191,9 +115,18 @@ export default function OverviewPage() {
     apps_pushed: 0,
     errors: 0,
   });
-  const [runnerLoading, setRunnerLoading] = useState(false);
+  const [pipelineTask, setPipelineTask] = useState("--");
+
+  // Custom generation state
+  const [customTheme, setCustomTheme] = useState("");
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customResult, setCustomResult] = useState<{
+    status: string;
+    message: string;
+  } | null>(null);
+
   const logRef = useRef<HTMLDivElement>(null);
-  const { connected, lastEvent, events } = useWebSocket();
+  const { connected, lastEvent } = useWebSocket();
 
   /* ---------- Fetch data ---------------------------------------- */
 
@@ -210,20 +143,17 @@ export default function OverviewPage() {
       setBuilds(buildsRes.items);
       if (logsRes.logs.length > 0) {
         setActivityLog((prev) => {
-          // Merge: keep server logs as base, append any WS-only entries
           const serverLogs = logsRes.logs.map((l) => ({
             time: new Date(l.time).toLocaleTimeString("zh-CN"),
             message: l.message,
             type: l.type,
           }));
-          // If we already have WS events that are newer, append them
           if (prev.length > serverLogs.length) {
             return [...serverLogs, ...prev.slice(serverLogs.length)];
           }
           return serverLogs;
         });
       }
-      // If we got default zeros for everything, backend may not be running
       const isDefault =
         dash.total_apps === 0 &&
         dash.total_demands === 0 &&
@@ -258,20 +188,6 @@ export default function OverviewPage() {
     return () => clearInterval(timer);
   }, [loadRunnerStatus, runnerStatus.running]);
 
-  const handleStartPipeline = useCallback(async () => {
-    setRunnerLoading(true);
-    await startPipeline();
-    await loadRunnerStatus();
-    setRunnerLoading(false);
-  }, [loadRunnerStatus]);
-
-  const handleStopPipeline = useCallback(async () => {
-    setRunnerLoading(true);
-    await stopPipeline();
-    await loadRunnerStatus();
-    setRunnerLoading(false);
-  }, [loadRunnerStatus]);
-
   /* ---------- WebSocket updates --------------------------------- */
 
   useEffect(() => {
@@ -296,26 +212,8 @@ export default function OverviewPage() {
         demand_id?: string;
         detail?: { message?: string };
       };
-      const idx = STAGE_MAP[d.stage];
-      if (idx !== undefined) {
-        setPipelineStages((prev) =>
-          prev.map((s, i) => {
-            if (i < idx) return "completed";
-            if (i === idx)
-              return d.status === "completed"
-                ? "completed"
-                : d.status === "failed"
-                  ? "failed"
-                  : "active";
-            return "pending";
-          }),
-        );
-      }
       if (d.detail?.message) {
-        setPipelineInfo((prev) => ({
-          ...prev,
-          demandTitle: d.detail!.message!,
-        }));
+        setPipelineTask(d.detail.message);
       }
     }
 
@@ -324,13 +222,12 @@ export default function OverviewPage() {
         stats?: { message?: string };
         message?: string;
       };
-      const msg = d.stats?.message ?? d.message;
-      if (msg) {
-        setPipelineInfo((prev) => ({ ...prev, demandTitle: msg }));
+      const m = d.stats?.message ?? d.message;
+      if (m) {
+        setPipelineTask(m);
       }
     }
 
-    // Re-fetch on meaningful updates
     if (
       lastEvent.type === "build_update" ||
       lastEvent.type === "demand_update" ||
@@ -346,6 +243,26 @@ export default function OverviewPage() {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [activityLog]);
+
+  /* ---------- Custom generation handler -------------------------- */
+
+  const handleCustomGenerate = useCallback(async () => {
+    if (!customTheme.trim() || runnerStatus.running) return;
+    setCustomLoading(true);
+    setCustomResult(null);
+    try {
+      const result = await generateCustomApp(customTheme.trim());
+      setCustomResult(result);
+      if (result.status === "started") {
+        setCustomTheme("");
+        loadRunnerStatus();
+      }
+    } catch {
+      setCustomResult({ status: "error", message: "请求失败，请重试" });
+    } finally {
+      setCustomLoading(false);
+    }
+  }, [customTheme, runnerStatus.running, loadRunnerStatus]);
 
   /* ---------- Stats cards --------------------------------------- */
 
@@ -418,77 +335,6 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Runner control panel */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              {runnerStatus.running ? (
-                <span className="relative flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
-                </span>
-              ) : (
-                <span className="inline-flex h-3 w-3 rounded-full bg-gray-300" />
-              )}
-              <h2 className="text-lg font-semibold text-gray-900">
-                {runnerStatus.running ? "流水线运行中" : "流水线已停止"}
-              </h2>
-            </div>
-            {runnerStatus.started_at && (
-              <span className="text-sm text-gray-500">
-                {"启动于 " + new Date(runnerStatus.started_at).toLocaleString("zh-CN")}
-              </span>
-            )}
-          </div>
-          <div>
-            {runnerStatus.running ? (
-              <button
-                onClick={handleStopPipeline}
-                disabled={runnerLoading}
-                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
-              >
-                {runnerLoading ? "处理中..." : "停止流水线"}
-              </button>
-            ) : (
-              <button
-                onClick={handleStartPipeline}
-                disabled={runnerLoading}
-                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {runnerLoading ? "处理中..." : "启动流水线"}
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-5">
-          <div>
-            <p className="text-xs text-gray-500">运行周期</p>
-            <p className="text-xl font-semibold text-gray-900">{runnerStatus.cycles}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">已生成应用</p>
-            <p className="text-xl font-semibold text-gray-900">{runnerStatus.apps_generated}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">已推送 GitHub</p>
-            <p className="text-xl font-semibold text-gray-900">{runnerStatus.apps_pushed}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">错误次数</p>
-            <p className={`text-xl font-semibold ${runnerStatus.errors > 0 ? "text-red-600" : "text-gray-900"}`}>
-              {runnerStatus.errors}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">当前任务</p>
-            <p className="text-sm font-medium text-gray-700">
-              {runnerStatus.current_run_id ?? "--"}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* A) Stats cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {loading
@@ -518,71 +364,75 @@ export default function OverviewPage() {
             })}
       </div>
 
-      {/* B) Pipeline status */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-5 text-sm font-semibold text-gray-700">
-          流水线状态
-        </h2>
-
-        {/* Stage flow */}
-        <div className="flex items-center justify-between overflow-x-auto pb-2">
-          {PIPELINE_STAGES.map((name, i) => {
-            const status = pipelineStages[i];
-            return (
-              <div key={name} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full ${stageColor(status)}`}
-                  >
-                    <span className="text-xs font-bold text-white">
-                      {i + 1}
-                    </span>
-                  </div>
-                  <span
-                    className={`mt-2 whitespace-nowrap text-xs font-medium ${stageTextColor(status)}`}
-                  >
-                    {name}
-                  </span>
-                </div>
-                {i < PIPELINE_STAGES.length - 1 && (
-                  <div className="mx-2 flex items-center">
-                    <div
-                      className={`h-0.5 w-8 sm:w-12 lg:w-16 ${lineColor(status)}`}
-                    />
-                    <ArrowRight
-                      className={`h-3.5 w-3.5 ${stageTextColor(status)}`}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Pipeline info */}
-        <div className="mt-4 flex flex-wrap gap-6 border-t border-gray-100 pt-4 text-sm text-gray-500">
-          <span>
-            当前需求:{" "}
-            <span className="font-medium text-gray-700">
-              {pipelineInfo.demandTitle}
+      {/* B) Compact pipeline status indicator */}
+      <div className="rounded-lg border border-gray-200 bg-white px-5 py-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {runnerStatus.running ? (
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              </span>
+            ) : (
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-gray-300" />
+            )}
+            <span className="text-sm font-medium text-gray-700">
+              {runnerStatus.running ? "流水线运行中" : "流水线已停止"}
             </span>
+          </div>
+          <span className="text-gray-300">|</span>
+          <span className="truncate text-sm text-gray-500">
+            当前任务: {runnerStatus.current_run_id ?? pipelineTask}
           </span>
-          <span>
-            已用时间:{" "}
-            <span className="font-medium text-gray-700">
-              {pipelineInfo.elapsed}
-            </span>
-          </span>
-          <span>
-            重试次数:{" "}
-            <span className="font-medium text-gray-700">
-              {pipelineInfo.retries}
-            </span>
+          <span className="ml-auto shrink-0 text-xs text-gray-400">
+            周期 {runnerStatus.cycles} / 已生成 {runnerStatus.apps_generated} / 已推送 {runnerStatus.apps_pushed}
           </span>
         </div>
       </div>
 
-      {/* C) Two-column tables */}
+      {/* C) Custom generation card */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="h-5 w-5 text-indigo-500" />
+          <h2 className="text-base font-semibold text-gray-900">自定义生成</h2>
+        </div>
+        <p className="mb-4 text-sm text-gray-500">
+          输入你的 App 主题或需求描述，系统将自动生成完整的 Flutter 应用
+        </p>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={customTheme}
+            onChange={(e) => setCustomTheme(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCustomGenerate()}
+            disabled={runnerStatus.running || customLoading}
+            placeholder="例如：一个带有星空动画背景的冥想计时器..."
+            className="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400"
+          />
+          <button
+            onClick={handleCustomGenerate}
+            disabled={!customTheme.trim() || runnerStatus.running || customLoading}
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+          >
+            <Send className="h-4 w-4" />
+            {customLoading ? "提交中..." : "开始生成"}
+          </button>
+        </div>
+        {runnerStatus.running && (
+          <p className="mt-2 text-xs text-amber-600">
+            流水线运行中，请等待完成后再生成
+          </p>
+        )}
+        {customResult && (
+          <p
+            className={`mt-2 text-sm ${customResult.status === "started" ? "text-emerald-600" : "text-red-600"}`}
+          >
+            {customResult.message}
+          </p>
+        )}
+      </div>
+
+      {/* D) Two-column tables */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent demands */}
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -691,7 +541,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* D) Activity log */}
+      {/* E) Activity log */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
           <Activity className="h-4 w-4 text-gray-400" />
@@ -705,7 +555,7 @@ export default function OverviewPage() {
         </div>
         <div
           ref={logRef}
-          className="max-h-96 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600"
+          className="max-h-48 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600"
         >
           {activityLog.length === 0 ? (
             <p className="py-6 text-center text-gray-400">暂无活动记录</p>
