@@ -52,3 +52,5 @@ logs/
 # Database
 *.db
 *.sqlite3
+dashboard/node_modules/
+dashboard/.next/

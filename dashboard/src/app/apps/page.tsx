@@ -1,0 +1,299 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import {
+  Smartphone,
+  Search,
+  RefreshCw,
+  Star,
+  Download,
+  DollarSign,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Package,
+} from "lucide-react";
+import { fetchApps, rebuildApp } from "@/lib/api";
+import type { AppOut, PaginatedResponse } from "@/lib/types";
+import { useWebSocket } from "@/hooks/useWebSocket";
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    draft: "bg-gray-100 text-gray-600",
+    building: "bg-blue-50 text-blue-700",
+    testing: "bg-indigo-50 text-indigo-700",
+    published: "bg-emerald-50 text-emerald-700",
+    failed: "bg-red-50 text-red-700",
+    suspended: "bg-amber-50 text-amber-700",
+  };
+  const label: Record<string, string> = {
+    draft: "草稿",
+    building: "构建中",
+    testing: "测试中",
+    published: "已上架",
+    failed: "失败",
+    suspended: "已下架",
+  };
+  return (
+    <span
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600"}`}
+    >
+      {label[status] ?? status}
+    </span>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="h-12 w-12 rounded-lg bg-gray-200" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-32 rounded bg-gray-200" />
+          <div className="h-3 w-24 rounded bg-gray-200" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-full rounded bg-gray-200" />
+        <div className="h-3 w-2/3 rounded bg-gray-200" />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                               */
+/* ------------------------------------------------------------------ */
+
+export default function AppsPage() {
+  const [data, setData] = useState<PaginatedResponse<AppOut> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [rebuildingId, setRebuildingId] = useState<number | null>(null);
+
+  const { lastEvent } = useWebSocket();
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetchApps({
+        page,
+        page_size: 12,
+        status: statusFilter || undefined,
+      });
+      setData(res);
+    } catch (err) {
+      console.error("Failed to load apps", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (lastEvent?.type === "app_update") {
+      loadData();
+    }
+  }, [lastEvent, loadData]);
+
+  const handleRebuild = async (id: number) => {
+    setRebuildingId(id);
+    try {
+      await rebuildApp(id);
+      loadData();
+    } catch (err) {
+      console.error("Rebuild failed", err);
+    } finally {
+      setRebuildingId(null);
+    }
+  };
+
+  const items = data?.items ?? [];
+  const totalPages = data?.pages ?? 1;
+
+  // Client-side search filter
+  const filteredItems = search
+    ? items.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()))
+    : items;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Smartphone className="h-6 w-6 text-blue-500" />
+          <h1 className="text-2xl font-semibold text-gray-900">应用管理</h1>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="搜索应用..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">全部状态</option>
+            <option value="draft">草稿</option>
+            <option value="building">构建中</option>
+            <option value="published">已上架</option>
+            <option value="failed">失败</option>
+            <option value="suspended">已下架</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Card grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {loading
+          ? Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
+          : filteredItems.length === 0
+            ? null
+            : filteredItems.map((app) => (
+                <div
+                  key={app.id}
+                  className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                >
+                  {/* App header */}
+                  <div className="mb-4 flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+                      <Package className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-semibold text-gray-900">
+                        {app.name}
+                      </h3>
+                      <p className="truncate text-xs text-gray-400">
+                        com.autodev.app{app.id}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="mb-4">{statusBadge(app.status)}</div>
+
+                  {/* Stats */}
+                  <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="flex items-center justify-center gap-1 text-gray-400">
+                        <Download className="h-3.5 w-3.5" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700">--</p>
+                      <p className="text-[10px] text-gray-400">下载量</p>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-center gap-1 text-gray-400">
+                        <Star className="h-3.5 w-3.5" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700">--</p>
+                      <p className="text-[10px] text-gray-400">评分</p>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-center gap-1 text-gray-400">
+                        <DollarSign className="h-3.5 w-3.5" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700">--</p>
+                      <p className="text-[10px] text-gray-400">收入</p>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                    <p className="text-[10px] text-gray-400">
+                      {new Date(app.created_at).toLocaleDateString("zh-CN")}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRebuild(app.id)}
+                        disabled={rebuildingId === app.id}
+                        className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <RefreshCw
+                          className={`h-3 w-3 ${rebuildingId === app.id ? "animate-spin" : ""}`}
+                        />
+                        重新构建
+                      </button>
+                      <button className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50">
+                        <ExternalLink className="h-3 w-3" />
+                        详情
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+      </div>
+
+      {/* Empty state */}
+      {!loading && filteredItems.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-white py-16 shadow-sm">
+          <Smartphone className="mb-3 h-10 w-10 text-gray-300" />
+          <p className="text-sm text-gray-400">暂无数据</p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {data && data.pages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500">
+            共 {data.total} 个应用，第 {data.page}/{data.pages} 页
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-md border border-gray-200 p-1.5 text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
+              const pageNum = i + 1;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setPage(pageNum)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    page === pageNum
+                      ? "bg-blue-600 text-white"
+                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-md border border-gray-200 p-1.5 text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-40"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
