@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+
+@dataclass
+class CompetitionResult:
+    """Structured competition analysis result."""
+
+    app_count: int
+    avg_rating: float
+    competition_score: float  # 0.0 (blue ocean) to 1.0 (saturated)
+
 
 class CompetitionAnalyzer:
     """Analyze competition for a given app idea. (Stub)"""
