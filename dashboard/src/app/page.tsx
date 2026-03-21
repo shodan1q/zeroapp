@@ -728,7 +728,7 @@ export default function OverviewPage() {
         </h2>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {pipelineStatus === null && !searchLoading
+          {searchLoading
             ? STAGES.filter((s) => s.key !== "error").map((s) => (
                 <SkeletonStageCard key={s.key} />
               ))
