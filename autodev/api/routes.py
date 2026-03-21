@@ -50,6 +50,18 @@ router = APIRouter(prefix="/api")
 @router.get("/dashboard", response_model=DashboardSummary)
 async def get_dashboard(session: AsyncSession = Depends(get_session)) -> DashboardSummary:
     """Return an overview of the current system state."""
+    try:
+        return await _get_dashboard_impl(session)
+    except Exception:
+        logger.warning("Dashboard query failed (tables may not exist yet)")
+        return DashboardSummary(
+            total_apps=0, live_apps=0, reviewing_apps=0, developing_apps=0,
+            total_demands=0, pending_demands=0,
+            approved_today=0, rejected_today=0, builds_today=0,
+        )
+
+
+async def _get_dashboard_impl(session: AsyncSession) -> DashboardSummary:
     today_start = datetime.datetime.now(datetime.timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
@@ -527,7 +539,7 @@ async def get_runner_status():
 # ── App Revision ─────────────────────────────────────────────────
 
 
-@router.post("/apps/revise")
+@router.post("/generated-apps/revise")
 async def revise_app(body: dict):
     """Revise an existing generated app."""
     app_dir = body.get("app_dir", "")
@@ -543,7 +555,7 @@ async def revise_app(body: dict):
     return result
 
 
-@router.get("/apps/generated")
+@router.get("/generated-apps")
 async def list_generated_apps():
     """List all generated app directories."""
     from autodev.config import get_settings

@@ -30,11 +30,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     engine = get_async_engine()
     try:
-        async with engine.connect() as conn:
-            from sqlalchemy import text
-
-            await conn.execute(text("SELECT 1"))
-        logger.info("Database connection verified.")
+        # Create tables if they don't exist
+        from autodev.database import Base
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables ensured.")
     except Exception:
         logger.warning(
             "Database is not reachable at startup. "

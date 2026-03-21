@@ -183,11 +183,11 @@ export async function fetchRunnerStatus(): Promise<RunnerStatus> {
 /* ------------------------------------------------------------------ */
 
 export async function listGeneratedApps(): Promise<{apps: GeneratedApp[]}> {
-  return (await request<{apps: GeneratedApp[]}>("/apps/generated")) ?? {apps: []};
+  return (await request<{apps: GeneratedApp[]}>("/generated-apps")) ?? {apps: []};
 }
 
 export async function reviseApp(appDir: string, instruction: string): Promise<RevisionResult> {
-  return (await request<RevisionResult>("/apps/revise", {
+  return (await request<RevisionResult>("/generated-apps/revise", {
     method: "POST",
     body: JSON.stringify({ app_dir: appDir, instruction: instruction }),
   })) ?? { status: "error", message: "Request failed", changes_made: [] };
