@@ -175,54 +175,54 @@ export default function LoginPage() {
           <div className="relative z-10 max-w-xl w-full">
             {/* Title */}
             <div className="fade-in-1 mb-4">
-              <h1 className="gradient-text text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-tight">
+              <h1 className="gradient-text text-3xl lg:text-4xl xl:text-5xl font-bold tracking-tight leading-tight">
                 AutoDev Agent
               </h1>
             </div>
 
-            <p className="fade-in-2 text-lg text-blue-200/70 font-medium mb-2">
+            <p className="fade-in-2 text-base text-blue-200/70 font-medium mb-1">
               {t("login.subtitle")}
             </p>
-            <p className="fade-in-2 text-sm text-gray-500 mb-10 max-w-md">
+            <p className="fade-in-2 text-sm text-gray-500 mb-8 max-w-md">
               {t("login.description")}
             </p>
 
             {/* Workflow -- horizontal animated graph */}
             <div className="fade-in-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-600 mb-5">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-600 mb-4">
                 {t("login.workflow_title")}
               </p>
 
-              <div className="flex items-center gap-0 overflow-x-auto pb-2">
+              <div className="flex items-center gap-0 pb-1">
                 {STAGES.map((stage, i) => {
                   const Icon = stage.icon;
                   const isActive = i === activeNode;
                   const isDone = i < activeNode;
                   return (
                     <React.Fragment key={stage.key}>
-                      <div className="flex flex-col items-center gap-2 flex-shrink-0"
+                      <div className="flex flex-col items-center gap-1.5 flex-shrink-0 relative"
                         style={{ animation: `float-subtle 3s ease-in-out ${i * 0.2}s infinite` }}
                       >
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all duration-500 ${
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-all duration-500 ${
                           isActive ? "node-active" : isDone ? "node-done" : "node-default"
                         }`}>
-                          <Icon className={`w-5 h-5 transition-colors duration-500 ${
+                          <Icon className={`w-4 h-4 transition-colors duration-500 ${
                             isActive ? "text-blue-300" : isDone ? "text-emerald-400/70" : "text-gray-600"
                           }`} />
                           {isActive && (
-                            <div className="absolute inset-0 rounded-xl border border-blue-400/30"
+                            <div className="absolute inset-0 rounded-lg border border-blue-400/30"
                               style={{ animation: "pulse-ring 1.5s ease-out infinite" }}
                             />
                           )}
                         </div>
-                        <span className={`text-[10px] whitespace-nowrap transition-colors duration-500 ${
+                        <span className={`text-[9px] whitespace-nowrap transition-colors duration-500 ${
                           isActive ? "text-blue-300" : isDone ? "text-emerald-400/60" : "text-gray-600"
                         }`}>
                           {t(stage.key)}
                         </span>
                       </div>
                       {i < STAGES.length - 1 && (
-                        <div className={`w-6 xl:w-10 h-[1.5px] mx-0.5 flex-shrink-0 rounded-full transition-all duration-500 ${
+                        <div className={`w-5 xl:w-8 h-[1px] mx-0.5 flex-shrink-0 rounded-full transition-all duration-500 ${
                           isDone ? "connector-active" : "bg-white/5"
                         }`} />
                       )}
@@ -233,12 +233,12 @@ export default function LoginPage() {
             </div>
 
             {/* Decorative line */}
-            <div className="entrance-line mt-8 h-px"
+            <div className="entrance-line mt-6 h-px"
               style={{ background: "linear-gradient(90deg, transparent, rgba(96,165,250,0.3), rgba(139,92,246,0.2), transparent)" }}
             />
 
             {/* Stats line */}
-            <div className="fade-in-4 flex items-center gap-6 mt-6 text-gray-600 text-xs">
+            <div className="fade-in-4 flex items-center gap-6 mt-4 text-gray-600 text-xs">
               <span>LangGraph</span>
               <span className="w-1 h-1 rounded-full bg-gray-700" />
               <span>Claude Opus 4.6</span>
