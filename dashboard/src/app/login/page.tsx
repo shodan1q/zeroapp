@@ -12,6 +12,8 @@ import {
   Rocket,
   Search,
   Languages,
+  ArrowRight,
+  Lock,
 } from "lucide-react";
 
 const STAGES = [
@@ -31,9 +33,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [activeNode, setActiveNode] = useState(0);
 
+  useEffect(() => { setMounted(true); }, []);
+
+  // Animate active node cycling
   useEffect(() => {
-    setMounted(true);
+    const timer = setInterval(() => {
+      setActiveNode((prev) => (prev + 1) % STAGES.length);
+    }, 1500);
+    return () => clearInterval(timer);
   }, []);
 
   function handleLogin(e: React.FormEvent) {
@@ -46,344 +55,278 @@ export default function LoginPage() {
     }
   }
 
+  if (!mounted) return <div className="min-h-screen" style={{ background: "#06061a" }} />;
+
   return (
     <>
       <style jsx>{`
-        @keyframes float1 {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          25% { transform: translateY(-30px) translateX(10px); }
-          50% { transform: translateY(-10px) translateX(-15px); }
-          75% { transform: translateY(-25px) translateX(5px); }
-        }
-        @keyframes float2 {
-          0%, 100% { transform: translateY(0px) translateX(0px) rotate(0deg); }
-          33% { transform: translateY(-20px) translateX(-20px) rotate(120deg); }
-          66% { transform: translateY(10px) translateX(15px) rotate(240deg); }
-        }
-        @keyframes float3 {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-40px) scale(1.1); }
-        }
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(30px); }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes fadeInScale {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
+        @keyframes pulse-ring {
+          0% { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(1.8); opacity: 0; }
         }
-        @keyframes nodeGlow {
-          0%, 14% { box-shadow: 0 0 5px rgba(59,130,246,0.2); border-color: rgba(255,255,255,0.1); }
-          7% { box-shadow: 0 0 20px rgba(59,130,246,0.8), 0 0 40px rgba(139,92,246,0.4); border-color: rgba(59,130,246,0.6); }
+        @keyframes orbit1 {
+          0% { transform: rotate(0deg) translateX(180px) rotate(0deg); }
+          100% { transform: rotate(360deg) translateX(180px) rotate(-360deg); }
         }
-        @keyframes flowDot {
-          0% { left: 0%; opacity: 0; }
-          5% { opacity: 1; }
-          95% { opacity: 1; }
-          100% { left: 100%; opacity: 0; }
+        @keyframes orbit2 {
+          0% { transform: rotate(120deg) translateX(250px) rotate(-120deg); }
+          100% { transform: rotate(480deg) translateX(250px) rotate(-480deg); }
         }
-        @keyframes gridPulse {
-          0%, 100% { opacity: 0.03; }
-          50% { opacity: 0.08; }
+        @keyframes orbit3 {
+          0% { transform: rotate(240deg) translateX(140px) rotate(-240deg); }
+          100% { transform: rotate(600deg) translateX(140px) rotate(-600deg); }
         }
-        @keyframes borderGlow {
-          0%, 100% { border-color: rgba(59,130,246,0.2); }
-          50% { border-color: rgba(139,92,246,0.4); }
+        @keyframes float-subtle {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
         }
-        .login-bg {
-          background: #0a0a1a;
+        .page-bg {
+          background: radial-gradient(ellipse at 20% 50%, #0f1642 0%, #06061a 50%, #06061a 100%);
         }
         .gradient-text {
-          background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #3b82f6 100%);
+          background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #60a5fa 100%);
           background-size: 200% 200%;
           animation: gradientShift 4s ease infinite;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
-        .hero-section {
-          animation: fadeInUp 0.8s ease-out both;
-        }
-        .workflow-section {
-          animation: fadeInUp 0.8s ease-out 0.2s both;
-        }
-        .login-card {
-          animation: fadeInScale 0.8s ease-out 0.4s both;
-        }
-        .glass-card {
-          background: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .node-0 { animation: nodeGlow 8s ease-in-out infinite 0s; }
-        .node-1 { animation: nodeGlow 8s ease-in-out infinite 1.14s; }
-        .node-2 { animation: nodeGlow 8s ease-in-out infinite 2.28s; }
-        .node-3 { animation: nodeGlow 8s ease-in-out infinite 3.42s; }
-        .node-4 { animation: nodeGlow 8s ease-in-out infinite 4.56s; }
-        .node-5 { animation: nodeGlow 8s ease-in-out infinite 5.7s; }
-        .node-6 { animation: nodeGlow 8s ease-in-out infinite 6.84s; }
-        .connector-dot {
-          position: absolute;
-          top: 50%;
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          transform: translateY(-50%);
-          animation: flowDot 8s linear infinite;
-        }
-        .connector-dot-v {
-          position: absolute;
-          left: 50%;
-          width: 4px;
-          height: 4px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          transform: translateX(-50%);
-          animation: flowDotV 8s linear infinite;
-        }
-        @keyframes flowDotV {
-          0% { top: 0%; opacity: 0; }
-          5% { opacity: 1; }
-          95% { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-        .dot-0 { animation-delay: 0s; }
-        .dot-1 { animation-delay: 1.14s; }
-        .dot-2 { animation-delay: 2.28s; }
-        .dot-3 { animation-delay: 3.42s; }
-        .dot-4 { animation-delay: 4.56s; }
-        .dot-5 { animation-delay: 5.7s; }
-        .grid-bg {
-          background-image:
-            linear-gradient(rgba(59,130,246,0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(59,130,246,0.05) 1px, transparent 1px);
-          background-size: 60px 60px;
-          animation: gridPulse 6s ease-in-out infinite;
-        }
-        .floating-shape {
+        .fade-in-1 { animation: fadeIn 0.6s ease-out both; }
+        .fade-in-2 { animation: fadeIn 0.6s ease-out 0.15s both; }
+        .fade-in-3 { animation: fadeIn 0.6s ease-out 0.3s both; }
+        .fade-in-4 { animation: fadeIn 0.6s ease-out 0.45s both; }
+        .orbit-dot {
           position: absolute;
           border-radius: 50%;
           pointer-events: none;
         }
-        .shape-1 {
-          width: 300px;
-          height: 300px;
-          background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%);
-          top: 10%;
-          left: 5%;
-          animation: float1 12s ease-in-out infinite;
+        .orbit-1 {
+          width: 6px; height: 6px;
+          background: #3b82f6;
+          box-shadow: 0 0 12px #3b82f6;
+          animation: orbit1 20s linear infinite;
         }
-        .shape-2 {
-          width: 200px;
-          height: 200px;
-          background: radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%);
-          top: 60%;
-          right: 10%;
-          animation: float2 15s ease-in-out infinite;
+        .orbit-2 {
+          width: 4px; height: 4px;
+          background: #8b5cf6;
+          box-shadow: 0 0 10px #8b5cf6;
+          animation: orbit2 28s linear infinite;
         }
-        .shape-3 {
-          width: 150px;
-          height: 150px;
-          background: radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%);
-          bottom: 15%;
-          left: 30%;
-          animation: float3 10s ease-in-out infinite;
+        .orbit-3 {
+          width: 5px; height: 5px;
+          background: #06b6d4;
+          box-shadow: 0 0 10px #06b6d4;
+          animation: orbit3 16s linear infinite;
         }
-        .shape-4 {
-          width: 250px;
-          height: 250px;
-          background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%);
-          top: 5%;
-          right: 25%;
-          animation: float1 18s ease-in-out infinite reverse;
+        .node-active {
+          box-shadow: 0 0 20px rgba(96, 165, 250, 0.6), 0 0 40px rgba(139, 92, 246, 0.3);
+          border-color: rgba(96, 165, 250, 0.7) !important;
+          background: rgba(96, 165, 250, 0.15) !important;
         }
-        .shape-5 {
-          width: 180px;
-          height: 180px;
-          background: radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%);
-          top: 40%;
-          left: 60%;
-          animation: float2 13s ease-in-out infinite reverse;
+        .node-done {
+          border-color: rgba(52, 211, 153, 0.5) !important;
+          background: rgba(52, 211, 153, 0.08) !important;
         }
-        .input-glow:focus {
-          box-shadow: 0 0 0 2px rgba(59,130,246,0.4), 0 0 20px rgba(59,130,246,0.15);
-          border-color: rgba(59,130,246,0.6);
+        .node-default {
+          border-color: rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.03);
         }
-        .btn-gradient {
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        .connector-active {
+          background: linear-gradient(90deg, rgba(96, 165, 250, 0.6), rgba(139, 92, 246, 0.6)) !important;
+        }
+        .input-field {
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           transition: all 0.3s ease;
         }
-        .btn-gradient:hover {
-          transform: scale(1.02);
-          box-shadow: 0 0 30px rgba(59,130,246,0.4), 0 0 60px rgba(139,92,246,0.2);
+        .input-field:focus {
+          background: rgba(255, 255, 255, 0.07);
+          border-color: rgba(96, 165, 250, 0.5);
+          box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1), 0 0 20px rgba(96, 165, 250, 0.08);
         }
-        .btn-gradient:active {
-          transform: scale(0.98);
+        .btn-login {
+          background: linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%);
+          transition: all 0.3s ease;
         }
-        .gradient-line {
-          background: linear-gradient(90deg, transparent, rgba(59,130,246,0.3), rgba(139,92,246,0.3), transparent);
+        .btn-login:hover {
+          box-shadow: 0 8px 30px rgba(59, 130, 246, 0.35), 0 0 60px rgba(124, 58, 237, 0.15);
+          transform: translateY(-1px);
         }
+        .btn-login:active { transform: translateY(0); }
       `}</style>
 
-      <div className="login-bg min-h-screen relative overflow-hidden flex">
-        {/* Animated grid background */}
-        <div className="grid-bg absolute inset-0 z-0" />
-        {/* Floating shapes */}
-        <div className="floating-shape shape-1" />
-        <div className="floating-shape shape-2" />
-        <div className="floating-shape shape-3" />
-        <div className="floating-shape shape-4" />
-        <div className="floating-shape shape-5" />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 z-0 pointer-events-none"
-          style={{
-            background: "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.1) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)"
-          }}
-        />
+      <div className="page-bg min-h-screen relative overflow-hidden flex flex-col lg:flex-row">
 
-        {/* ── Left side: Branding + Workflow ── */}
-        <div className="relative z-10 hidden lg:flex flex-col justify-center items-center flex-1 px-12">
-          {mounted && (
-            <div className="hero-section text-center max-w-lg">
-              <h1 className="gradient-text text-6xl xl:text-7xl font-bold tracking-tight mb-6">
-                {t("login.title")}
+        {/* ── Left: Branding + Animated Workflow ── */}
+        <div className="relative flex-1 flex flex-col justify-center items-center px-8 py-12 lg:py-0">
+
+          {/* Orbiting dots background */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+            <div className="relative w-0 h-0">
+              <div className="orbit-dot orbit-1" />
+              <div className="orbit-dot orbit-2" />
+              <div className="orbit-dot orbit-3" />
+            </div>
+          </div>
+
+          {/* Subtle radial glow */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "radial-gradient(circle at 50% 50%, rgba(59,130,246,0.06) 0%, transparent 60%)" }}
+          />
+
+          <div className="relative z-10 max-w-xl w-full">
+            {/* Title */}
+            <div className="fade-in-1 mb-4">
+              <h1 className="gradient-text text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-none">
+                AutoDev
               </h1>
-              <p className="text-xl text-blue-200/80 font-medium mb-3">
-                {t("login.subtitle")}
-              </p>
-              <p className="text-sm text-gray-400 leading-relaxed mb-12">
-                {t("login.description")}
+              <h1 className="gradient-text text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-none">
+                Agent
+              </h1>
+            </div>
+
+            <p className="fade-in-2 text-lg text-blue-200/70 font-medium mb-2">
+              {t("login.subtitle")}
+            </p>
+            <p className="fade-in-2 text-sm text-gray-500 mb-10 max-w-md">
+              {t("login.description")}
+            </p>
+
+            {/* Workflow -- horizontal animated graph */}
+            <div className="fade-in-3">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-600 mb-5">
+                {t("login.workflow_title")}
               </p>
 
-              {/* Workflow Visualization -- vertical */}
-              <div className="workflow-section">
-                <h2 className="text-xs uppercase tracking-widest text-gray-500 mb-8">
-                  {t("login.workflow_title")}
-                </h2>
-                <div className="flex flex-col items-start gap-0 mx-auto w-fit">
-                  {STAGES.map((stage, i) => {
-                    const Icon = stage.icon;
-                    return (
-                      <React.Fragment key={stage.key}>
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={`node-${i} w-12 h-12 rounded-xl glass-card flex items-center justify-center transition-all duration-300`}
-                          >
-                            <Icon className="w-5 h-5 text-blue-400/80" />
-                          </div>
-                          <div className="text-left">
-                            <span className="text-sm text-gray-300 font-medium">
-                              {t(stage.key)}
-                            </span>
-                          </div>
+              <div className="flex items-center gap-0 overflow-x-auto pb-2">
+                {STAGES.map((stage, i) => {
+                  const Icon = stage.icon;
+                  const isActive = i === activeNode;
+                  const isDone = i < activeNode;
+                  return (
+                    <React.Fragment key={stage.key}>
+                      <div className="flex flex-col items-center gap-2 flex-shrink-0"
+                        style={{ animation: `float-subtle 3s ease-in-out ${i * 0.2}s infinite` }}
+                      >
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all duration-500 ${
+                          isActive ? "node-active" : isDone ? "node-done" : "node-default"
+                        }`}>
+                          <Icon className={`w-5 h-5 transition-colors duration-500 ${
+                            isActive ? "text-blue-300" : isDone ? "text-emerald-400/70" : "text-gray-600"
+                          }`} />
+                          {isActive && (
+                            <div className="absolute inset-0 rounded-xl border border-blue-400/30"
+                              style={{ animation: "pulse-ring 1.5s ease-out infinite" }}
+                            />
+                          )}
                         </div>
-                        {i < STAGES.length - 1 && (
-                          <div className="ml-[23px] relative w-[2px] h-8 overflow-hidden"
-                            style={{
-                              background: "linear-gradient(180deg, rgba(59,130,246,0.3), rgba(139,92,246,0.3))"
-                            }}
-                          >
-                            <div className={`connector-dot-v dot-${i}`} />
-                          </div>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
+                        <span className={`text-[10px] whitespace-nowrap transition-colors duration-500 ${
+                          isActive ? "text-blue-300" : isDone ? "text-emerald-400/60" : "text-gray-600"
+                        }`}>
+                          {t(stage.key)}
+                        </span>
+                      </div>
+                      {i < STAGES.length - 1 && (
+                        <div className={`w-6 xl:w-10 h-[1.5px] mx-0.5 flex-shrink-0 rounded-full transition-all duration-500 ${
+                          isDone ? "connector-active" : "bg-white/5"
+                        }`} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
-          )}
+
+            {/* Stats line */}
+            <div className="fade-in-4 flex items-center gap-6 mt-10 text-gray-600 text-xs">
+              <span>LangGraph</span>
+              <span className="w-1 h-1 rounded-full bg-gray-700" />
+              <span>Claude Opus 4.6</span>
+              <span className="w-1 h-1 rounded-full bg-gray-700" />
+              <span>Flutter 3.7+</span>
+            </div>
+          </div>
         </div>
 
-        {/* ── Right side: Login form ── */}
-        <div className="relative z-10 flex flex-col justify-center items-center w-full lg:w-[480px] lg:flex-shrink-0 px-6 sm:px-12 py-8"
-          style={{ background: "rgba(10, 10, 26, 0.6)", backdropFilter: "blur(40px)" }}
+        {/* ── Right: Login Panel ── */}
+        <div className="relative z-10 flex flex-col justify-center items-center w-full lg:w-[440px] xl:w-[480px] flex-shrink-0 px-8 sm:px-14 py-12 lg:py-0"
+          style={{
+            background: "linear-gradient(180deg, rgba(15, 15, 40, 0.95) 0%, rgba(6, 6, 26, 0.98) 100%)",
+            borderLeft: "1px solid rgba(255,255,255,0.04)",
+          }}
         >
           {/* Language toggle */}
-          <div className="absolute top-6 right-6 z-20">
+          <div className="absolute top-6 right-6">
             <button
               onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors glass-card hover:text-white"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-gray-400 border border-white/5 bg-white/3 hover:text-gray-200 hover:border-white/10 transition-all"
             >
-              <Languages className="h-4 w-4" />
+              <Languages className="h-3.5 w-3.5" />
               {locale === "zh" ? "EN" : "中文"}
             </button>
           </div>
 
-          {/* Mobile hero (shows on small screens where left side is hidden) */}
-          {mounted && (
-            <div className="hero-section text-center mb-8 lg:hidden">
-              <h1 className="gradient-text text-4xl font-bold tracking-tight mb-3">
-                {t("login.title")}
-              </h1>
-              <p className="text-sm text-blue-200/80 font-medium mb-1">
-                {t("login.subtitle")}
-              </p>
-              <p className="text-xs text-gray-400">
-                {t("login.description")}
-              </p>
+          <div className="w-full max-w-sm fade-in-3">
+            {/* Lock icon */}
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 border border-white/5 flex items-center justify-center mb-6">
+              <Lock className="w-5 h-5 text-blue-400/80" />
             </div>
-          )}
 
-          {/* Login form */}
-          {mounted && (
-            <div className="login-card w-full max-w-sm">
-              <div className="mb-8 text-center lg:text-left">
-                <h2 className="text-2xl font-bold text-white mb-2">{t("login.submit")}</h2>
-                <p className="text-sm text-gray-400">{t("login.description")}</p>
+            <h2 className="text-xl font-semibold text-white mb-1">{t("login.submit")}</h2>
+            <p className="text-xs text-gray-500 mb-8">{t("login.subtitle")}</p>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider font-medium">
+                  {t("login.username")}
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setError(""); }}
+                  className="input-field w-full rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none"
+                  placeholder="admin"
+                  autoComplete="username"
+                />
               </div>
+              <div>
+                <label className="block text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider font-medium">
+                  {t("login.password")}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  className="input-field w-full rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none"
+                  placeholder="********"
+                  autoComplete="current-password"
+                />
+              </div>
+              {error && (
+                <p className="text-red-400/80 text-xs">{error}</p>
+              )}
+              <button
+                type="submit"
+                className="btn-login w-full rounded-lg py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-2 mt-2"
+              >
+                {t("login.submit")}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
 
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
-                    {t("login.username")}
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => { setUsername(e.target.value); setError(""); }}
-                    className="input-glow w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 outline-none transition-all duration-300"
-                    placeholder={t("login.username")}
-                    autoComplete="username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-2 uppercase tracking-wider">
-                    {t("login.password")}
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                    className="input-glow w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 outline-none transition-all duration-300"
-                    placeholder={t("login.password")}
-                    autoComplete="current-password"
-                  />
-                </div>
-                {error && (
-                  <p className="text-red-400 text-xs text-center">{error}</p>
-                )}
-                <button
-                  type="submit"
-                  className="btn-gradient w-full rounded-xl py-3 text-sm font-semibold text-white"
-                >
-                  {t("login.submit")}
-                </button>
-              </form>
-
-              {/* Bottom branding */}
-              <p className="mt-12 text-center text-xs text-gray-600">
-                AutoDev Agent v0.1 -- Powered by LangGraph + Claude
-              </p>
-            </div>
-          )}
+            <p className="mt-16 text-center text-[10px] text-gray-700">
+              AutoDev Agent v0.1
+            </p>
+          </div>
         </div>
       </div>
     </>
