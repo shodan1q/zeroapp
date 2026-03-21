@@ -167,7 +167,7 @@ export default function LoginPage() {
       <div className="page-bg min-h-screen relative overflow-hidden flex flex-col lg:flex-row">
 
         {/* ── Left: Branding + Animated Workflow ── */}
-        <div className="relative flex-1 flex flex-col justify-center items-center px-8 py-12 lg:py-0">
+        <div className="relative flex-1 min-w-0 hidden lg:flex flex-col justify-center items-center px-8 py-12 lg:py-0">
 
           {/* Orbiting dots background */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
@@ -186,11 +186,8 @@ export default function LoginPage() {
           <div className="relative z-10 max-w-xl w-full">
             {/* Title */}
             <div className="fade-in-1 mb-4">
-              <h1 className="gradient-text text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-none">
-                AutoDev
-              </h1>
-              <h1 className="gradient-text text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-none">
-                Agent
+              <h1 className="gradient-text text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-tight">
+                AutoDev Agent
               </h1>
             </div>
 
@@ -258,7 +255,14 @@ export default function LoginPage() {
         </div>
 
         {/* ── Right: Login Panel ── */}
-        <div className="relative z-10 flex flex-col justify-center items-center w-full lg:w-[440px] xl:w-[480px] flex-shrink-0 px-8 sm:px-14 py-12 lg:py-0"
+        {/* ── Mobile: show title above form ── */}
+        <div className="lg:hidden relative z-10 text-center pt-12 pb-4 px-6">
+          <h1 className="gradient-text text-4xl font-bold tracking-tight mb-2">AutoDev Agent</h1>
+          <p className="text-sm text-blue-200/70">{t("login.subtitle")}</p>
+        </div>
+
+        {/* ── Right: Login Panel ── */}
+        <div className="relative z-10 flex flex-col justify-center items-center w-full lg:w-[420px] xl:w-[460px] flex-shrink-0 px-8 sm:px-12 py-12 lg:py-0"
           style={{
             background: "linear-gradient(180deg, rgba(15, 15, 40, 0.95) 0%, rgba(6, 6, 26, 0.98) 100%)",
             borderLeft: "1px solid rgba(255,255,255,0.04)",
