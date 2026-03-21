@@ -72,11 +72,8 @@ class _LocalMessages:
             "messages": oai_messages,
         }
 
-        resp = httpx.post(
-            self._url,
-            json=payload,
-            timeout=300.0,
-        )
+        with httpx.Client(timeout=300.0, proxy=None) as http:
+            resp = http.post(self._url, json=payload)
         resp.raise_for_status()
         data = resp.json()
 
@@ -114,7 +111,7 @@ class _LocalAsyncMessages:
             "messages": oai_messages,
         }
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(timeout=300.0, proxy=None) as client:
             resp = await client.post(self._url, json=payload)
             resp.raise_for_status()
             data = resp.json()
