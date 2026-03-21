@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:3456",
         description="claude-max-api proxy URL (used in 'local' mode)",
     )
-    claude_model: str = Field(default="claude-sonnet-4-20250514", description="Claude model to use")
+    claude_model: str = Field(default="claude-opus-4-6", description="Claude model to use")
 
     # ── Reddit API ──────────────────────────────────────────────
     reddit_client_id: str = Field(default="", description="Reddit OAuth client ID")
