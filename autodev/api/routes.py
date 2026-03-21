@@ -247,6 +247,27 @@ async def reject_demand(
     return MessageResponse(message=f"Demand {demand_id} rejected.")
 
 
+# ── Devices ──────────────────────────────────────────────────────
+
+
+@router.get("/devices/status")
+async def get_device_status():
+    """Check which emulators/simulators are running."""
+    from autodev.api.device_manager import check_devices
+    return await check_devices()
+
+
+@router.post("/apps/run")
+async def run_app_on_device(body: dict):
+    """Run a generated app on a specific platform's emulator."""
+    app_dir = body.get("app_dir", "")
+    platform = body.get("platform", "")
+    if not app_dir or not platform:
+        raise HTTPException(status_code=400, detail="app_dir and platform are required")
+    from autodev.api.device_manager import run_on_device
+    return await run_on_device(app_dir, platform)
+
+
 # ── Apps ─────────────────────────────────────────────────────────
 
 

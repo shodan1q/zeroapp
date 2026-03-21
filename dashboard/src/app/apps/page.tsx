@@ -14,8 +14,12 @@ import {
   Package,
   FolderOpen,
   Wrench,
+  Monitor,
+  Tablet,
+  Loader2,
+  X,
 } from "lucide-react";
-import { fetchApps, rebuildApp, listGeneratedApps } from "@/lib/api";
+import { fetchApps, rebuildApp, listGeneratedApps, fetchDeviceStatus, runAppOnDevice } from "@/lib/api";
 import type { AppOut, PaginatedResponse, GeneratedApp } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import Link from "next/link";
@@ -82,6 +86,8 @@ export default function AppsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [rebuildingId, setRebuildingId] = useState<number | null>(null);
+  const [runningPlatform, setRunningPlatform] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Array<{id: number; message: string; type: "success" | "error" | "info"}>>([]);
 
   const { lastEvent } = useWebSocket();
 
@@ -127,6 +133,54 @@ export default function AppsPage() {
     }
   };
 
+  const addToast = useCallback((message: string, type: "success" | "error" | "info") => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  }, []);
+
+  const removeToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const handleRunOnDevice = async (appPath: string, platform: string) => {
+    const platformLabel: Record<string, string> = {
+      android: "Android",
+      ios: "iOS",
+      ohos: "HarmonyOS",
+    };
+    const key = `${appPath}-${platform}`;
+    setRunningPlatform(key);
+    try {
+      // First check device status
+      const devices = await fetchDeviceStatus();
+      const available =
+        platform === "android" ? devices.android :
+        platform === "ios" ? devices.ios :
+        platform === "ohos" ? devices.ohos : false;
+
+      if (!available) {
+        addToast(`请先启动 ${platformLabel[platform]} 模拟器`, "error");
+        return;
+      }
+
+      addToast(`正在构建并部署到 ${platformLabel[platform]}...`, "info");
+      const result = await runAppOnDevice(appPath, platform);
+      if (result.status === "success") {
+        addToast(result.message, "success");
+      } else {
+        addToast(result.message, "error");
+      }
+    } catch (err) {
+      console.error("Run on device failed", err);
+      addToast(`${platformLabel[platform]} 运行失败`, "error");
+    } finally {
+      setRunningPlatform(null);
+    }
+  };
+
   const dbItems = data?.items ?? [];
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
@@ -144,6 +198,33 @@ export default function AppsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Toast notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed right-4 top-4 z-50 flex flex-col gap-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm shadow-lg transition-all ${
+                toast.type === "success"
+                  ? "bg-emerald-600 text-white"
+                  : toast.type === "error"
+                    ? "bg-red-600 text-white"
+                    : "bg-blue-600 text-white"
+              }`}
+            >
+              {toast.type === "info" && <Loader2 className="h-4 w-4 animate-spin" />}
+              <span>{toast.message}</span>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="ml-2 rounded p-0.5 hover:bg-white/20"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
@@ -239,6 +320,46 @@ export default function AppsPage() {
                       <p className="truncate font-mono text-xs text-gray-400" title={app.path}>
                         {app.path}
                       </p>
+                    </div>
+
+                    {/* Run buttons */}
+                    <div className="mb-4 flex items-center gap-2">
+                      <button
+                        onClick={() => handleRunOnDevice(app.path, "android")}
+                        disabled={runningPlatform === `${app.path}-android`}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-md border border-green-200 bg-green-50 px-2 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
+                      >
+                        {runningPlatform === `${app.path}-android` ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Smartphone className="h-3 w-3" />
+                        )}
+                        Android
+                      </button>
+                      <button
+                        onClick={() => handleRunOnDevice(app.path, "ios")}
+                        disabled={runningPlatform === `${app.path}-ios`}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        {runningPlatform === `${app.path}-ios` ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Monitor className="h-3 w-3" />
+                        )}
+                        iOS
+                      </button>
+                      <button
+                        onClick={() => handleRunOnDevice(app.path, "ohos")}
+                        disabled={runningPlatform === `${app.path}-ohos`}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {runningPlatform === `${app.path}-ohos` ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Tablet className="h-3 w-3" />
+                        )}
+                        HarmonyOS
+                      </button>
                     </div>
 
                     {/* Footer */}

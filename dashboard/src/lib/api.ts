@@ -190,6 +190,37 @@ export async function listGeneratedApps(): Promise<{apps: GeneratedApp[]}> {
   return (await request<{apps: GeneratedApp[]}>("/generated-apps")) ?? {apps: []};
 }
 
+/* ------------------------------------------------------------------ */
+/*  Devices                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface DeviceStatus {
+  android: boolean;
+  ios: boolean;
+  ohos: boolean;
+  android_device: string | null;
+  ios_device: string | null;
+  ohos_device: string | null;
+}
+
+export async function fetchDeviceStatus(): Promise<DeviceStatus> {
+  return (await request<DeviceStatus>("/devices/status")) ?? {
+    android: false, ios: false, ohos: false,
+    android_device: null, ios_device: null, ohos_device: null,
+  };
+}
+
+export async function runAppOnDevice(appDir: string, platform: string): Promise<{status: string; message: string}> {
+  return (await request<{status: string; message: string}>("/apps/run", {
+    method: "POST",
+    body: JSON.stringify({ app_dir: appDir, platform }),
+  })) ?? { status: "error", message: "请求失败" };
+}
+
+/* ------------------------------------------------------------------ */
+/*  App Revision                                                       */
+/* ------------------------------------------------------------------ */
+
 export async function reviseApp(appDir: string, instruction: string): Promise<RevisionResult> {
   return (await request<RevisionResult>("/generated-apps/revise", {
     method: "POST",
