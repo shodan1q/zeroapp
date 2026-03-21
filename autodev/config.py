@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     )
     claude_api_key: str = Field(default="", description="Anthropic API key (required for 'api' mode)")
     claude_base_url: str = Field(
-        default="",
-        description="Custom base URL for Claude API (used in 'local' mode, e.g. http://localhost:8012/v1)",
+        default="http://127.0.0.1:3456",
+        description="claude-max-api proxy URL (used in 'local' mode)",
     )
     claude_model: str = Field(default="claude-sonnet-4-20250514", description="Claude model to use")
 
