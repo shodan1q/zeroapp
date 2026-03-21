@@ -119,52 +119,58 @@ export default function LoginPage() {
           pointer-events: none;
         }
 
-        /* Phase transitions */
-        .brand-container {
-          transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .brand-centered {
+        /* Phase transitions -- transform-based for smooth animation */
+        .brand-wrapper {
           position: absolute;
           inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+                      padding 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .brand-wrapper-centered {
+          transform: translateX(0);
+          padding: 2rem;
+        }
+        .brand-wrapper-left {
+          transform: translateX(-15%);
+          padding: 2rem 3rem;
+        }
+        .brand-inner {
+          transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .brand-inner-centered {
+          text-align: center;
+          max-width: 600px;
+        }
+        .brand-inner-left {
+          text-align: left;
+          max-width: 520px;
+        }
+        .brand-title {
+          transition: font-size 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .title-big { font-size: 4rem; }
+        .title-small { font-size: 2.6rem; }
+        .login-panel {
+          position: absolute;
+          right: 0; top: 0; bottom: 0;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          text-align: center;
-          padding: 2rem;
-        }
-        .brand-left {
-          position: relative;
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          justify-content: center;
-          text-align: left;
-          padding: 2rem 3rem;
-        }
-        .brand-title-centered {
-          font-size: 4.5rem;
-          transition: font-size 1s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .brand-title-left {
-          font-size: 2.8rem;
-          transition: font-size 1s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .login-panel {
-          transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
+          overflow: hidden;
+          transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+                      opacity 0.8s ease 0.4s;
         }
         .login-hidden {
           width: 0;
           opacity: 0;
-          overflow: hidden;
-          padding: 0;
         }
         .login-visible {
           width: 420px;
           opacity: 1;
-          padding: 2rem 3rem;
         }
 
         .node-active {
@@ -214,11 +220,11 @@ export default function LoginPage() {
         />
 
         {/* ── Brand / Content Section ── */}
-        <div className={`brand-container z-10 ${isLogin ? "brand-left" : "brand-centered"}`}>
-          <div className="max-w-xl w-full">
+        <div className={`brand-wrapper z-10 ${isLogin ? "brand-wrapper-left" : "brand-wrapper-centered"}`}>
+          <div className={`brand-inner ${isLogin ? "brand-inner-left" : "brand-inner-centered"}`}>
             {/* Title */}
-            <h1 className={`gradient-text font-bold tracking-tight leading-tight mb-3 ${
-              isLogin ? "brand-title-left" : "brand-title-centered"
+            <h1 className={`gradient-text brand-title font-bold tracking-tight leading-tight mb-3 ${
+              isLogin ? "title-small" : "title-big"
             }`}
               style={{ animation: "fadeInUp 0.6s ease-out both" }}
             >
@@ -246,7 +252,7 @@ export default function LoginPage() {
                 {t("login.workflow_title")}
               </p>
               <div className={`flex items-center gap-0 ${isLogin ? "" : "justify-center"}`}
-                style={{ transition: "all 1s ease" }}
+                style={{ transition: "all 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}
               >
                 {STAGES.map((stage, i) => {
                   const Icon = stage.icon;
@@ -300,11 +306,9 @@ export default function LoginPage() {
         </div>
 
         {/* ── Login Panel (slides in from right) ── */}
-        <div className={`login-panel z-10 flex-shrink-0 flex flex-col justify-center items-center relative ${
-          isLogin ? "login-visible" : "login-hidden"
-        }`}
+        <div className={`login-panel z-20 ${isLogin ? "login-visible" : "login-hidden"}`}
           style={{
-            background: "linear-gradient(180deg, rgba(12, 12, 35, 0.97) 0%, rgba(6, 6, 26, 0.99) 100%)",
+            background: "linear-gradient(180deg, rgba(12, 12, 35, 0.98) 0%, rgba(6, 6, 26, 0.99) 100%)",
             borderLeft: isLogin ? "1px solid rgba(255,255,255,0.04)" : "none",
           }}
         >
