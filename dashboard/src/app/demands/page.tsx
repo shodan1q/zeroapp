@@ -32,6 +32,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 const STATUS_OPTIONS = [
   { value: "", label: "全部状态" },
   { value: "pending", label: "待评估" },
+  { value: "evaluating", label: "评估中" },
   { value: "approved", label: "已通过" },
   { value: "rejected", label: "已拒绝" },
   { value: "in_progress", label: "开发中" },
@@ -49,6 +50,7 @@ const SOURCE_OPTIONS = [
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     pending: "bg-gray-100 text-gray-600",
+    evaluating: "bg-yellow-50 text-yellow-700",
     approved: "bg-emerald-50 text-emerald-700",
     rejected: "bg-red-50 text-red-700",
     in_progress: "bg-purple-50 text-purple-700",
@@ -56,6 +58,7 @@ function statusBadge(status: string) {
   };
   const label: Record<string, string> = {
     pending: "待评估",
+    evaluating: "评估中",
     approved: "已通过",
     rejected: "已拒绝",
     in_progress: "开发中",
@@ -80,6 +83,11 @@ function SkeletonRow() {
       ))}
     </tr>
   );
+}
+
+function formatScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return "--";
+  return score.toFixed(1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -169,7 +177,7 @@ export default function DemandsPage() {
   };
 
   const items = data?.items ?? [];
-  const totalPages = data?.pages ?? 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
     <div className="space-y-6">
@@ -224,10 +232,10 @@ export default function DemandsPage() {
                 <th className="px-4 py-3 font-medium">标题</th>
                 <th className="px-4 py-3 font-medium">分类</th>
                 <th className="px-4 py-3 font-medium">来源</th>
-                <th className="px-4 py-3 font-medium">复杂度</th>
-                <th className="px-4 py-3 font-medium">竞争度</th>
+                <th className="px-4 py-3 font-medium">综合分</th>
                 <th className="px-4 py-3 font-medium">趋势分</th>
                 <th className="px-4 py-3 font-medium">状态</th>
+                <th className="px-4 py-3 font-medium">时间</th>
                 <th className="px-4 py-3 font-medium">操作</th>
               </tr>
             </thead>
@@ -249,30 +257,32 @@ export default function DemandsPage() {
                 items.map((d) => (
                   <>
                     <tr
-                      key={d.id}
-                      onClick={() => handleExpand(d.id)}
+                      key={d.demand_id}
+                      onClick={() => handleExpand(d.demand_id)}
                       className="cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 text-gray-500">#{d.id}</td>
+                      <td className="px-4 py-3 text-gray-500">#{d.demand_id}</td>
                       <td className="max-w-[220px] truncate px-4 py-3 font-medium text-gray-900">
                         {d.title}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">--</td>
-                      <td className="px-4 py-3 text-gray-500">--</td>
-                      <td className="px-4 py-3 text-gray-500">--</td>
-                      <td className="px-4 py-3 text-gray-500">--</td>
-                      <td className="px-4 py-3 text-gray-500">--</td>
+                      <td className="px-4 py-3 text-gray-500">{d.category ?? "--"}</td>
+                      <td className="px-4 py-3 text-gray-500">{d.source ?? "--"}</td>
+                      <td className="px-4 py-3 text-gray-500">{formatScore(d.overall_score)}</td>
+                      <td className="px-4 py-3 text-gray-500">{formatScore(d.trend_score)}</td>
                       <td className="px-4 py-3">{statusBadge(d.status)}</td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {new Date(d.created_at).toLocaleDateString("zh-CN")}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          {d.status === "pending" && (
+                          {(d.status === "pending" || d.status === "evaluating") && (
                             <>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleApprove(d.id);
+                                  handleApprove(d.demand_id);
                                 }}
-                                disabled={actionLoading === d.id}
+                                disabled={actionLoading === d.demand_id}
                                 className="flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                               >
                                 <Check className="h-3.5 w-3.5" />
@@ -281,9 +291,9 @@ export default function DemandsPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleReject(d.id);
+                                  handleReject(d.demand_id);
                                 }}
-                                disabled={actionLoading === d.id}
+                                disabled={actionLoading === d.demand_id}
                                 className="flex items-center gap-1 rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -291,7 +301,7 @@ export default function DemandsPage() {
                               </button>
                             </>
                           )}
-                          {expandedId === d.id ? (
+                          {expandedId === d.demand_id ? (
                             <ChevronUp className="h-4 w-4 text-gray-400" />
                           ) : (
                             <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -299,8 +309,8 @@ export default function DemandsPage() {
                         </div>
                       </td>
                     </tr>
-                    {expandedId === d.id && (
-                      <tr key={`detail-${d.id}`}>
+                    {expandedId === d.demand_id && (
+                      <tr key={`detail-${d.demand_id}`}>
                         <td
                           colSpan={9}
                           className="border-b border-gray-100 bg-gray-50 px-6 py-4"
@@ -320,31 +330,53 @@ export default function DemandsPage() {
                                   {detail.description || "--"}
                                 </span>
                               </p>
-                              <p>
-                                <span className="font-medium text-gray-700">
-                                  需求:
-                                </span>{" "}
-                                <span className="text-gray-600">
-                                  {detail.requirements || "--"}
-                                </span>
-                              </p>
-                              {detail.rejection_reason && (
+                              {detail.target_users && (
                                 <p>
-                                  <span className="font-medium text-red-600">
-                                    拒绝原因:
+                                  <span className="font-medium text-gray-700">
+                                    目标用户:
                                   </span>{" "}
                                   <span className="text-gray-600">
-                                    {detail.rejection_reason}
+                                    {detail.target_users}
                                   </span>
                                 </p>
                               )}
-                              {detail.app_id && (
+                              {detail.core_features && (
                                 <p>
                                   <span className="font-medium text-gray-700">
-                                    关联应用:
+                                    核心功能:
                                   </span>{" "}
-                                  <span className="text-blue-600">
-                                    #{detail.app_id}
+                                  <span className="text-gray-600">
+                                    {detail.core_features}
+                                  </span>
+                                </p>
+                              )}
+                              {detail.complexity && (
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    复杂度:
+                                  </span>{" "}
+                                  <span className="text-gray-600">
+                                    {detail.complexity}
+                                  </span>
+                                </p>
+                              )}
+                              {detail.competition_score !== null && detail.competition_score !== undefined && (
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    竞争分:
+                                  </span>{" "}
+                                  <span className="text-gray-600">
+                                    {detail.competition_score.toFixed(1)}
+                                  </span>
+                                </p>
+                              )}
+                              {detail.monetization && (
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    变现方式:
+                                  </span>{" "}
+                                  <span className="text-gray-600">
+                                    {detail.monetization}
                                   </span>
                                 </p>
                               )}
@@ -365,10 +397,10 @@ export default function DemandsPage() {
         </div>
 
         {/* Pagination */}
-        {data && data.pages > 1 && (
+        {data && totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
             <p className="text-xs text-gray-500">
-              共 {data.total} 条，第 {data.page}/{data.pages} 页
+              共 {data.total} 条，第 {data.page}/{totalPages} 页
             </p>
             <div className="flex items-center gap-2">
               <button

@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Activity,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { fetchDashboard, fetchDemands, fetchBuilds } from "@/lib/api";
 import type {
@@ -109,24 +110,24 @@ function SkeletonRow() {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     pending: "bg-gray-100 text-gray-600",
+    evaluating: "bg-yellow-50 text-yellow-700",
     approved: "bg-emerald-50 text-emerald-700",
     rejected: "bg-red-50 text-red-700",
     in_progress: "bg-purple-50 text-purple-700",
     done: "bg-blue-50 text-blue-700",
-    queued: "bg-gray-100 text-gray-600",
-    building: "bg-blue-50 text-blue-700",
+    running: "bg-blue-50 text-blue-700",
     success: "bg-emerald-50 text-emerald-700",
     failed: "bg-red-50 text-red-700",
     cancelled: "bg-gray-100 text-gray-500",
   };
   const label: Record<string, string> = {
     pending: "待处理",
+    evaluating: "评估中",
     approved: "已通过",
     rejected: "已拒绝",
     in_progress: "开发中",
     done: "已完成",
-    queued: "排队中",
-    building: "构建中",
+    running: "运行中",
     success: "成功",
     failed: "失败",
     cancelled: "已取消",
@@ -149,6 +150,7 @@ export default function OverviewPage() {
   const [demands, setDemands] = useState<DemandOut[]>([]);
   const [builds, setBuilds] = useState<BuildLogOut[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apiConnected, setApiConnected] = useState(true);
   const [pipelineStages, setPipelineStages] = useState<StageStatus[]>(
     Array(8).fill("pending") as StageStatus[],
   );
@@ -174,9 +176,17 @@ export default function OverviewPage() {
       ]);
       setSummary(dash);
       setDemands(demandsRes.items);
-      setBuilds(buildsRes);
+      setBuilds(buildsRes.items);
+      // If we got default zeros for everything, backend may not be running
+      const isDefault =
+        dash.total_apps === 0 &&
+        dash.total_demands === 0 &&
+        demandsRes.items.length === 0 &&
+        buildsRes.items.length === 0;
+      setApiConnected(!isDefault || dash.total_apps !== undefined);
     } catch (err) {
       console.error("Failed to load dashboard data", err);
+      setApiConnected(false);
     } finally {
       setLoading(false);
     }
@@ -258,20 +268,20 @@ export default function OverviewPage() {
     },
     {
       label: "已上架",
-      value: summary ? summary.total_apps - (summary.active_builds ?? 0) : 0,
+      value: summary?.live_apps ?? 0,
       icon: Rocket,
       color: "text-emerald-500",
       bg: "bg-emerald-50",
     },
     {
       label: "开发中",
-      value: summary?.active_builds ?? 0,
+      value: summary?.developing_apps ?? 0,
       icon: Code2,
       color: "text-purple-500",
       bg: "bg-purple-50",
     },
     {
-      label: "今日需求",
+      label: "总需求数",
       value: summary?.total_demands ?? 0,
       icon: Lightbulb,
       color: "text-amber-500",
@@ -279,7 +289,7 @@ export default function OverviewPage() {
     },
     {
       label: "今日构建",
-      value: summary?.recent_builds?.length ?? 0,
+      value: summary?.builds_today ?? 0,
       icon: Hammer,
       color: "text-indigo-500",
       bg: "bg-indigo-50",
@@ -308,6 +318,14 @@ export default function OverviewPage() {
           刷新
         </button>
       </div>
+
+      {/* Backend not connected warning */}
+      {!loading && !apiConnected && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
+          <span>后端服务未连接，当前显示为空数据。请检查后端是否已启动。</span>
+        </div>
+      )}
 
       {/* A) Stats cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -436,10 +454,10 @@ export default function OverviewPage() {
                 ) : (
                   demands.map((d) => (
                     <tr
-                      key={d.id}
+                      key={d.demand_id}
                       className="border-b border-gray-50 transition-colors hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 text-gray-500">#{d.id}</td>
+                      <td className="px-4 py-3 text-gray-500">#{d.demand_id}</td>
                       <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900">
                         {d.title}
                       </td>
@@ -467,9 +485,9 @@ export default function OverviewPage() {
               <thead>
                 <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
                   <th className="px-4 py-3 font-medium">ID</th>
-                  <th className="px-4 py-3 font-medium">应用</th>
+                  <th className="px-4 py-3 font-medium">步骤</th>
                   <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">耗时</th>
+                  <th className="px-4 py-3 font-medium">时间</th>
                 </tr>
               </thead>
               <tbody>
@@ -489,20 +507,18 @@ export default function OverviewPage() {
                 ) : (
                   builds.map((b) => (
                     <tr
-                      key={b.id}
+                      key={b.build_id}
                       className="border-b border-gray-50 transition-colors hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 text-gray-500">#{b.id}</td>
+                      <td className="px-4 py-3 text-gray-500">#{b.build_id}</td>
                       <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900">
-                        {b.app_name}
+                        {b.step}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={b.status} />
                       </td>
                       <td className="px-4 py-3 text-gray-500">
-                        {b.duration_seconds
-                          ? `${b.duration_seconds}s`
-                          : "--"}
+                        {new Date(b.created_at).toLocaleDateString("zh-CN")}
                       </td>
                     </tr>
                   ))

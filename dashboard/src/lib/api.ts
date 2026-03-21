@@ -6,8 +6,11 @@ import type {
   AppDetail,
   BuildLogOut,
   PipelineState,
-  StatsPoint,
+  PipelineStatusResponse,
+  StatsResponse,
+  MessageResponse,
   PaginatedResponse,
+  BuildListResponse,
 } from "./types";
 
 const API_BASE = "/api";
@@ -16,28 +19,21 @@ const API_BASE = "/api";
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
-class ApiRequestError extends Error {
-  constructor(
-    public status: number,
-    public detail: string,
-  ) {
-    super(detail);
-    this.name = "ApiRequestError";
+async function request<T>(path: string, init?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { "Content-Type": "application/json", ...init?.headers },
+      ...init,
+    });
+    if (!res.ok) {
+      console.warn(`API ${path}: ${res.status} ${res.statusText}`);
+      return null;
+    }
+    return res.json() as Promise<T>;
+  } catch (err) {
+    console.warn(`API ${path}: connection failed`, err);
+    return null;
   }
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
-    ...init,
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiRequestError(res.status, body.detail ?? res.statusText);
-  }
-
-  return res.json() as Promise<T>;
 }
 
 function qs(params: Record<string, string | number | boolean | undefined>): string {
@@ -49,11 +45,28 @@ function qs(params: Record<string, string | number | boolean | undefined>): stri
 }
 
 /* ------------------------------------------------------------------ */
+/*  Default values                                                     */
+/* ------------------------------------------------------------------ */
+
+const DEFAULT_DASHBOARD: DashboardSummary = {
+  total_apps: 0,
+  live_apps: 0,
+  reviewing_apps: 0,
+  developing_apps: 0,
+  total_demands: 0,
+  pending_demands: 0,
+  approved_today: 0,
+  rejected_today: 0,
+  builds_today: 0,
+};
+
+/* ------------------------------------------------------------------ */
 /*  Dashboard                                                         */
 /* ------------------------------------------------------------------ */
 
 export async function fetchDashboard(): Promise<DashboardSummary> {
-  return request<DashboardSummary>("/dashboard");
+  const res = await request<DashboardSummary>("/dashboard");
+  return res ?? DEFAULT_DASHBOARD;
 }
 
 /* ------------------------------------------------------------------ */
@@ -65,25 +78,20 @@ export async function fetchDemands(params?: {
   page_size?: number;
   status?: string;
 }): Promise<PaginatedResponse<DemandOut>> {
-  return request<PaginatedResponse<DemandOut>>(`/demands${qs(params ?? {})}`);
+  const res = await request<PaginatedResponse<DemandOut>>(`/demands${qs(params ?? {})}`);
+  return res ?? { items: [], total: 0, page: 1, page_size: 20 };
 }
 
-export async function fetchDemandDetail(id: number): Promise<DemandDetail> {
+export async function fetchDemandDetail(id: number): Promise<DemandDetail | null> {
   return request<DemandDetail>(`/demands/${id}`);
 }
 
-export async function approveDemand(id: number): Promise<DemandDetail> {
-  return request<DemandDetail>(`/demands/${id}/approve`, { method: "POST" });
+export async function approveDemand(id: number): Promise<MessageResponse | null> {
+  return request<MessageResponse>(`/demands/${id}/approve`, { method: "POST" });
 }
 
-export async function rejectDemand(
-  id: number,
-  reason?: string,
-): Promise<DemandDetail> {
-  return request<DemandDetail>(`/demands/${id}/reject`, {
-    method: "POST",
-    body: JSON.stringify({ reason }),
-  });
+export async function rejectDemand(id: number): Promise<MessageResponse | null> {
+  return request<MessageResponse>(`/demands/${id}/reject`, { method: "POST" });
 }
 
 /* ------------------------------------------------------------------ */
@@ -95,15 +103,16 @@ export async function fetchApps(params?: {
   page_size?: number;
   status?: string;
 }): Promise<PaginatedResponse<AppOut>> {
-  return request<PaginatedResponse<AppOut>>(`/apps${qs(params ?? {})}`);
+  const res = await request<PaginatedResponse<AppOut>>(`/apps${qs(params ?? {})}`);
+  return res ?? { items: [], total: 0, page: 1, page_size: 20 };
 }
 
-export async function fetchAppDetail(id: number): Promise<AppDetail> {
+export async function fetchAppDetail(id: number): Promise<AppDetail | null> {
   return request<AppDetail>(`/apps/${id}`);
 }
 
-export async function rebuildApp(id: number): Promise<{ build_id: number }> {
-  return request<{ build_id: number }>(`/apps/${id}/rebuild`, { method: "POST" });
+export async function rebuildApp(id: number): Promise<MessageResponse | null> {
+  return request<MessageResponse>(`/apps/${id}/rebuild`, { method: "POST" });
 }
 
 /* ------------------------------------------------------------------ */
@@ -112,30 +121,30 @@ export async function rebuildApp(id: number): Promise<{ build_id: number }> {
 
 export async function fetchBuilds(params?: {
   limit?: number;
-  offset?: number;
-  status?: string;
-}): Promise<BuildLogOut[]> {
-  return request<BuildLogOut[]>(`/builds${qs(params ?? {})}`);
+}): Promise<BuildListResponse> {
+  const res = await request<BuildListResponse>(`/builds${qs(params ?? {})}`);
+  return res ?? { items: [], total: 0 };
 }
 
 /* ------------------------------------------------------------------ */
 /*  Stats                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function fetchStats(days?: number): Promise<StatsPoint[]> {
-  return request<StatsPoint[]>(`/stats${qs({ days })}`);
+export async function fetchStats(days?: number): Promise<StatsResponse> {
+  const res = await request<StatsResponse>(`/stats${qs({ days })}`);
+  return res ?? { apps_per_day: [], total_revenue_usd: 0, ratings_distribution: [] };
 }
 
 /* ------------------------------------------------------------------ */
 /*  Pipeline                                                          */
 /* ------------------------------------------------------------------ */
 
-export async function triggerPipeline(): Promise<PipelineState> {
+export async function triggerPipeline(): Promise<PipelineState | null> {
   return request<PipelineState>("/pipeline/trigger", { method: "POST" });
 }
 
 export async function fetchPipelineStatus(
   threadId: string,
-): Promise<PipelineState> {
-  return request<PipelineState>(`/pipeline/${threadId}`);
+): Promise<PipelineStatusResponse | null> {
+  return request<PipelineStatusResponse>(`/pipeline/status/${threadId}`);
 }

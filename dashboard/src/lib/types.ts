@@ -4,14 +4,15 @@
 
 export type DemandStatus =
   | "pending"
+  | "evaluating"
   | "approved"
   | "rejected"
   | "in_progress"
   | "done";
 
 export type BuildStatus =
-  | "queued"
-  | "building"
+  | "pending"
+  | "running"
   | "success"
   | "failed"
   | "cancelled";
@@ -27,78 +28,116 @@ export type PipelineStage =
   | "error";
 
 /* ------------------------------------------------------------------ */
-/*  API models                                                        */
+/*  API models  (aligned with backend schemas.py)                      */
 /* ------------------------------------------------------------------ */
 
 export interface DashboardSummary {
+  total_apps: number;
+  live_apps: number;
+  reviewing_apps: number;
+  developing_apps: number;
   total_demands: number;
   pending_demands: number;
-  total_apps: number;
-  active_builds: number;
-  success_rate: number;
-  recent_builds: BuildLogOut[];
+  approved_today: number;
+  rejected_today: number;
+  builds_today: number;
 }
 
 export interface DemandOut {
-  id: number;
+  demand_id: number;
   title: string;
-  status: DemandStatus;
+  description: string;
+  source: string | null;
+  source_url: string | null;
+  category: string | null;
+  status: string;
+  overall_score: number | null;
+  trend_score: number | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface DemandDetail extends DemandOut {
-  description: string;
-  requirements: string;
-  app_id: number | null;
-  rejection_reason: string | null;
+  target_users: string | null;
+  core_features: string | null;
+  monetization: string | null;
+  complexity: string | null;
+  competition_score: number | null;
+  feasibility_score: number | null;
+  monetization_score: number | null;
 }
 
 export interface AppOut {
-  id: number;
-  name: string;
+  app_id: number;
+  app_name: string;
+  package_name: string;
   status: string;
-  demand_id: number;
+  category: string | null;
+  google_play_url: string | null;
+  total_downloads: number;
+  revenue_usd: number;
+  rating: number | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface AppDetail extends AppOut {
+  demand_id: number;
   description: string;
-  repo_url: string | null;
-  deploy_url: string | null;
-  tech_stack: string[];
-  builds: BuildLogOut[];
+  flutter_version: string | null;
+  project_path: string | null;
+  build_attempts: number;
+  fix_iterations: number;
+  code_gen_cost_usd: number;
+  published_at: string | null;
+  build_logs: BuildLogOut[];
 }
 
 export interface BuildLogOut {
-  id: number;
-  app_id: number;
-  app_name: string;
-  status: BuildStatus;
-  stage: string;
-  started_at: string;
-  finished_at: string | null;
-  duration_seconds: number | null;
+  build_id: number;
+  step: string;
+  status: string;
+  output: string | null;
   error_message: string | null;
+  attempt: number;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
 }
 
 export interface PipelineState {
-  thread_id: string;
-  stage: PipelineStage;
-  demand_id: number | null;
-  app_id: number | null;
-  progress: number;
+  run_id: number;
+  status: string;
   message: string;
-  started_at: string;
-  updated_at: string;
 }
 
-export interface StatsPoint {
+export interface PipelineStatusResponse {
+  thread_id: string;
+  status: string;
+  stage?: string;
+  message?: string;
+  values?: Record<string, unknown>;
+}
+
+export interface StatsResponse {
+  apps_per_day: DailyStat[];
+  total_revenue_usd: number;
+  ratings_distribution: RatingBucket[];
+}
+
+export interface DailyStat {
   date: string;
-  builds: number;
-  successes: number;
-  failures: number;
+  apps_created: number;
+  revenue_usd: number;
+}
+
+export interface RatingBucket {
+  rating_range: string;
+  count: number;
+}
+
+export interface MessageResponse {
+  message: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,7 +149,11 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   page_size: number;
-  pages: number;
+}
+
+export interface BuildListResponse {
+  items: BuildLogOut[];
+  total: number;
 }
 
 export interface ApiError {

@@ -24,17 +24,19 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     draft: "bg-gray-100 text-gray-600",
+    code_generated: "bg-indigo-50 text-indigo-700",
     building: "bg-blue-50 text-blue-700",
     testing: "bg-indigo-50 text-indigo-700",
-    published: "bg-emerald-50 text-emerald-700",
+    live: "bg-emerald-50 text-emerald-700",
     failed: "bg-red-50 text-red-700",
     suspended: "bg-amber-50 text-amber-700",
   };
   const label: Record<string, string> = {
     draft: "草稿",
+    code_generated: "已生成代码",
     building: "构建中",
     testing: "测试中",
-    published: "已上架",
+    live: "已上架",
     failed: "失败",
     suspended: "已下架",
   };
@@ -118,11 +120,11 @@ export default function AppsPage() {
   };
 
   const items = data?.items ?? [];
-  const totalPages = data?.pages ?? 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   // Client-side search filter
   const filteredItems = search
-    ? items.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()))
+    ? items.filter((a) => a.app_name.toLowerCase().includes(search.toLowerCase()))
     : items;
 
   return (
@@ -158,8 +160,9 @@ export default function AppsPage() {
           >
             <option value="">全部状态</option>
             <option value="draft">草稿</option>
+            <option value="code_generated">已生成代码</option>
             <option value="building">构建中</option>
-            <option value="published">已上架</option>
+            <option value="live">已上架</option>
             <option value="failed">失败</option>
             <option value="suspended">已下架</option>
           </select>
@@ -174,7 +177,7 @@ export default function AppsPage() {
             ? null
             : filteredItems.map((app) => (
                 <div
-                  key={app.id}
+                  key={app.app_id}
                   className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
                 >
                   {/* App header */}
@@ -184,10 +187,10 @@ export default function AppsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-sm font-semibold text-gray-900">
-                        {app.name}
+                        {app.app_name}
                       </h3>
                       <p className="truncate text-xs text-gray-400">
-                        com.autodev.app{app.id}
+                        {app.package_name}
                       </p>
                     </div>
                   </div>
@@ -201,21 +204,27 @@ export default function AppsPage() {
                       <div className="flex items-center justify-center gap-1 text-gray-400">
                         <Download className="h-3.5 w-3.5" />
                       </div>
-                      <p className="text-sm font-medium text-gray-700">--</p>
+                      <p className="text-sm font-medium text-gray-700">
+                        {app.total_downloads > 0 ? app.total_downloads.toLocaleString() : "--"}
+                      </p>
                       <p className="text-[10px] text-gray-400">下载量</p>
                     </div>
                     <div>
                       <div className="flex items-center justify-center gap-1 text-gray-400">
                         <Star className="h-3.5 w-3.5" />
                       </div>
-                      <p className="text-sm font-medium text-gray-700">--</p>
+                      <p className="text-sm font-medium text-gray-700">
+                        {app.rating !== null ? app.rating.toFixed(1) : "--"}
+                      </p>
                       <p className="text-[10px] text-gray-400">评分</p>
                     </div>
                     <div>
                       <div className="flex items-center justify-center gap-1 text-gray-400">
                         <DollarSign className="h-3.5 w-3.5" />
                       </div>
-                      <p className="text-sm font-medium text-gray-700">--</p>
+                      <p className="text-sm font-medium text-gray-700">
+                        {app.revenue_usd > 0 ? `$${app.revenue_usd.toFixed(2)}` : "--"}
+                      </p>
                       <p className="text-[10px] text-gray-400">收入</p>
                     </div>
                   </div>
@@ -227,19 +236,26 @@ export default function AppsPage() {
                     </p>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleRebuild(app.id)}
-                        disabled={rebuildingId === app.id}
+                        onClick={() => handleRebuild(app.app_id)}
+                        disabled={rebuildingId === app.app_id}
                         className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
                       >
                         <RefreshCw
-                          className={`h-3 w-3 ${rebuildingId === app.id ? "animate-spin" : ""}`}
+                          className={`h-3 w-3 ${rebuildingId === app.app_id ? "animate-spin" : ""}`}
                         />
                         重新构建
                       </button>
-                      <button className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50">
-                        <ExternalLink className="h-3 w-3" />
-                        详情
-                      </button>
+                      {app.google_play_url && (
+                        <a
+                          href={app.google_play_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          详情
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -255,10 +271,10 @@ export default function AppsPage() {
       )}
 
       {/* Pagination */}
-      {data && data.pages > 1 && (
+      {data && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-gray-500">
-            共 {data.total} 个应用，第 {data.page}/{data.pages} 页
+            共 {data.total} 个应用，第 {data.page}/{totalPages} 页
           </p>
           <div className="flex items-center gap-2">
             <button

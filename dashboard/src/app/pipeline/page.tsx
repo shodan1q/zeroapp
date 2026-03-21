@@ -23,7 +23,7 @@ import {
   triggerPipeline,
   fetchBuilds,
 } from "@/lib/api";
-import type { PipelineState, BuildLogOut } from "@/lib/types";
+import type { PipelineState, PipelineStatusResponse, BuildLogOut } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 /* ------------------------------------------------------------------ */
@@ -117,7 +117,7 @@ function SkeletonStageCard() {
 export default function PipelinePage() {
   const [threadId, setThreadId] = useState("");
   const [searchId, setSearchId] = useState("");
-  const [pipeline, setPipeline] = useState<PipelineState | null>(null);
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null);
   const [history, setHistory] = useState<BuildLogOut[]>([]);
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -132,7 +132,7 @@ export default function PipelinePage() {
     try {
       setHistoryLoading(true);
       const res = await fetchBuilds({ limit: 20 });
-      setHistory(res);
+      setHistory(res.items);
     } catch {
       // ignore
     } finally {
@@ -156,16 +156,19 @@ export default function PipelinePage() {
       };
       if (data.thread_id && (!threadId || data.thread_id === threadId)) {
         setThreadId(data.thread_id);
-        setPipeline((prev) =>
+        setPipelineStatus((prev) =>
           prev
             ? {
                 ...prev,
-                stage: (data.stage as PipelineState["stage"]) ?? prev.stage,
-                progress: data.progress ?? prev.progress,
+                stage: data.stage ?? prev.stage,
                 message: data.message ?? prev.message,
-                updated_at: lastEvent.timestamp,
               }
-            : null,
+            : {
+                thread_id: data.thread_id!,
+                status: "found",
+                stage: data.stage ?? "idle",
+                message: data.message,
+              },
         );
       }
     }
@@ -182,11 +185,16 @@ export default function PipelinePage() {
     setError("");
     try {
       const res = await fetchPipelineStatus(searchId.trim());
-      setPipeline(res);
-      setThreadId(res.thread_id);
+      if (res) {
+        setPipelineStatus(res);
+        setThreadId(res.thread_id);
+      } else {
+        setError("未找到该流水线");
+        setPipelineStatus(null);
+      }
     } catch {
       setError("未找到该流水线");
-      setPipeline(null);
+      setPipelineStatus(null);
     } finally {
       setLoading(false);
     }
@@ -197,9 +205,18 @@ export default function PipelinePage() {
     setError("");
     try {
       const res = await triggerPipeline();
-      setPipeline(res);
-      setThreadId(res.thread_id);
-      setSearchId(res.thread_id);
+      if (res) {
+        setPipelineStatus({
+          thread_id: String(res.run_id),
+          status: res.status,
+          message: res.message,
+          stage: "idle",
+        });
+        setThreadId(String(res.run_id));
+        setSearchId(String(res.run_id));
+      } else {
+        setError("触发流水线失败");
+      }
     } catch {
       setError("触发流水线失败");
     } finally {
@@ -207,7 +224,7 @@ export default function PipelinePage() {
     }
   };
 
-  const currentStage = pipeline?.stage ?? "idle";
+  const currentStage = pipelineStatus?.stage ?? "idle";
 
   return (
     <div className="space-y-6">
@@ -268,15 +285,15 @@ export default function PipelinePage() {
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-5 text-sm font-semibold text-gray-700">
           流水线阶段
-          {pipeline && (
+          {pipelineStatus && (
             <span className="ml-3 text-xs font-normal text-gray-400">
-              Thread: {pipeline.thread_id}
+              Thread: {pipelineStatus.thread_id}
             </span>
           )}
         </h2>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {pipeline === null && !loading
+          {pipelineStatus === null && !loading
             ? STAGES.filter((s) => s.key !== "error").map((s) => (
                 <SkeletonStageCard key={s.key} />
               ))
@@ -314,22 +331,11 @@ export default function PipelinePage() {
                               ? "已完成"
                               : "等待中"}
                         </p>
-                        {isActive && pipeline && (
-                          <>
-                            <p>进度: {Math.round(pipeline.progress * 100)}%</p>
-                            <p className="truncate">
-                              消息: {pipeline.message}
-                            </p>
-                          </>
+                        {isActive && pipelineStatus?.message && (
+                          <p className="truncate">
+                            消息: {pipelineStatus.message}
+                          </p>
                         )}
-                        <p>
-                          更新时间:{" "}
-                          {pipeline
-                            ? new Date(
-                                pipeline.updated_at,
-                              ).toLocaleTimeString("zh-CN")
-                            : "--"}
-                        </p>
                       </div>
                     </div>
                   );
@@ -338,24 +344,18 @@ export default function PipelinePage() {
         </div>
 
         {/* Pipeline info bar */}
-        {pipeline && (
+        {pipelineStatus && (
           <div className="mt-4 flex flex-wrap gap-6 border-t border-gray-100 pt-4 text-sm text-gray-500">
             <span>
-              需求 ID:{" "}
+              Thread ID:{" "}
               <span className="font-medium text-gray-700">
-                {pipeline.demand_id ?? "--"}
+                {pipelineStatus.thread_id}
               </span>
             </span>
             <span>
-              应用 ID:{" "}
+              状态:{" "}
               <span className="font-medium text-gray-700">
-                {pipeline.app_id ?? "--"}
-              </span>
-            </span>
-            <span>
-              开始时间:{" "}
-              <span className="font-medium text-gray-700">
-                {new Date(pipeline.started_at).toLocaleString("zh-CN")}
+                {pipelineStatus.status}
               </span>
             </span>
           </div>
@@ -379,18 +379,17 @@ export default function PipelinePage() {
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
                 <th className="px-4 py-3 font-medium">ID</th>
-                <th className="px-4 py-3 font-medium">应用</th>
-                <th className="px-4 py-3 font-medium">阶段</th>
+                <th className="px-4 py-3 font-medium">步骤</th>
                 <th className="px-4 py-3 font-medium">状态</th>
-                <th className="px-4 py-3 font-medium">开始时间</th>
-                <th className="px-4 py-3 font-medium">耗时</th>
+                <th className="px-4 py-3 font-medium">创建时间</th>
+                <th className="px-4 py-3 font-medium">结束时间</th>
               </tr>
             </thead>
             <tbody>
               {historyLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 5 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 w-full animate-pulse rounded bg-gray-200" />
                       </td>
@@ -400,7 +399,7 @@ export default function PipelinePage() {
               ) : history.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     暂无数据
@@ -409,16 +408,15 @@ export default function PipelinePage() {
               ) : (
                 history.map((b) => (
                   <tr
-                    key={b.id}
+                    key={b.build_id}
                     className="border-b border-gray-50 transition-colors hover:bg-gray-50"
                   >
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                      #{b.id}
+                      #{b.build_id}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {b.app_name}
+                      {b.step}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{b.stage}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -426,7 +424,7 @@ export default function PipelinePage() {
                             ? "bg-emerald-50 text-emerald-700"
                             : b.status === "failed"
                               ? "bg-red-50 text-red-700"
-                              : b.status === "building"
+                              : b.status === "running"
                                 ? "bg-blue-50 text-blue-700"
                                 : "bg-gray-100 text-gray-600"
                         }`}
@@ -435,15 +433,15 @@ export default function PipelinePage() {
                           ? "成功"
                           : b.status === "failed"
                             ? "失败"
-                            : b.status === "building"
-                              ? "构建中"
-                              : b.status === "queued"
-                                ? "排队中"
+                            : b.status === "running"
+                              ? "运行中"
+                              : b.status === "pending"
+                                ? "待执行"
                                 : b.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {new Date(b.started_at).toLocaleString("zh-CN", {
+                      {new Date(b.created_at).toLocaleString("zh-CN", {
                         month: "2-digit",
                         day: "2-digit",
                         hour: "2-digit",
@@ -451,10 +449,13 @@ export default function PipelinePage() {
                       })}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {b.duration_seconds
-                        ? b.duration_seconds < 60
-                          ? `${b.duration_seconds}s`
-                          : `${Math.floor(b.duration_seconds / 60)}m ${b.duration_seconds % 60}s`
+                      {b.finished_at
+                        ? new Date(b.finished_at).toLocaleString("zh-CN", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
                         : "--"}
                     </td>
                   </tr>
