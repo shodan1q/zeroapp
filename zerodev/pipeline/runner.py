@@ -174,6 +174,8 @@ class PipelineRunner:
     def __init__(self):
         self._task: asyncio.Task | None = None
         self._running = False
+        self._stage_timings: dict[str, float] = {}  # stage -> seconds
+        self._stage_start: float | None = None
         self._current_run_id: str | None = None
         self._stats = {
             "started_at": None,
@@ -194,6 +196,23 @@ class PipelineRunner:
     def is_running(self) -> bool:
         return self._running and self._task is not None and not self._task.done()
 
+    def _start_stage_timer(self, stage: str) -> None:
+        """Record the start time for a pipeline stage."""
+        import time
+        if self._stage_start is not None and hasattr(self, '_current_stage_name'):
+            elapsed = time.time() - self._stage_start
+            self._stage_timings[self._current_stage_name] = round(elapsed, 1)
+        self._stage_start = time.time()
+        self._current_stage_name = stage
+
+    def _finish_stage_timer(self) -> None:
+        """Finish timing the current stage."""
+        import time
+        if self._stage_start is not None and hasattr(self, '_current_stage_name'):
+            elapsed = time.time() - self._stage_start
+            self._stage_timings[self._current_stage_name] = round(elapsed, 1)
+        self._stage_start = None
+
     @property
     def stats(self) -> dict:
         return {
@@ -201,6 +220,7 @@ class PipelineRunner:
             "running": self.is_running,
             "current_run_id": self._current_run_id,
             "logs": self._logs[-200:],
+            "stage_timings": self._stage_timings,
         }
 
     async def _log(self, message: str, log_type: str = "info") -> None:
@@ -337,6 +357,7 @@ class PipelineRunner:
 
         # ── Stage: crawl -- 生成 App 创意 ─────────────────────────────
         await emit_stage_change("crawl", run_id, "active", {"message": "正在生成 App 创意..."})
+        self._start_stage_timer("crawl")
         await self._log("正在生成 App 创意...", "stage_change")
 
         resp = await client.messages.create(
@@ -412,6 +433,7 @@ class PipelineRunner:
 
         # ── Stage: process -- 生成 PRD 并规划文件列表 ─────────────────
         await emit_stage_change("process", run_id, "active", {"message": f"正在生成 {app_name} PRD..."})
+        self._start_stage_timer("process")
         await self._log("正在生成产品需求文档 (PRD)...", "stage_change")
 
         prd_resp = await client.messages.create(
@@ -628,6 +650,7 @@ class PipelineRunner:
 
         # ── Stage: build -- 创建项目、安装依赖、分析修复 ──────────────
         await emit_stage_change("build", run_id, "active", {"message": "正在创建 Flutter 项目..."})
+        self._start_stage_timer("build")
         await self._log("正在创建 Flutter 项目...", "stage_change")
 
         if app_dir.exists():
@@ -789,6 +812,7 @@ class PipelineRunner:
         await emit_stage_change("assets", run_id, "active", {
             "message": "正在检查路由和布局..."
         })
+        self._start_stage_timer("layout_check")
         await self._log("正在检查路由和布局合理性...", "stage_change")
 
         # Collect all generated code for review
@@ -862,6 +886,7 @@ class PipelineRunner:
         await emit_stage_change("evaluate", run_id, "active", {
             "message": "正在生成测试用例..."
         })
+        self._start_stage_timer("test")
         await self._log("正在生成功能测试用例...", "stage_change")
 
         # Collect screen files for test generation context
@@ -995,6 +1020,7 @@ class PipelineRunner:
 
         # ── Stage: publish -- 推送到 GitHub ───────────────────────────
         await emit_stage_change("publish", run_id, "active", {"message": "正在推送到 GitHub..."})
+        self._start_stage_timer("publish")
         await self._log("正在推送到 GitHub...", "stage_change")
 
         await self._push_to_github(app_dir, app_id, idea)
@@ -1024,6 +1050,7 @@ class PipelineRunner:
         if db_app_id:
             await self._log(f"  应用已保存到数据库 (ID: {db_app_id})", "info")
 
+        self._finish_stage_timer()
         await self._log("========== 周期完成 ==========", "stage_change")
         await self._log(f"  App: {app_name}", "info")
         await self._log(f"  描述: {idea['description']}", "info")
@@ -1032,6 +1059,11 @@ class PipelineRunner:
         await self._log(f"  目录: {app_dir}", "info")
         await self._log(f"  GitHub: {github_url}", "info")
         await self._log(f"  分析: {analyze_status}", "info")
+        if self._stage_timings:
+            timing_parts = [f"{k}: {v}s" for k, v in self._stage_timings.items()]
+            await self._log(f"  耗时: {', '.join(timing_parts)}", "info")
+            total_time = sum(self._stage_timings.values())
+            await self._log(f"  总耗时: {total_time:.1f}s ({total_time/60:.1f}min)", "info")
         await self._log("==============================", "stage_change")
 
     async def _run_custom_cycle(self, theme: str):
@@ -1620,6 +1652,7 @@ class PipelineRunner:
         if db_app_id:
             await self._log(f"  应用已保存到数据库 (ID: {db_app_id})", "info")
 
+        self._finish_stage_timer()
         await self._log("========== 自定义生成完成 ==========", "stage_change")
         await self._log(f"  App: {app_name}", "info")
         await self._log(f"  主题: {theme[:80]}", "info")

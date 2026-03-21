@@ -775,7 +775,7 @@ export default function OverviewPage() {
                         </div>
                         <Icon className={`h-5 w-5 ${style.text}`} />
                       </div>
-                      <div className="space-y-1.5 text-xs text-gray-500 dark:text-slate-400">
+                      <div className="space-y-1 text-xs text-gray-500 dark:text-slate-400">
                         <p>
                           {isActive
                             ? t("stage.running")
@@ -783,9 +783,28 @@ export default function OverviewPage() {
                               ? t("stage.completed")
                               : t("stage.waiting")}
                         </p>
-                        {isActive && pipelineStatus?.message && (
-                          <p className="truncate">{pipelineStatus.message}</p>
+                        {isActive && pipelineTask && (
+                          <p className="truncate">{pipelineTask}</p>
                         )}
+                        {(() => {
+                          const timingMap: Record<string, string> = {
+                            demand_analysis: "crawl",
+                            code_generation: "generate",
+                            build: "build",
+                            test: "test",
+                            deploy: "publish",
+                          };
+                          const tk = timingMap[stage.key];
+                          const secs = tk && runnerStatus.stage_timings?.[tk];
+                          if (secs && secs > 0) {
+                            return (
+                              <p className="text-[10px] font-mono text-gray-400 dark:text-slate-500">
+                                {secs >= 60 ? `${(secs / 60).toFixed(1)}min` : `${secs.toFixed(1)}s`}
+                              </p>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                   );

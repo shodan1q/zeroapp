@@ -51,14 +51,37 @@ router = APIRouter(prefix="/api")
 async def get_dashboard(session: AsyncSession = Depends(get_session)) -> DashboardSummary:
     """Return an overview of the current system state."""
     try:
-        return await _get_dashboard_impl(session)
+        result = await _get_dashboard_impl(session)
     except Exception:
         logger.warning("Dashboard query failed (tables may not exist yet)")
-        return DashboardSummary(
+        result = DashboardSummary(
             total_apps=0, live_apps=0, reviewing_apps=0, developing_apps=0,
             total_demands=0, pending_demands=0,
             approved_today=0, rejected_today=0, builds_today=0,
         )
+
+    # Supplement with file system generated apps count
+    try:
+        from zerodev.config import get_settings
+        from pathlib import Path
+        output_dir = Path(get_settings().output_dir)
+        if output_dir.exists():
+            fs_apps = sum(1 for d in output_dir.iterdir() if d.is_dir() and (d / "pubspec.yaml").exists())
+            result.total_apps = max(result.total_apps, fs_apps)
+            result.developing_apps = max(result.developing_apps, fs_apps - result.live_apps)
+    except Exception:
+        pass
+
+    # Supplement with runner stats
+    try:
+        from zerodev.pipeline.runner import PipelineRunner
+        runner = PipelineRunner.get_instance()
+        stats = runner.stats
+        result.builds_today = max(result.builds_today, stats.get("apps_generated", 0))
+    except Exception:
+        pass
+
+    return result
 
 
 async def _get_dashboard_impl(session: AsyncSession) -> DashboardSummary:

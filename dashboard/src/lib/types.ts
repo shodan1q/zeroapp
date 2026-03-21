@@ -184,6 +184,7 @@ export interface RunnerStatus {
   apps_generated: number;
   apps_pushed: number;
   errors: number;
+  stage_timings?: Record<string, number>;
 }
 
 /* ------------------------------------------------------------------ */
