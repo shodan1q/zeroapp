@@ -73,17 +73,36 @@ export default function LoginPage() {
           0% { transform: scale(1); opacity: 0.6; }
           100% { transform: scale(1.8); opacity: 0; }
         }
-        @keyframes orbit1 {
-          0% { transform: rotate(0deg) translateX(180px) rotate(0deg); }
-          100% { transform: rotate(360deg) translateX(180px) rotate(-360deg); }
+        @keyframes curtain-reveal {
+          0% { clip-path: inset(0 100% 0 0); }
+          100% { clip-path: inset(0 0 0 0); }
         }
-        @keyframes orbit2 {
-          0% { transform: rotate(120deg) translateX(250px) rotate(-120deg); }
-          100% { transform: rotate(480deg) translateX(250px) rotate(-480deg); }
+        @keyframes line-draw {
+          0% { width: 0; opacity: 0; }
+          30% { opacity: 1; }
+          100% { width: 100%; opacity: 1; }
         }
-        @keyframes orbit3 {
-          0% { transform: rotate(240deg) translateX(140px) rotate(-240deg); }
-          100% { transform: rotate(600deg) translateX(140px) rotate(-600deg); }
+        @keyframes glow-pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+        @keyframes scan-line {
+          0% { top: -2px; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: calc(100% + 2px); opacity: 0; }
+        }
+        .entrance-curtain {
+          animation: curtain-reveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .entrance-line {
+          animation: line-draw 1s ease-out 0.8s both;
+        }
+        .scan-effect {
+          position: absolute; left: 0; right: 0; height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(96,165,250,0.8), rgba(139,92,246,0.8), transparent);
+          animation: scan-line 2s ease-in-out 0.3s both;
+          pointer-events: none;
         }
         @keyframes float-subtle {
           0%, 100% { transform: translateY(0); }
@@ -104,29 +123,6 @@ export default function LoginPage() {
         .fade-in-2 { animation: fadeIn 0.6s ease-out 0.15s both; }
         .fade-in-3 { animation: fadeIn 0.6s ease-out 0.3s both; }
         .fade-in-4 { animation: fadeIn 0.6s ease-out 0.45s both; }
-        .orbit-dot {
-          position: absolute;
-          border-radius: 50%;
-          pointer-events: none;
-        }
-        .orbit-1 {
-          width: 6px; height: 6px;
-          background: #3b82f6;
-          box-shadow: 0 0 12px #3b82f6;
-          animation: orbit1 20s linear infinite;
-        }
-        .orbit-2 {
-          width: 4px; height: 4px;
-          background: #8b5cf6;
-          box-shadow: 0 0 10px #8b5cf6;
-          animation: orbit2 28s linear infinite;
-        }
-        .orbit-3 {
-          width: 5px; height: 5px;
-          background: #06b6d4;
-          box-shadow: 0 0 10px #06b6d4;
-          animation: orbit3 16s linear infinite;
-        }
         .node-active {
           box-shadow: 0 0 20px rgba(96, 165, 250, 0.6), 0 0 40px rgba(139, 92, 246, 0.3);
           border-color: rgba(96, 165, 250, 0.7) !important;
@@ -165,22 +161,15 @@ export default function LoginPage() {
       `}</style>
 
       <div className="page-bg min-h-screen relative overflow-hidden flex flex-col lg:flex-row">
+        {/* Entrance scan line effect */}
+        <div className="scan-effect z-50" />
 
         {/* ── Left: Branding + Animated Workflow ── */}
-        <div className="relative flex-1 min-w-0 hidden lg:flex flex-col justify-center items-center px-8 py-12 lg:py-0">
+        <div className="relative flex-1 min-w-0 hidden lg:flex flex-col justify-center items-center px-8 py-12 lg:py-0 entrance-curtain">
 
-          {/* Orbiting dots background */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-            <div className="relative w-0 h-0">
-              <div className="orbit-dot orbit-1" />
-              <div className="orbit-dot orbit-2" />
-              <div className="orbit-dot orbit-3" />
-            </div>
-          </div>
-
-          {/* Subtle radial glow */}
+          {/* Subtle radial glow behind content */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "radial-gradient(circle at 50% 50%, rgba(59,130,246,0.06) 0%, transparent 60%)" }}
+            style={{ background: "radial-gradient(circle at 40% 40%, rgba(59,130,246,0.08) 0%, transparent 50%)" }}
           />
 
           <div className="relative z-10 max-w-xl w-full">
@@ -243,8 +232,13 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Decorative line */}
+            <div className="entrance-line mt-8 h-px"
+              style={{ background: "linear-gradient(90deg, transparent, rgba(96,165,250,0.3), rgba(139,92,246,0.2), transparent)" }}
+            />
+
             {/* Stats line */}
-            <div className="fade-in-4 flex items-center gap-6 mt-10 text-gray-600 text-xs">
+            <div className="fade-in-4 flex items-center gap-6 mt-6 text-gray-600 text-xs">
               <span>LangGraph</span>
               <span className="w-1 h-1 rounded-full bg-gray-700" />
               <span>Claude Opus 4.6</span>
