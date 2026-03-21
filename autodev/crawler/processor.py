@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import anthropic
-
 from autodev.config import get_settings
 from autodev.crawler.base import RawDemand
+from autodev.llm import get_claude_client
 
 EXTRACTION_PROMPT = """You are analyzing a post from {source} to determine if it describes a viable mobile app idea.
 
@@ -35,7 +34,7 @@ class DemandProcessor:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = anthropic.Anthropic(api_key=settings.claude_api_key)
+        self._client = get_claude_client()
         self._model = settings.claude_model
 
     async def extract(self, raw: RawDemand) -> dict[str, Any] | None:

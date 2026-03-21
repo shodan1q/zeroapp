@@ -135,9 +135,9 @@ class IconGenerator:
         self, app_name: str, description: str
     ) -> str:
         """Use Claude to craft a DALL-E prompt for the icon."""
-        import anthropic
+        from autodev.llm import get_claude_async_client
 
-        client = anthropic.AsyncAnthropic(api_key=self._claude_key)
+        client = get_claude_async_client()
 
         system = (
             "You are an expert mobile app icon designer. Given an app name "

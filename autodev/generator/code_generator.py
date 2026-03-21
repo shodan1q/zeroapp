@@ -209,7 +209,8 @@ class CodeGenerator:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = anthropic.Anthropic(api_key=settings.claude_api_key)
+        from autodev.llm import get_claude_client
+        self._client = get_claude_client()
         self._model = settings.claude_model
         self._workspace_dir = settings.workspace_dir
 

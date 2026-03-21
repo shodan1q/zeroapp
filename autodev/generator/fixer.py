@@ -72,8 +72,9 @@ class AutoFixer:
     """Iteratively fix Dart analysis and build errors using Claude."""
 
     def __init__(self) -> None:
+        from autodev.llm import get_claude_client
         settings = get_settings()
-        self._client = anthropic.Anthropic(api_key=settings.claude_api_key)
+        self._client = get_claude_client()
         self._model = settings.claude_model
         self._dart_bin = settings.dart_bin
         self._flutter_bin = settings.flutter_bin

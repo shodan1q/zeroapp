@@ -174,7 +174,8 @@ class StoreListingGenerator:
         max_tokens: int = 4096,
     ) -> str:
         """Send a single message to Claude and return the text response."""
-        client = anthropic.AsyncAnthropic(api_key=self._api_key)
+        from autodev.llm import get_claude_async_client
+        client = get_claude_async_client()
         message = await client.messages.create(
             model=self._model,
             max_tokens=max_tokens,

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 
-import anthropic
-
 from autodev.config import get_settings
+from autodev.llm import get_claude_client
 
 FEASIBILITY_PROMPT = """Evaluate the technical feasibility of building this mobile app as a Flutter application.
 
@@ -34,7 +33,7 @@ class FeasibilityEvaluator:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = anthropic.Anthropic(api_key=settings.claude_api_key)
+        self._client = get_claude_client()
         self._model = settings.claude_model
 
     async def evaluate(self, title: str, description: str, features: list[str]) -> dict:

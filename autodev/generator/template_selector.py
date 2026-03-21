@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-import anthropic
+from autodev.llm import get_claude_client
 
 from autodev.config import get_settings
 
@@ -101,7 +101,7 @@ class TemplateSelector:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = anthropic.Anthropic(api_key=settings.claude_api_key)
+        self._client = get_claude_client()
         self._model = settings.claude_model
 
     # ------------------------------------------------------------------
