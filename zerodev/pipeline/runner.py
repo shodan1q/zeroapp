@@ -83,6 +83,48 @@ async def _update_demand_status(demand_id: int | None, status: str) -> None:
         logger.warning("Failed to update demand status: %s", e)
 
 
+async def _save_build_log(
+    demand_id: int | None, step: str, status: str,
+    output: str = "", error_msg: str = "", attempt: int = 1,
+) -> None:
+    """Save a build log entry to the database."""
+    if demand_id is None:
+        return
+    try:
+        from zerodev.database import get_async_session
+        from zerodev.models.build_log import BuildLog, BuildStep, BuildStatus
+        from datetime import datetime, timezone
+
+        step_map = {
+            "code_gen": BuildStep.CODE_GEN,
+            "dart_analyze": BuildStep.DART_ANALYZE,
+            "auto_fix": BuildStep.AUTO_FIX,
+            "build_apk": BuildStep.BUILD_APK,
+            "publish_google": BuildStep.PUBLISH_GOOGLE,
+        }
+        status_map = {
+            "running": BuildStatus.RUNNING,
+            "success": BuildStatus.SUCCESS,
+            "failed": BuildStatus.FAILED,
+            "pending": BuildStatus.PENDING,
+        }
+
+        async with get_async_session() as session:
+            log = BuildLog(
+                demand_id=demand_id,
+                step=step_map.get(step, BuildStep.CODE_GEN),
+                status=status_map.get(status, BuildStatus.RUNNING),
+                output=output[:2000] if output else None,
+                error_message=error_msg[:1000] if error_msg else None,
+                attempt=attempt,
+                started_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(timezone.utc) if status in ("success", "failed") else None,
+            )
+            session.add(log)
+    except Exception as e:
+        logger.warning("Failed to save build log: %s", e)
+
+
 async def _save_app(demand_id: int | None, idea: dict, app_id: str, app_dir: str, github_url: str = "") -> int | None:
     """Persist an app registry record. Returns app_id or None."""
     if demand_id is None:
@@ -582,6 +624,7 @@ class PipelineRunner:
         await self._log(
             f"代码生成完成: {len(file_plan)} 个文件, 共 {total_lines} 行", "stage_change"
         )
+        await _save_build_log(demand_id, "code_gen", "success", f"{len(file_plan)} files, {total_lines} lines")
 
         # ── Stage: build -- 创建项目、安装依赖、分析修复 ──────────────
         await emit_stage_change("build", run_id, "active", {"message": "正在创建 Flutter 项目..."})
@@ -740,6 +783,7 @@ class PipelineRunner:
             "message": f"构建完成: {analyze_status}"
         })
         await self._log(f"dart analyze 结果: {analyze_status}", "stage_change")
+        await _save_build_log(demand_id, "dart_analyze", "success" if not has_errors else "failed", analyze_status)
 
         # ── Stage: layout/route check -- 检查布局和路由 ────────────────
         await emit_stage_change("assets", run_id, "active", {
@@ -965,6 +1009,7 @@ class PipelineRunner:
             "message": f"已推送: {github_url}"
         })
         await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
+        await _save_build_log(demand_id, "publish_google", "success", github_url)
 
         await emit_pipeline_summary(run_id, {
             "app_name": app_name, "app_id": app_id,
@@ -1226,6 +1271,7 @@ class PipelineRunner:
         await self._log(
             f"代码生成完成: {len(file_plan)} 个文件, 共 {total_lines} 行", "stage_change"
         )
+        await _save_build_log(demand_id, "code_gen", "success", f"{len(file_plan)} files, {total_lines} lines")
 
         # ── Stage: build -- 创建项目、安装依赖、分析修复 ──────────────
         await emit_stage_change("build", run_id, "active", {"message": "正在创建 Flutter 项目..."})
@@ -1367,6 +1413,7 @@ class PipelineRunner:
             "message": f"构建完成: {analyze_status}"
         })
         await self._log(f"dart analyze 结果: {analyze_status}", "stage_change")
+        await _save_build_log(demand_id, "dart_analyze", "success" if not has_errors else "failed", analyze_status)
 
         # ── Stage: layout/route check ────────────────────────────────
         await emit_stage_change("assets", run_id, "active", {
@@ -1559,6 +1606,7 @@ class PipelineRunner:
             "message": f"已推送: {github_url}"
         })
         await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
+        await _save_build_log(demand_id, "publish_google", "success", github_url)
 
         await emit_pipeline_summary(run_id, {
             "app_name": app_name, "app_id": app_id,
