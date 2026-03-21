@@ -87,14 +87,15 @@ function TextInput({
 
 function MaskedField({ label, value }: { label: string; value: string }) {
   const [visible, setVisible] = useState(false);
+  const { t } = useI18n();
   const masked = value
     ? value.slice(0, 4) + "****" + value.slice(-4)
-    : "未配置";
+    : t("settings.not_configured");
   return (
     <Field label={label}>
       <div className="flex items-center gap-2">
         <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-500">
-          {visible ? value || "未配置" : masked}
+          {visible ? value || t("settings.not_configured") : masked}
         </div>
         <button
           onClick={() => setVisible(!visible)}
@@ -181,14 +182,14 @@ export default function SettingsPage() {
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
-          {saving ? "保存中..." : saved ? "已保存" : "保存配置"}
+          {saving ? t("settings.saving") : saved ? t("settings.saved") : t("settings.save")}
         </button>
       </div>
 
       {/* Claude API */}
-      <Section title="Claude API 配置" icon={Key}>
+      <Section title={t("settings.claude_config")} icon={Key}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="模式">
+          <Field label={t("settings.claude_mode")}>
             <div className="flex gap-3">
               <button
                 onClick={() => setClaudeMode("api")}
@@ -199,7 +200,7 @@ export default function SettingsPage() {
                 }`}
               >
                 <Server className="h-4 w-4" />
-                API
+                {t("settings.api_mode")}
               </button>
               <button
                 onClick={() => setClaudeMode("local")}
@@ -210,12 +211,12 @@ export default function SettingsPage() {
                 }`}
               >
                 <Monitor className="h-4 w-4" />
-                Local
+                {t("settings.local_mode")}
               </button>
             </div>
           </Field>
 
-          <Field label="模型">
+          <Field label={t("settings.model")}>
             <select
               value={claudeModel}
               onChange={(e) => setClaudeModel(e.target.value)}
@@ -229,7 +230,7 @@ export default function SettingsPage() {
             </select>
           </Field>
 
-          <Field label="API Key">
+          <Field label={t("settings.api_key")}>
             <TextInput
               value={claudeApiKey}
               onChange={setClaudeApiKey}
@@ -238,7 +239,7 @@ export default function SettingsPage() {
             />
           </Field>
 
-          <Field label="Base URL">
+          <Field label={t("settings.base_url")}>
             <TextInput
               value={claudeBaseUrl}
               onChange={setClaudeBaseUrl}
@@ -249,37 +250,37 @@ export default function SettingsPage() {
       </Section>
 
       {/* Pipeline config */}
-      <Section title="流水线配置" icon={GitBranch}>
+      <Section title={t("settings.pipeline_config")} icon={GitBranch}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="爬取间隔 (分钟)">
+          <Field label={t("settings.crawl_interval")}>
             <TextInput
               value={crawlInterval}
               onChange={setCrawlInterval}
               placeholder="60"
             />
           </Field>
-          <Field label="最大并发构建">
+          <Field label={t("settings.max_concurrent")}>
             <TextInput
               value={maxConcurrent}
               onChange={setMaxConcurrent}
               placeholder="3"
             />
           </Field>
-          <Field label="自动审批阈值">
+          <Field label={t("settings.auto_approve")}>
             <TextInput
               value={autoApproveThreshold}
               onChange={setAutoApproveThreshold}
               placeholder="0.8"
             />
           </Field>
-          <Field label="最大重试次数">
+          <Field label={t("settings.max_retries")}>
             <TextInput
               value={maxRetries}
               onChange={setMaxRetries}
               placeholder="3"
             />
           </Field>
-          <Field label="重试延迟 (秒)">
+          <Field label={t("settings.retry_delay")}>
             <TextInput
               value={retryDelay}
               onChange={setRetryDelay}
@@ -290,12 +291,12 @@ export default function SettingsPage() {
       </Section>
 
       {/* Data sources */}
-      <Section title="数据源配置" icon={Globe}>
+      <Section title={t("settings.datasource_config")} icon={Globe}>
         <div className="space-y-5">
           {/* Enabled sources */}
           <div>
             <p className="mb-3 text-sm font-medium text-gray-700">
-              启用的数据源
+              {t("settings.enabled_sources")}
             </p>
             <div className="flex flex-wrap gap-3">
               {Object.entries(enabledSources).map(([key, enabled]) => (
@@ -328,7 +329,7 @@ export default function SettingsPage() {
           {/* Reddit credentials */}
           <div className="border-t border-gray-100 pt-4">
             <p className="mb-3 text-sm font-medium text-gray-700">
-              Reddit 凭据
+              {t("settings.reddit_credentials")}
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Client ID">
@@ -352,23 +353,23 @@ export default function SettingsPage() {
       </Section>
 
       {/* Publish config */}
-      <Section title="发布配置" icon={Store}>
+      <Section title={t("settings.publish_config")} icon={Store}>
         <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
-          <Field label="Google Play 凭据路径">
+          <Field label={t("settings.gplay_path")}>
             <TextInput
               value={googlePlayKeyPath}
               onChange={setGooglePlayKeyPath}
               placeholder="/path/to/google-play-key.json"
             />
           </Field>
-          <Field label="App Store 凭据路径">
+          <Field label={t("settings.appstore_path")}>
             <TextInput
               value={appStoreKeyPath}
               onChange={setAppStoreKeyPath}
               placeholder="/path/to/appstore-key.p8"
             />
           </Field>
-          <Field label="华为应用商店凭据路径">
+          <Field label={t("settings.huawei_path")}>
             <TextInput
               value={huaweiKeyPath}
               onChange={setHuaweiKeyPath}
@@ -379,7 +380,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* Current env display */}
-      <Section title="当前环境变量 (只读)" icon={Key}>
+      <Section title={t("settings.env_vars")} icon={Key}>
         <div className="space-y-3">
           <MaskedField
             label="CLAUDE_API_KEY"

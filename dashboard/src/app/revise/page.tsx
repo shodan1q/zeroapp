@@ -72,7 +72,7 @@ export default function RevisePage() {
       {/* Main form card */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-700">提交修改请求</h2>
+          <h2 className="text-sm font-semibold text-gray-700">{t("revise.submit_request")}</h2>
         </div>
         <div className="space-y-4 p-5">
           {/* App selector */}
@@ -83,10 +83,10 @@ export default function RevisePage() {
             {loadingApps ? (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                加载中...
+                {t("common.loading")}
               </div>
             ) : apps.length === 0 ? (
-              <p className="text-sm text-gray-400">暂无已生成的应用</p>
+              <p className="text-sm text-gray-400">{t("revise.no_apps")}</p>
             ) : (
               <select
                 value={selectedApp}
@@ -106,7 +106,7 @@ export default function RevisePage() {
           {selectedAppInfo && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                项目路径
+                {t("revise.project_path")}
               </label>
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-500">
                 {selectedAppInfo.path}
@@ -117,7 +117,7 @@ export default function RevisePage() {
           {/* Instruction textarea */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              修改说明
+              {t("revise.instruction")}
             </label>
             <textarea
               value={instruction}
@@ -138,7 +138,7 @@ export default function RevisePage() {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  修改中...
+                  {t("revise.submitting")}
                 </>
               ) : (
                 <>
@@ -155,7 +155,7 @@ export default function RevisePage() {
       {history.length > 0 && (
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-700">修改记录</h2>
+            <h2 className="text-sm font-semibold text-gray-700">{t("revise.history")}</h2>
           </div>
           <div className="divide-y divide-gray-100">
             {history.map((entry) => (
@@ -168,7 +168,7 @@ export default function RevisePage() {
                       <XCircle className="h-4 w-4 text-red-500" />
                     )}
                     <span className="text-sm font-medium text-gray-800">
-                      {entry.result.status === "success" ? "修改成功" : "修改失败"}
+                      {entry.result.status === "success" ? t("revise.success") : t("revise.failed")}
                     </span>
                   </div>
                   <span className="text-xs text-gray-400">{entry.timestamp}</span>
@@ -179,7 +179,7 @@ export default function RevisePage() {
                 {entry.result.status === "success" && entry.result.changes_made.length > 0 && (
                   <div className="mt-2">
                     <p className="mb-1 text-xs font-medium text-gray-500">
-                      修改的文件:
+                      {t("revise.files_changed")}:
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {entry.result.changes_made.map((f) => (
@@ -198,8 +198,8 @@ export default function RevisePage() {
                 {entry.result.status === "success" && entry.result.analyze_ok !== undefined && (
                   <div className="mt-2 text-xs text-gray-500">
                     {entry.result.analyze_ok
-                      ? "Flutter analyze: 无问题"
-                      : `Flutter analyze: 存在问题 - ${entry.result.analyze_output ?? ""}`}
+                      ? `Flutter analyze: ${t("revise.analyze_ok")}`
+                      : `Flutter analyze: ${t("revise.analyze_fail")} - ${entry.result.analyze_output ?? ""}`}
                   </div>
                 )}
 

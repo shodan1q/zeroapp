@@ -74,7 +74,7 @@ function SkeletonRow() {
 /*  Status badge                                                      */
 /* ------------------------------------------------------------------ */
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
   const map: Record<string, string> = {
     pending: "bg-gray-100 text-gray-600",
     evaluating: "bg-yellow-50 text-yellow-700",
@@ -87,23 +87,23 @@ function StatusBadge({ status }: { status: string }) {
     failed: "bg-red-50 text-red-700",
     cancelled: "bg-gray-100 text-gray-500",
   };
-  const label: Record<string, string> = {
-    pending: "待处理",
-    evaluating: "评估中",
-    approved: "已通过",
-    rejected: "已拒绝",
-    in_progress: "开发中",
-    done: "已完成",
-    running: "运行中",
-    success: "成功",
-    failed: "失败",
-    cancelled: "已取消",
+  const labelKey: Record<string, string> = {
+    pending: "status.pending",
+    evaluating: "status.evaluating",
+    approved: "status.approved",
+    rejected: "status.rejected",
+    in_progress: "status.in_progress",
+    done: "status.done",
+    running: "status.running",
+    success: "status.success",
+    failed: "status.failed",
+    cancelled: "status.cancelled",
   };
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600"}`}
     >
-      {label[status] ?? status}
+      {labelKey[status] ? t(labelKey[status]) : status}
     </span>
   );
 }
@@ -880,7 +880,7 @@ export default function OverviewPage() {
                         {d.title}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={d.status} />
+                        <StatusBadge status={d.status} t={t} />
                       </td>
                       <td className="px-4 py-3 text-gray-500">
                         {new Date(d.created_at).toLocaleDateString("zh-CN")}
@@ -903,7 +903,7 @@ export default function OverviewPage() {
               <thead>
                 <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
                   <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
-                  <th className="px-4 py-3 font-medium">Step</th>
+                  <th className="px-4 py-3 font-medium">{t("builds.step")}</th>
                   <th className="px-4 py-3 font-medium">{t("demands.status")}</th>
                   <th className="px-4 py-3 font-medium">{t("demands.time")}</th>
                 </tr>
@@ -933,7 +933,7 @@ export default function OverviewPage() {
                         {b.step}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={b.status} />
+                        <StatusBadge status={b.status} t={t} />
                       </td>
                       <td className="px-4 py-3 text-gray-500">
                         {new Date(b.created_at).toLocaleDateString("zh-CN")}

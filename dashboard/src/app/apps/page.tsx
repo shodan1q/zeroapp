@@ -29,7 +29,7 @@ import { useI18n } from "@/lib/i18n";
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function statusBadge(status: string) {
+function statusBadge(status: string, t: (key: string) => string) {
   const map: Record<string, string> = {
     draft: "bg-gray-100 text-gray-600",
     code_generated: "bg-indigo-50 text-indigo-700",
@@ -39,20 +39,20 @@ function statusBadge(status: string) {
     failed: "bg-red-50 text-red-700",
     suspended: "bg-amber-50 text-amber-700",
   };
-  const label: Record<string, string> = {
-    draft: "草稿",
-    code_generated: "已生成代码",
-    building: "构建中",
-    testing: "测试中",
-    live: "已上架",
-    failed: "失败",
-    suspended: "已下架",
+  const labelKey: Record<string, string> = {
+    draft: "status.draft",
+    code_generated: "status.code_generated",
+    building: "status.building",
+    testing: "status.testing",
+    live: "status.live",
+    failed: "status.failed",
+    suspended: "status.suspended",
   };
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600"}`}
     >
-      {label[status] ?? status}
+      {labelKey[status] ? t(labelKey[status]) : status}
     </span>
   );
 }
@@ -164,11 +164,11 @@ export default function AppsPage() {
         platform === "ohos" ? devices.ohos : false;
 
       if (!available) {
-        addToast(`请先启动 ${platformLabel[platform]} 模拟器`, "error");
+        addToast(`${t("apps.start_emulator")} ${platformLabel[platform]}`, "error");
         return;
       }
 
-      addToast(`正在构建并部署到 ${platformLabel[platform]}...`, "info");
+      addToast(`${t("apps.running_on")} ${platformLabel[platform]}...`, "info");
       const result = await runAppOnDevice(appPath, platform);
       if (result.status === "success") {
         addToast(result.message, "success");
@@ -177,7 +177,7 @@ export default function AppsPage() {
       }
     } catch (err) {
       console.error("Run on device failed", err);
-      addToast(`${platformLabel[platform]} 运行失败`, "error");
+      addToast(`${platformLabel[platform]} ${t("apps.run_failed")}`, "error");
     } finally {
       setRunningPlatform(null);
     }
@@ -257,12 +257,12 @@ export default function AppsPage() {
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">{t("apps.all_status")}</option>
-            <option value="draft">草稿</option>
-            <option value="code_generated">已生成代码</option>
-            <option value="building">构建中</option>
-            <option value="live">已上架</option>
-            <option value="failed">失败</option>
-            <option value="suspended">已下架</option>
+            <option value="draft">{t("status.draft")}</option>
+            <option value="code_generated">{t("status.code_generated")}</option>
+            <option value="building">{t("status.building")}</option>
+            <option value="live">{t("status.live")}</option>
+            <option value="failed">{t("status.failed")}</option>
+            <option value="suspended">{t("status.suspended")}</option>
           </select>
 
           <button
@@ -283,7 +283,7 @@ export default function AppsPage() {
             {t("apps.generated_apps")}
             {!loading && (
               <span className="text-xs font-normal text-gray-400">
-                ({filteredGenApps.length} 个)
+                ({filteredGenApps.length})
               </span>
             )}
           </h2>
@@ -313,7 +313,7 @@ export default function AppsPage() {
                     {/* Status */}
                     <div className="mb-4">
                       <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                        已生成代码
+                        {t("status.code_generated")}
                       </span>
                     </div>
 
@@ -390,10 +390,10 @@ export default function AppsPage() {
         <div>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
             <Smartphone className="h-4 w-4 text-blue-500" />
-            数据库应用
+            {t("apps.db_apps")}
             {!loading && (
               <span className="text-xs font-normal text-gray-400">
-                ({data?.total ?? 0} 个)
+                ({data?.total ?? 0})
               </span>
             )}
           </h2>
@@ -421,7 +421,7 @@ export default function AppsPage() {
                     </div>
 
                     {/* Status */}
-                    <div className="mb-4">{statusBadge(app.status)}</div>
+                    <div className="mb-4">{statusBadge(app.status, t)}</div>
 
                     {/* Stats */}
                     <div className="mb-4 grid grid-cols-3 gap-2 text-center">
@@ -432,7 +432,7 @@ export default function AppsPage() {
                         <p className="text-sm font-medium text-gray-700">
                           {app.total_downloads > 0 ? app.total_downloads.toLocaleString() : "--"}
                         </p>
-                        <p className="text-[10px] text-gray-400">下载量</p>
+                        <p className="text-[10px] text-gray-400">{t("apps.downloads")}</p>
                       </div>
                       <div>
                         <div className="flex items-center justify-center gap-1 text-gray-400">
@@ -441,7 +441,7 @@ export default function AppsPage() {
                         <p className="text-sm font-medium text-gray-700">
                           {app.rating !== null ? app.rating.toFixed(1) : "--"}
                         </p>
-                        <p className="text-[10px] text-gray-400">评分</p>
+                        <p className="text-[10px] text-gray-400">{t("apps.rating")}</p>
                       </div>
                       <div>
                         <div className="flex items-center justify-center gap-1 text-gray-400">
@@ -450,7 +450,7 @@ export default function AppsPage() {
                         <p className="text-sm font-medium text-gray-700">
                           {app.revenue_usd > 0 ? `$${app.revenue_usd.toFixed(2)}` : "--"}
                         </p>
-                        <p className="text-[10px] text-gray-400">收入</p>
+                        <p className="text-[10px] text-gray-400">{t("apps.revenue")}</p>
                       </div>
                     </div>
 
@@ -468,7 +468,7 @@ export default function AppsPage() {
                           <RefreshCw
                             className={`h-3 w-3 ${rebuildingId === app.app_id ? "animate-spin" : ""}`}
                           />
-                          重新构建
+                          {t("apps.rebuild")}
                         </button>
                         {app.google_play_url && (
                           <a
@@ -478,7 +478,7 @@ export default function AppsPage() {
                             className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
                           >
                             <ExternalLink className="h-3 w-3" />
-                            详情
+                            {t("apps.view_details")}
                           </a>
                         )}
                       </div>
@@ -493,9 +493,9 @@ export default function AppsPage() {
       {!loading && !hasAnyData && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-white py-16 shadow-sm">
           <Smartphone className="mb-3 h-10 w-10 text-gray-300" />
-          <p className="text-sm text-gray-400">暂无应用数据</p>
+          <p className="text-sm text-gray-400">{t("common.no_data")}</p>
           <p className="mt-1 text-xs text-gray-400">
-            启动流水线后将自动生成应用，或在概览页手动触发。
+            {t("apps.no_apps_hint")}
           </p>
         </div>
       )}
@@ -504,7 +504,7 @@ export default function AppsPage() {
       {data && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-gray-500">
-            数据库应用: 共 {data.total} 个，第 {data.page}/{totalPages} 页
+            {t("apps.db_apps")}: {data.total} / {data.page}/{totalPages}
           </p>
           <div className="flex items-center gap-2">
             <button
