@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Search,
   Filter,
@@ -255,9 +255,8 @@ export default function DemandsPage() {
                 </tr>
               ) : (
                 items.map((d) => (
-                  <>
+                  <React.Fragment key={d.demand_id}>
                     <tr
-                      key={d.demand_id}
                       onClick={() => handleExpand(d.demand_id)}
                       className="cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50"
                     >
@@ -389,7 +388,7 @@ export default function DemandsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 ))
               )}
             </tbody>
