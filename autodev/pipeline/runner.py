@@ -518,9 +518,29 @@ class PipelineRunner:
             ]
             error_count = len(error_lines)
 
-            # Auto-fix attempt: send errors to Claude for fix
-            if 0 < error_count < 20:
-                await self._log(f"发现 {error_count} 个错误，尝试自动修复...", "stage_change")
+            # Auto-fix loop: up to 3 rounds
+            max_fix_rounds = 3
+            for fix_round in range(1, max_fix_rounds + 1):
+                if error_count == 0:
+                    break
+                await self._log(f"发现 {error_count} 个错误，自动修复 (第 {fix_round}/{max_fix_rounds} 轮)...", "stage_change")
+
+                # Find which files have errors
+                error_files = set()
+                for el in error_lines:
+                    for p in generated_files:
+                        fname = p.split("/")[-1]
+                        if fname in el:
+                            error_files.add(p)
+
+                # Send errored files + errors to Claude
+                source_context = "\n".join(
+                    f"--- {p} ---\n{generated_files[p]}\n"
+                    for p in error_files
+                )
+                # Truncate to avoid token limits
+                if len(source_context) > 12000:
+                    source_context = source_context[:12000] + "\n... (truncated)"
 
                 fix_resp = await client.messages.create(
                     model=settings.claude_model,
@@ -528,18 +548,20 @@ class PipelineRunner:
                     system=(
                         "You are fixing Flutter/Dart compilation errors. "
                         "For each file that needs fixing, output in this format:\n"
-                        "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n"
-                        "Rules: Dart 2.19, no super parameters, no records, "
-                        "useMaterial3: false, no emoji."
+                        "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n\n"
+                        "CRITICAL RULES:\n"
+                        "- Dart 2.19 syntax ONLY. Do NOT use dot shorthands (.blue instead of Colors.blue)\n"
+                        "- Do NOT use super parameters (super.key). Use Key? key with super(key: key)\n"
+                        "- Do NOT use records, patterns, sealed classes\n"
+                        "- useMaterial3: false, no colorSchemeSeed\n"
+                        "- No emoji\n"
+                        "- Ensure all imports are correct\n"
+                        "- Output COMPLETE file contents, not partial"
                     ),
                     messages=[{"role": "user", "content": (
-                        f"Fix these dart analyze errors:\n\n{analyze_out[-3000:]}\n\n"
-                        f"Relevant source files:\n"
-                        + "\n".join(
-                            f"--- {p} ---\n{c}\n"
-                            for p, c in generated_files.items()
-                            if any(p.split("/")[-1] in el for el in error_lines[:10])
-                        )[:8000]
+                        f"Fix these dart analyze errors:\n\n"
+                        f"{chr(10).join(error_lines[:50])}\n\n"
+                        f"Source files with errors:\n{source_context}"
                     )}],
                 )
 
@@ -547,15 +569,18 @@ class PipelineRunner:
                 matches = re.findall(
                     r"===FILE:\s*(.+?)===\n(.*?)===END===", fix_text, re.DOTALL
                 )
+                fixed_count = 0
                 for fix_path, fix_code in matches:
                     fix_path = fix_path.strip()
                     fix_code = fix_code.strip()
                     full_path = app_dir / fix_path
-                    if full_path.exists() or fix_path in generated_files:
-                        full_path.parent.mkdir(parents=True, exist_ok=True)
-                        full_path.write_text(fix_code + "\n", encoding="utf-8")
-                        generated_files[fix_path] = fix_code
-                        await self._log(f"  已修复: {fix_path}", "info")
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_path.write_text(fix_code + "\n", encoding="utf-8")
+                    generated_files[fix_path] = fix_code
+                    fixed_count += 1
+                    await self._log(f"  已修复: {fix_path}", "info")
+
+                await self._log(f"  第 {fix_round} 轮修复了 {fixed_count} 个文件", "info")
 
                 # Re-analyze
                 proc = await asyncio.create_subprocess_exec(
@@ -565,13 +590,19 @@ class PipelineRunner:
                 )
                 stdout, stderr = await proc.communicate()
                 analyze_out = stdout.decode() + stderr.decode()
-                has_errors = (
-                    "error" in analyze_out.lower()
-                    and "No issues found" not in analyze_out
-                )
+
+                error_lines = [
+                    l for l in analyze_out.split("\n")
+                    if "error" in l.lower() and "info" not in l.lower()
+                ]
+                error_count = len(error_lines)
+                has_errors = error_count > 0
+
                 if not has_errors:
-                    await self._log("自动修复成功，零错误", "stage_change")
-                    error_count = 0
+                    await self._log(f"自动修复成功 (第 {fix_round} 轮)，零错误", "stage_change")
+                    break
+                else:
+                    await self._log(f"  修复后仍有 {error_count} 个错误", "info")
 
         analyze_status = "零错误" if not has_errors else f"{error_count} 个错误"
         self._stats["apps_generated"] += 1
