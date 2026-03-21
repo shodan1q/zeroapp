@@ -195,6 +195,9 @@ export type WsEventType =
   | "build_update"
   | "demand_update"
   | "app_update"
+  | "stage_change"
+  | "error"
+  | "metrics_update"
   | "connected";
 
 export interface WsEvent<T = unknown> {

@@ -31,6 +31,7 @@ class PipelineRunner:
             "apps_pushed": 0,
             "errors": 0,
         }
+        self._logs: list[dict] = []  # list of {"time": ISO, "message": str, "type": str}
 
     @classmethod
     def get_instance(cls) -> "PipelineRunner":
@@ -48,7 +49,25 @@ class PipelineRunner:
             **self._stats,
             "running": self.is_running,
             "current_run_id": self._current_run_id,
+            "logs": self._logs[-200:],
         }
+
+    async def _log(self, message: str, log_type: str = "info") -> None:
+        """Append to internal log buffer and emit via WebSocket."""
+        entry = {
+            "time": datetime.utcnow().isoformat() + "Z",
+            "message": message,
+            "type": log_type,
+        }
+        self._logs.append(entry)
+        # Keep only last 200
+        if len(self._logs) > 200:
+            self._logs = self._logs[-200:]
+        logger.info("[log] %s", message)
+        try:
+            await emit_stage_change("info", self._current_run_id, "info", {"message": message})
+        except Exception:
+            pass
 
     def start(self):
         if self.is_running:
@@ -78,6 +97,7 @@ class PipelineRunner:
             except Exception as e:
                 self._stats["errors"] += 1
                 logger.exception("Pipeline cycle failed")
+                await self._log(f"流水线错误: {e}", "error")
                 try:
                     await emit_error("pipeline", str(e))
                 except Exception:
@@ -86,6 +106,10 @@ class PipelineRunner:
             if self._running:
                 logger.info(
                     "Next cycle in %dh", settings.pipeline_crawl_interval_hours
+                )
+                await self._log(
+                    f"等待下一个周期 ({settings.pipeline_crawl_interval_hours}h)...",
+                    "info",
                 )
                 try:
                     await asyncio.sleep(interval)
@@ -103,10 +127,8 @@ class PipelineRunner:
 
         run_id = self._current_run_id
 
-        try:
-            await emit_stage_change("crawl", run_id, "active")
-        except Exception:
-            pass
+        await emit_stage_change("crawl", run_id, "active", {"message": "正在生成 App 创意..."})
+        await self._log("正在生成 App 创意...", "stage_change")
 
         # Step 1: Generate app idea using async LLM client
         from autodev.llm import get_claude_async_client
@@ -147,16 +169,17 @@ class PipelineRunner:
 
         logger.info("[%s] App idea: %s - %s", run_id, app_name, idea["description"])
 
-        try:
-            await emit_stage_change("process", run_id, "active")
-        except Exception:
-            pass
+        await emit_stage_change("crawl", run_id, "completed", {"message": f"创意生成完成: {app_name}"})
+        await self._log(f"创意生成完成: {app_name} - {idea['description']}", "stage_change")
+
+        await emit_stage_change("process", run_id, "active", {"message": f"正在处理需求: {app_name}"})
+        await self._log(f"正在处理需求: {app_name}", "stage_change")
+
+        await emit_stage_change("process", run_id, "completed", {"message": f"需求处理完成: {app_name}"})
 
         # Step 2: Generate Flutter code
-        try:
-            await emit_stage_change("generate", run_id, "active")
-        except Exception:
-            pass
+        await emit_stage_change("generate", run_id, "active", {"message": f"正在生成 {app_name} 代码..."})
+        await self._log(f"正在生成 {app_name} 代码...", "stage_change")
 
         features_str = ", ".join(idea.get("features", []))
         resp = await client.messages.create(
@@ -190,11 +213,13 @@ class PipelineRunner:
                     break
             code = "\n".join(lines[1:end])
 
+        line_count = len(code.split("\n"))
+        await emit_stage_change("generate", run_id, "completed", {"message": f"代码生成完成: {line_count} 行"})
+        await self._log(f"代码生成完成: {line_count} 行", "stage_change")
+
         # Step 3: Create Flutter project
-        try:
-            await emit_stage_change("build", run_id, "active")
-        except Exception:
-            pass
+        await emit_stage_change("build", run_id, "active", {"message": "正在创建 Flutter 项目..."})
+        await self._log("正在创建 Flutter 项目...", "stage_change")
 
         if app_dir.exists():
             shutil.rmtree(app_dir)
@@ -223,6 +248,8 @@ class PipelineRunner:
             test_file.unlink()
 
         # Analyze
+        await emit_stage_change("build", run_id, "active", {"message": "正在运行 dart analyze..."})
+        await self._log("正在运行 dart analyze...", "stage_change")
         proc = await asyncio.create_subprocess_exec(
             "flutter",
             "analyze",
@@ -256,30 +283,31 @@ class PipelineRunner:
         logger.info("[%s] Project created at %s", run_id, app_dir)
         self._stats["apps_generated"] += 1
 
+        await emit_stage_change("build", run_id, "completed", {"message": f"构建完成: {app_name}"})
+        await self._log(f"构建完成: {app_name}", "stage_change")
+
         # Step 4: Push to GitHub
-        try:
-            await emit_stage_change("publish", run_id, "active")
-        except Exception:
-            pass
+        await emit_stage_change("publish", run_id, "active", {"message": "正在推送到 GitHub..."})
+        await self._log("正在推送到 GitHub...", "stage_change")
 
         await self._push_to_github(app_dir, app_id, idea)
 
-        try:
-            await emit_stage_change("publish", run_id, "completed")
-            await emit_pipeline_summary(
-                run_id,
-                {
-                    "app_name": app_name,
-                    "app_id": app_id,
-                    "description": idea["description"],
-                    "path": str(app_dir),
-                    "status": "completed",
-                },
-            )
-        except Exception:
-            pass
+        await emit_stage_change("publish", run_id, "completed", {"message": f"已推送到 GitHub: {app_id}"})
+        await self._log(f"已推送到 GitHub: {app_id}", "stage_change")
+        await emit_pipeline_summary(
+            run_id,
+            {
+                "app_name": app_name,
+                "app_id": app_id,
+                "description": idea["description"],
+                "path": str(app_dir),
+                "status": "completed",
+                "message": f"周期完成: {app_name}",
+            },
+        )
 
         logger.info("[%s] Cycle complete: %s", run_id, app_name)
+        await self._log(f"周期完成: {app_name}", "stage_change")
 
     async def _push_to_github(self, app_dir: Path, app_id: str, idea: dict):
         """Initialize git, create GitHub repo, and push."""

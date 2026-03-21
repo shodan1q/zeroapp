@@ -536,6 +536,14 @@ async def get_runner_status():
     return runner.stats
 
 
+@router.get("/pipeline/logs")
+async def get_pipeline_logs():
+    from autodev.pipeline.runner import PipelineRunner
+
+    runner = PipelineRunner.get_instance()
+    return {"logs": runner.stats.get("logs", [])}
+
+
 # ── App Revision ─────────────────────────────────────────────────
 
 

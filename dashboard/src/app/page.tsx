@@ -18,6 +18,7 @@ import {
   fetchDemands,
   fetchBuilds,
   fetchRunnerStatus,
+  fetchPipelineLogs,
   startPipeline,
   stopPipeline,
 } from "@/lib/api";
@@ -44,6 +45,17 @@ const PIPELINE_STAGES = [
   "资源生成",
   "发布",
 ] as const;
+
+const STAGE_MAP: Record<string, number> = {
+  crawl: 0,
+  process: 1,
+  evaluate: 2,
+  decide: 3,
+  generate: 4,
+  build: 5,
+  assets: 6,
+  publish: 7,
+};
 
 type StageStatus = "pending" | "active" | "completed" | "failed";
 
@@ -168,7 +180,7 @@ export default function OverviewPage() {
     retries: 0,
   });
   const [activityLog, setActivityLog] = useState<
-    { time: string; message: string }[]
+    { time: string; message: string; type?: string }[]
   >([]);
   const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>({
     running: false,
@@ -187,14 +199,30 @@ export default function OverviewPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [dash, demandsRes, buildsRes] = await Promise.all([
+      const [dash, demandsRes, buildsRes, logsRes] = await Promise.all([
         fetchDashboard(),
         fetchDemands({ page: 1, page_size: 5 }),
         fetchBuilds({ limit: 5 }),
+        fetchPipelineLogs(),
       ]);
       setSummary(dash);
       setDemands(demandsRes.items);
       setBuilds(buildsRes.items);
+      if (logsRes.logs.length > 0) {
+        setActivityLog((prev) => {
+          // Merge: keep server logs as base, append any WS-only entries
+          const serverLogs = logsRes.logs.map((l) => ({
+            time: new Date(l.time).toLocaleTimeString("zh-CN"),
+            message: l.message,
+            type: l.type,
+          }));
+          // If we already have WS events that are newer, append them
+          if (prev.length > serverLogs.length) {
+            return [...serverLogs, ...prev.slice(serverLogs.length)];
+          }
+          return serverLogs;
+        });
+      }
       // If we got default zeros for everything, backend may not be running
       const isDefault =
         dash.total_apps === 0 &&
@@ -258,30 +286,47 @@ export default function OverviewPage() {
 
     setActivityLog((prev) => [
       ...prev.slice(-199),
-      { time: ts, message: `[${lastEvent.type}] ${msg}` },
+      { time: ts, message: msg, type: lastEvent.type },
     ]);
 
-    if (lastEvent.type === "pipeline_update") {
+    if (lastEvent.type === "stage_change") {
       const d = lastEvent.data as {
-        stage?: string;
-        progress?: number;
-        message?: string;
+        stage: string;
+        status: string;
+        demand_id?: string;
+        detail?: { message?: string };
       };
-      if (typeof d.progress === "number") {
-        const activeIdx = Math.min(
-          Math.floor(d.progress * 8),
-          7,
-        );
-        setPipelineStages(
-          PIPELINE_STAGES.map((_, i) => {
-            if (i < activeIdx) return "completed";
-            if (i === activeIdx) return "active";
+      const idx = STAGE_MAP[d.stage];
+      if (idx !== undefined) {
+        setPipelineStages((prev) =>
+          prev.map((s, i) => {
+            if (i < idx) return "completed";
+            if (i === idx)
+              return d.status === "completed"
+                ? "completed"
+                : d.status === "failed"
+                  ? "failed"
+                  : "active";
             return "pending";
           }),
         );
       }
-      if (d.message) {
-        setPipelineInfo((prev) => ({ ...prev, demandTitle: d.message! }));
+      if (d.detail?.message) {
+        setPipelineInfo((prev) => ({
+          ...prev,
+          demandTitle: d.detail!.message!,
+        }));
+      }
+    }
+
+    if (lastEvent.type === "pipeline_update") {
+      const d = lastEvent.data as {
+        stats?: { message?: string };
+        message?: string;
+      };
+      const msg = d.stats?.message ?? d.message;
+      if (msg) {
+        setPipelineInfo((prev) => ({ ...prev, demandTitle: msg }));
       }
     }
 
@@ -660,17 +705,36 @@ export default function OverviewPage() {
         </div>
         <div
           ref={logRef}
-          className="max-h-64 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600"
+          className="max-h-96 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600"
         >
           {activityLog.length === 0 ? (
             <p className="py-6 text-center text-gray-400">暂无活动记录</p>
           ) : (
-            activityLog.map((entry, i) => (
-              <div key={i} className="py-0.5">
-                <span className="text-gray-400">{entry.time}</span>{" "}
-                <span>{entry.message}</span>
-              </div>
-            ))
+            activityLog.map((entry, i) => {
+              const badgeColor: Record<string, string> = {
+                stage_change: "bg-blue-100 text-blue-700",
+                error: "bg-red-100 text-red-700",
+                pipeline_update: "bg-emerald-100 text-emerald-700",
+                build_update: "bg-amber-100 text-amber-700",
+                info: "bg-gray-100 text-gray-600",
+              };
+              const badge = entry.type
+                ? badgeColor[entry.type] ?? "bg-gray-100 text-gray-600"
+                : "bg-gray-100 text-gray-600";
+              return (
+                <div key={i} className="py-0.5 flex items-start gap-1.5">
+                  <span className="text-gray-400 shrink-0">{entry.time}</span>
+                  {entry.type && (
+                    <span
+                      className={`inline-block rounded px-1 py-0 text-[10px] font-medium shrink-0 ${badge}`}
+                    >
+                      {entry.type}
+                    </span>
+                  )}
+                  <span className={entry.type === "error" ? "text-red-600" : ""}>{entry.message}</span>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

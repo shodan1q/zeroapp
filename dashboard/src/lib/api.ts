@@ -178,6 +178,10 @@ export async function fetchRunnerStatus(): Promise<RunnerStatus> {
   return (await request<RunnerStatus>("/pipeline/runner-status")) ?? DEFAULT_RUNNER_STATUS;
 }
 
+export async function fetchPipelineLogs(): Promise<{logs: Array<{time: string; message: string; type: string}>}> {
+  return (await request<{logs: Array<{time: string; message: string; type: string}>}>("/pipeline/logs")) ?? {logs: []};
+}
+
 /* ------------------------------------------------------------------ */
 /*  App Revision                                                       */
 /* ------------------------------------------------------------------ */
