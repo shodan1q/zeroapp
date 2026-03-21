@@ -3,10 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
-dist/
-build/
 *.egg
 .eggs/
+dist/
+build/
 
 # Virtual environments
 .venv/
@@ -38,8 +38,21 @@ builds/
 *.aab
 *.ipa
 
-# Generated apps
+# Generated Flutter projects
+workspace/
+
+# SQLite checkpoint data
+data/
+
+# Generated apps (legacy)
 generated_apps/
+
+# Next.js build cache (root level)
+.next/
+
+# Dashboard
+dashboard/node_modules/
+dashboard/.next/
 
 # OS
 .DS_Store
@@ -48,9 +61,3 @@ Thumbs.db
 # Logs
 *.log
 logs/
-
-# Database
-*.db
-*.sqlite3
-dashboard/node_modules/
-dashboard/.next/

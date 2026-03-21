@@ -220,21 +220,30 @@ dev_dependencies:
 
 ```
 你是一个专业的 Flutter 开发者。请根据以下需求生成完整可运行的 Flutter 代码。
+代码必须同时兼容 Android、iOS、HarmonyOS OHOS 三端。
 
 ## 需求
 {demand_description}
 
 ## 约束
-1. 使用 Flutter 3.22+ 和 Dart 3.4+
-2. 状态管理使用 Riverpod
-3. 必须包含 AdMob 广告位（Banner 广告在底部）
-4. 必须支持深色/浅色主题切换
-5. 必须包含设置页面
-6. 所有文本使用 intl 国际化（中文+英文）
-7. 代码必须通过 dart analyze 零错误
-8. 遵循 Material Design 3 规范
-9. 适配手机和平板两种屏幕尺寸
-10. 禁止在代码、UI、注释中使用任何 emoji 字符
+1. 使用 Dart 2.19 / Flutter 3.7+（HarmonyOS OHOS 使用此版本）
+2. 禁止使用 Dart 3.x 语法：super 参数、records、patterns、sealed classes、class modifiers
+3. 构造函数使用 Key? key 命名参数风格，通过 super(key: key) 传递
+4. pubspec.yaml sdk 约束：sdk: '>=2.19.0 <4.0.0'
+5. 状态管理使用 Riverpod
+6. 必须包含 AdMob 广告位（Banner 广告在底部）
+7. 必须支持深色/浅色主题切换
+8. Material Design 2（useMaterial3: false），禁止使用 colorSchemeSeed / ColorScheme.fromSeed()
+9. 必须包含设置页面
+10. 所有文本使用 intl 国际化（中文+英文）
+11. 代码必须通过 dart analyze 零错误
+12. 适配手机和平板两种屏幕尺寸
+13. 禁止在代码、UI、注释中使用任何 emoji 字符
+
+## 三端代码共享策略
+- lib/ 目录下的业务代码三端完全共用，不做平台判断分支
+- 平台差异仅存在于 android/、ios/、ohos/ 目录的原生配置中
+- pubspec.yaml 依赖选择兼容三端的版本
 
 ## 当前要生成的文件
 文件路径：{file_path}
@@ -578,10 +587,16 @@ Account Pool:
 - [x] 实现 LangGraph StateGraph 编排 + SQLite checkpoint 持久化
 - [x] 实现指数退避重试机制 + 中断恢复
 - [x] 支持 Claude Opus 4.6 API 和 Max Plan 本地代理双模式
+- [x] 实现模板选择（6 种模板）
+- [x] 实现代码生成（单文件已验证）
+- [x] dart analyze 零错误
+- [x] Android APK 构建
+- [x] iOS 构建
+- [x] HarmonyOS HAP 构建
+- [x] 三端 UI 一致性（Dart 2.19 兼容，共用 lib/ 代码）
+- [x] 实时 Dashboard（Next.js 15 + WebSocket）
 - [ ] 实现 1 个数据源的需求采集（Reddit）
 - [ ] 实现 LLM 需求评估
-- [ ] 实现 1 个模板（单页工具）的代码生成
-- [ ] 手动验证生成的 App 能编译运行
 - [ ] 手动上架 1 个 App 到 Google Play
 - **里程碑**：第一个 AI 生成的 App 上架成功
 
@@ -619,7 +634,7 @@ Account Pool:
 |--------|------|------|
 | 跨平台框架 | Flutter | LLM 训练数据最多，CLI 工具链最完善 |
 | 状态管理 | Riverpod | 代码生成友好，类型安全 |
-| Agent 编排 | Python + LangGraph | 有向图编排，内置 checkpoint 持久化 + 中断恢复 + 条件分支，比 Celery 更适合多步骤 LLM 流水线 |
+| Agent 编排 | Python + LangGraph | 有向图编排，内置 checkpoint 持久化 + 中断恢复 + 条件分支，适合多步骤 LLM 流水线 |
 | 中断恢复 | LangGraph SQLite Checkpoint | 崩溃后从断点恢复，不浪费已完成的 LLM 调用 |
 | 重试策略 | 指数退避（base=2s, max=300s, 3次） | 统一装饰器应用于所有节点，避免散落在各处的重试逻辑 |
 | 人工审核 | LangGraph interrupt_before | 在代码生成和发布前设置中断点，支持人工确认后继续 |
@@ -631,4 +646,5 @@ Account Pool:
 | 分析 | Firebase | 免费，Flutter 深度集成 |
 | 图标生成 | DALL-E 3 | API 调用简单，质量稳定 |
 | 鸿蒙适配 | Flutter OHOS 社区版 | 与 Flutter 主线代码复用率最高 |
+| 三端兼容 | Dart 2.19 / Flutter 3.7+ | HarmonyOS OHOS 使用此版本，lib/ 代码三端共用，禁止 Dart 3.x 语法 |
 | 定时调度 | Celery Beat（可选） | 仅用于定时触发，实际编排走 LangGraph；也可用 asyncio loop 替代 |

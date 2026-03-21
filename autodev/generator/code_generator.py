@@ -28,20 +28,44 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are an expert Flutter/Dart developer. You generate production-quality Flutter \
-source code that compiles and runs without errors.
+source code that compiles and runs without errors on Android, iOS, and HarmonyOS OHOS.
 
 HARD CONSTRAINTS - every file you produce MUST follow these rules:
-  - Flutter 3.22+, Dart 3.4+
+
+  TARGET SDK:
+  - Dart 2.19 / Flutter 3.7+ (HarmonyOS OHOS uses this version)
+  - FORBIDDEN Dart 3.x syntax - DO NOT USE any of the following:
+    * super parameters (e.g. `super.key`) - use `Key? key` and pass via `super(key: key)`
+    * records (e.g. `(int, String)`)
+    * patterns and pattern matching (e.g. `switch` expressions, `if-case`)
+    * sealed classes
+    * class modifiers (`interface class`, `base class`, `final class`, `mixin class`)
+  - Constructor style: always use `Key? key` named parameter, pass to super explicitly.
+  - sdk constraint in pubspec.yaml: `sdk: '>=2.19.0 <4.0.0'`
+
+  THEMING & DESIGN:
+  - Material Design 2 (useMaterial3: false), provide both light and dark ThemeData.
+  - DO NOT use `colorSchemeSeed` - use explicit `colorScheme: ColorScheme.light(...)` / `ColorScheme.dark(...)`.
+  - DO NOT use `ColorScheme.fromSeed()`.
+
+  STATE & ARCHITECTURE:
   - State management: flutter_riverpod (Riverpod 2.x with code generation where appropriate)
-  - Ads: google_mobile_ads - place an AdMob banner widget on the main screen. \
-Use test ad unit IDs for now.
-  - Theming: Material Design 3 (useMaterial3: true), provide both light and dark ThemeData.
   - Navigation: go_router for declarative routing.
-  - Internationalisation: intl package, provide English and Japanese localisations.
-  - Local storage: shared_preferences or hive as appropriate.
   - Follow clean architecture: models/, services/, providers/, widgets/, screens/ directories.
   - Every Dart file must have proper imports - never use relative imports, always package imports.
   - All provider definitions should be in lib/providers/.
+
+  ADS & MONETIZATION:
+  - Ads: google_mobile_ads - place an AdMob banner widget on the main screen. \
+Use test ad unit IDs for now.
+
+  INTERNATIONALIZATION:
+  - intl package, provide English and Chinese localisations.
+
+  STORAGE:
+  - Local storage: shared_preferences or hive as appropriate.
+
+  CODE QUALITY:
   - No TODO comments - write complete, working code.
   - Use const constructors wherever possible.
   - Include proper error handling and loading states.
@@ -266,8 +290,8 @@ class CodeGenerator:
             f"Files already generated:\n{existing_summary or '(none yet)'}\n\n"
             f"Now generate the complete code for: {file_path}\n\n"
             f"Requirements:\n"
-            f"- Flutter 3.22+ / Dart 3.4+ syntax\n"
-            f"- Material Design 3\n"
+            f"- Dart 2.19 / Flutter 3.7+ syntax (no super parameters, no records, no patterns, no sealed classes)\n"
+            f"- Material Design 2 (useMaterial3: false, no colorSchemeSeed)\n"
             f"- flutter_riverpod for state management\n"
             f"- go_router for navigation\n"
             f"- Include proper package imports\n"

@@ -30,8 +30,7 @@ dependencies = [
     "rich>=13.7",
     "typer>=0.9",
     "Pillow>=10.2",
-    "numpy>=1.26",
-    "sentence-transformers>=2.3",
+    "aiosqlite>=0.20",
     "langgraph>=0.2",
 ]
 
