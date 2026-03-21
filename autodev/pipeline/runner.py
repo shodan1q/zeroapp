@@ -16,6 +16,100 @@ from autodev.api.events import emit_error, emit_pipeline_summary, emit_stage_cha
 logger = logging.getLogger(__name__)
 
 
+async def _save_demand(idea: dict, app_id: str, status: str = "pending") -> int | None:
+    """Persist a demand record to the database. Returns demand_id or None."""
+    try:
+        from autodev.database import get_async_session
+        from autodev.models.demand import Demand, DemandStatus
+
+        status_map = {
+            "pending": DemandStatus.PENDING,
+            "generating": DemandStatus.GENERATING,
+            "generated": DemandStatus.GENERATED,
+            "building": DemandStatus.BUILDING,
+            "built": DemandStatus.BUILT,
+            "publishing": DemandStatus.PUBLISHING,
+            "published": DemandStatus.PUBLISHED,
+            "failed": DemandStatus.FAILED,
+        }
+
+        async with get_async_session() as session:
+            demand = Demand(
+                title=idea.get("name", app_id),
+                description=idea.get("description", ""),
+                category="utility",
+                target_users=", ".join(idea.get("screens", [])),
+                core_features=json.dumps(idea.get("features", []), ensure_ascii=False),
+                monetization="ads",
+                complexity="medium",
+                trend_score=0.7,
+                source="autodev_pipeline",
+                status=status_map.get(status, DemandStatus.PENDING),
+            )
+            session.add(demand)
+            await session.flush()
+            did = demand.demand_id
+            return did
+    except Exception as e:
+        logger.warning("Failed to save demand: %s", e)
+        return None
+
+
+async def _update_demand_status(demand_id: int | None, status: str) -> None:
+    """Update demand status in database."""
+    if demand_id is None:
+        return
+    try:
+        from autodev.database import get_async_session
+        from autodev.models.demand import Demand, DemandStatus
+
+        status_map = {
+            "generating": DemandStatus.GENERATING,
+            "generated": DemandStatus.GENERATED,
+            "building": DemandStatus.BUILDING,
+            "built": DemandStatus.BUILT,
+            "publishing": DemandStatus.PUBLISHING,
+            "published": DemandStatus.PUBLISHED,
+            "failed": DemandStatus.FAILED,
+        }
+        ds = status_map.get(status)
+        if ds is None:
+            return
+        async with get_async_session() as session:
+            demand = await session.get(Demand, demand_id)
+            if demand:
+                demand.status = ds
+    except Exception as e:
+        logger.warning("Failed to update demand status: %s", e)
+
+
+async def _save_app(demand_id: int | None, idea: dict, app_id: str, app_dir: str, github_url: str = "") -> int | None:
+    """Persist an app registry record. Returns app_id or None."""
+    if demand_id is None:
+        return None
+    try:
+        from autodev.database import get_async_session
+        from autodev.models.app_registry import AppRegistry, AppStatus
+
+        async with get_async_session() as session:
+            app = AppRegistry(
+                demand_id=demand_id,
+                app_name=idea.get("name", app_id),
+                package_name=f"com.autodev.{app_id}",
+                description=idea.get("description", ""),
+                category="utility",
+                project_path=app_dir,
+                status=AppStatus.CODE_GENERATED,
+                google_play_url=github_url,
+            )
+            session.add(app)
+            await session.flush()
+            return app.app_id
+    except Exception as e:
+        logger.warning("Failed to save app: %s", e)
+        return None
+
+
 def _strip_fences(text: str) -> str:
     """Remove markdown code fences if present."""
     text = text.strip()
@@ -205,6 +299,11 @@ class PipelineRunner:
         await self._log(f"  页面: {', '.join(idea.get('screens', []))}", "info")
         await self._log(f"  目录: {app_dir}", "info")
 
+        # Save demand to database
+        demand_id = await _save_demand(idea, app_id, "generating")
+        if demand_id:
+            await self._log(f"  需求已保存到数据库 (ID: {demand_id})", "info")
+
         # ── Stage: process -- 生成 PRD 并规划文件列表 ─────────────────
         await emit_stage_change("process", run_id, "active", {"message": f"正在生成 {app_name} PRD..."})
         await self._log("正在生成产品需求文档 (PRD)...", "stage_change")
@@ -381,6 +480,9 @@ class PipelineRunner:
             full_path = app_dir / file_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(code, encoding="utf-8")
+
+        # Update demand status
+        await _update_demand_status(demand_id, "generated")
 
         # Run flutter pub get after writing pubspec.yaml
         await emit_stage_change("build", run_id, "active", {"message": "正在安装依赖..."})
@@ -637,6 +739,12 @@ class PipelineRunner:
             "github_url": github_url, "status": "completed",
             "message": f"周期完成: {app_name}",
         })
+
+        # Save app to database and update demand status
+        await _update_demand_status(demand_id, "published")
+        db_app_id = await _save_app(demand_id, idea, app_id, str(app_dir), github_url)
+        if db_app_id:
+            await self._log(f"  应用已保存到数据库 (ID: {db_app_id})", "info")
 
         await self._log("========== 周期完成 ==========", "stage_change")
         await self._log(f"  App: {app_name}", "info")
