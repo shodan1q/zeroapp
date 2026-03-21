@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoDev Agent Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
+      70% { box-shadow: 0 0 0 8px rgba(59,130,246,0); }
+      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
+    .pulse-active {
+      animation: pulse-ring 1.5s ease-in-out infinite;
+    }
+    .stage-arrow::after {
+      content: '\2192';
+      color: #6b7280;
+      font-size: 1.25rem;
+      margin: 0 0.25rem;
+    }
+    .stage-arrow:last-child::after {
+      content: '';
+    }
+    .log-container {
+      font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+    .log-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    .log-container::-webkit-scrollbar-track {
+      background: #1f2937;
+    }
+    .log-container::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 3px;
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    body {
+      background: #111827;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🤖</span>
+      <h1 class="text-xl font-bold text-white">AutoDev Agent Dashboard</h1>
+    </div>
+    <div class="flex items-center gap-4">
+      <div id="ws-status" class="flex items-center gap-2 text-sm">
+        <span id="ws-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+        <span id="ws-label" class="text-gray-400">未连接</span>
+      </div>
+      <span class="text-gray-500 text-xs" id="last-update"></span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Summary Cards -->
+    <section id="summary-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+        <div class="text-gray-400 text-xs mb-1">总App数</div>
+        <div class="text-2xl font-bold text-white" id="metric-total-apps">--</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+        <div class="text-gray-400 text-xs mb-1">已上架</div>
+        <div class="text-2xl font-bold text-green-400" id="metric-live-apps">--</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+        <div class="text-gray-400 text-xs mb-1">开发中</div>
+        <div class="text-2xl font-bold text-blue-400" id="metric-developing">--</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+        <div class="text-gray-400 text-xs mb-1">今日需求</div>
+        <div class="text-2xl font-bold text-yellow-400" id="metric-demands-today">--</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+        <div class="text-gray-400 text-xs mb-1">今日构建</div>
+        <div class="text-2xl font-bold text-purple-400" id="metric-builds-today">--</div>
+      </div>
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+        <div class="text-gray-400 text-xs mb-1">待处理</div>
+        <div class="text-2xl font-bold text-orange-400" id="metric-pending">--</div>
+      </div>
+    </section>
+
+    <!-- Pipeline Visualization -->
+    <section class="bg-gray-800 rounded-lg p-6 shadow-lg">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">流水线实时状态</h2>
+      <div class="flex items-center justify-center flex-wrap gap-1 mb-4" id="pipeline-stages">
+        <!-- Stages injected by JS -->
+      </div>
+      <div class="text-center text-sm text-gray-400 mt-3" id="pipeline-detail">
+        <span id="pipeline-current">等待流水线启动...</span>
+      </div>
+      <div class="flex justify-center gap-6 text-xs text-gray-500 mt-2">
+        <span>耗时: <span id="pipeline-elapsed" class="text-gray-300">--</span></span>
+        <span>重试: <span id="pipeline-retries" class="text-gray-300">0/3</span></span>
+      </div>
+    </section>
+
+    <!-- Demands + Builds side by side -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Demands Table -->
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg overflow-hidden">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">需求队列</h2>
+        <div class="overflow-x-auto max-h-64 overflow-y-auto">
+          <table class="w-full text-sm">
+            <thead class="text-gray-500 text-xs uppercase sticky top-0 bg-gray-800">
+              <tr>
+                <th class="text-left py-2 px-2">ID</th>
+                <th class="text-left py-2 px-2">标题</th>
+                <th class="text-left py-2 px-2">来源</th>
+                <th class="text-left py-2 px-2">状态</th>
+              </tr>
+            </thead>
+            <tbody id="demands-body" class="divide-y divide-gray-700">
+              <tr><td colspan="4" class="text-center py-4 text-gray-500">暂无数据</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Build Log Table -->
+      <div class="bg-gray-800 rounded-lg p-4 shadow-lg overflow-hidden">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">构建日志</h2>
+        <div class="overflow-x-auto max-h-64 overflow-y-auto" id="builds-scroll">
+          <table class="w-full text-sm">
+            <thead class="text-gray-500 text-xs uppercase sticky top-0 bg-gray-800">
+              <tr>
+                <th class="text-left py-2 px-2">时间</th>
+                <th class="text-left py-2 px-2">需求ID</th>
+                <th class="text-left py-2 px-2">步骤</th>
+                <th class="text-left py-2 px-2">状态</th>
+              </tr>
+            </thead>
+            <tbody id="builds-body" class="divide-y divide-gray-700">
+              <tr><td colspan="4" class="text-center py-4 text-gray-500">暂无数据</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Apps Table -->
+    <section class="bg-gray-800 rounded-lg p-4 shadow-lg overflow-hidden">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">App 列表</h2>
+      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="text-gray-500 text-xs uppercase sticky top-0 bg-gray-800">
+            <tr>
+              <th class="text-left py-2 px-2">名称</th>
+              <th class="text-left py-2 px-2">包名</th>
+              <th class="text-left py-2 px-2">状态</th>
+              <th class="text-right py-2 px-2">下载</th>
+              <th class="text-right py-2 px-2">评分</th>
+              <th class="text-right py-2 px-2">收入</th>
+            </tr>
+          </thead>
+          <tbody id="apps-body" class="divide-y divide-gray-700">
+            <tr><td colspan="6" class="text-center py-4 text-gray-500">暂无数据</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Activity Log -->
+    <section class="bg-gray-800 rounded-lg p-4 shadow-lg">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">活动日志</h2>
+      <div id="activity-log" class="log-container bg-gray-900 rounded p-3 h-48 overflow-y-auto text-gray-400">
+        <div class="text-gray-600">等待连接...</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // ─── Dashboard Class ─────────────────────────────────────────
+    class Dashboard {
+      constructor() {
+        this.ws = null;
+        this.wsConnected = false;
+        this.reconnectDelay = 1000;
+        this.maxReconnectDelay = 30000;
+        this.logLines = [];
+        this.maxLogLines = 200;
+        this.pipelineStartTime = null;
+        this.elapsedInterval = null;
+
+        this.stages = [
+          { key: 'crawl', label: '爬取' },
+          { key: 'process', label: '处理' },
+          { key: 'evaluate', label: '评估' },
+          { key: 'decide', label: '决策' },
+          { key: 'generate', label: '生成' },
+          { key: 'build', label: '构建' },
+          { key: 'assets', label: '资源' },
+          { key: 'publish', label: '发布' },
+        ];
+        this.stageStatus = {};
+        this.stages.forEach(s => this.stageStatus[s.key] = 'pending');
+
+        this.initPipeline();
+        this.connectWebSocket();
+        this.fetchDashboard();
+        this.fetchDemands();
+        this.fetchBuilds();
+        this.fetchApps();
+
+        // Polling every 30s
+        setInterval(() => this.fetchDashboard(), 30000);
+      }
+
+      // ─── Pipeline Visualization ─────────────────────────────
+      initPipeline() {
+        const container = document.getElementById('pipeline-stages');
+        container.innerHTML = '';
+        this.stages.forEach((stage, idx) => {
+          const el = document.createElement('div');
+          el.className = 'stage-arrow flex items-center gap-1';
+          el.innerHTML = `
+            <div class="flex flex-col items-center">
+              <div id="stage-dot-${stage.key}" class="w-8 h-8 rounded-full border-2 border-gray-600 bg-gray-700 flex items-center justify-center text-xs transition-all duration-300">
+                <span class="text-gray-500" id="stage-icon-${stage.key}">○</span>
+              </div>
+              <span class="text-xs text-gray-500 mt-1" id="stage-label-${stage.key}">${stage.label}</span>
+            </div>
+          `;
+          container.appendChild(el);
+        });
+      }
+
+      updateStageUI(stageKey, status) {
+        const dot = document.getElementById(`stage-dot-${stageKey}`);
+        const icon = document.getElementById(`stage-icon-${stageKey}`);
+        const label = document.getElementById(`stage-label-${stageKey}`);
+        if (!dot) return;
+
+        // Reset
+        dot.classList.remove('pulse-active');
+        dot.className = 'w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs transition-all duration-300';
+
+        if (status === 'active' || status === 'started') {
+          dot.classList.add('border-blue-500', 'bg-blue-500/20', 'pulse-active');
+          icon.textContent = '◉';
+          icon.className = 'text-blue-400';
+          label.className = 'text-xs mt-1 text-blue-400 font-semibold';
+        } else if (status === 'completed' || status === 'done') {
+          dot.classList.add('border-green-500', 'bg-green-500/20');
+          icon.textContent = '✓';
+          icon.className = 'text-green-400';
+          label.className = 'text-xs mt-1 text-green-400';
+        } else if (status === 'failed') {
+          dot.classList.add('border-red-500', 'bg-red-500/20');
+          icon.textContent = '✗';
+          icon.className = 'text-red-400';
+          label.className = 'text-xs mt-1 text-red-400';
+        } else {
+          dot.classList.add('border-gray-600', 'bg-gray-700');
+          icon.textContent = '○';
+          icon.className = 'text-gray-500';
+          label.className = 'text-xs mt-1 text-gray-500';
+        }
+      }
+
+      updatePipelineView(event) {
+        const { stage, status, demand_id, detail } = event;
+
+        // Map evaluate_batch -> evaluate, decide_batch -> decide
+        const normalizedStage = stage
+          .replace('evaluate_batch', 'evaluate')
+          .replace('decide_batch', 'decide');
+
+        if (status === 'started') {
+          // Mark all previous stages as completed
+          let found = false;
+          for (const s of this.stages) {
+            if (s.key === normalizedStage) {
+              found = true;
+              this.stageStatus[s.key] = 'active';
+              break;
+            }
+            if (!found && this.stageStatus[s.key] === 'pending') {
+              this.stageStatus[s.key] = 'completed';
+            }
+          }
+          if (!this.pipelineStartTime) {
+            this.pipelineStartTime = Date.now();
+            this.startElapsedTimer();
+          }
+        } else if (status === 'completed') {
+          this.stageStatus[normalizedStage] = 'completed';
+        } else if (status === 'failed') {
+          this.stageStatus[normalizedStage] = 'failed';
+        }
+
+        // Update all stage UIs
+        for (const s of this.stages) {
+          this.updateStageUI(s.key, this.stageStatus[s.key]);
+        }
+
+        // Update detail text
+        const stageLabel = this.stages.find(s => s.key === normalizedStage)?.label || normalizedStage;
+        const demandLabel = demand_id ? ` ${demand_id}` : '';
+        const statusLabels = { started: '正在进行', completed: '已完成', failed: '失败' };
+        document.getElementById('pipeline-current').textContent =
+          `当前: ${statusLabels[status] || status} - ${stageLabel}${demandLabel}`;
+      }
+
+      startElapsedTimer() {
+        if (this.elapsedInterval) clearInterval(this.elapsedInterval);
+        this.elapsedInterval = setInterval(() => {
+          if (!this.pipelineStartTime) return;
+          const elapsed = Math.floor((Date.now() - this.pipelineStartTime) / 1000);
+          const m = Math.floor(elapsed / 60);
+          const s = elapsed % 60;
+          document.getElementById('pipeline-elapsed').textContent =
+            `${m}m ${s.toString().padStart(2, '0')}s`;
+        }, 1000);
+      }
+
+      // ─── WebSocket ──────────────────────────────────────────
+      connectWebSocket() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${location.host}/ws`;
+
+        this.ws = new WebSocket(url);
+
+        this.ws.onopen = () => {
+          this.wsConnected = true;
+          this.reconnectDelay = 1000;
+          document.getElementById('ws-dot').className = 'w-2.5 h-2.5 rounded-full bg-green-500';
+          document.getElementById('ws-label').textContent = '已连接';
+          this.appendLog('WebSocket 已连接');
+        };
+
+        this.ws.onclose = () => {
+          this.wsConnected = false;
+          document.getElementById('ws-dot').className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+          document.getElementById('ws-label').textContent = '未连接';
+          this.appendLog('WebSocket 断开，正在重连...');
+          this.scheduleReconnect();
+        };
+
+        this.ws.onerror = () => {
+          this.ws.close();
+        };
+
+        this.ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            this.handleEvent(msg);
+          } catch (e) {
+            console.error('Failed to parse WS message:', e);
+          }
+        };
+      }
+
+      scheduleReconnect() {
+        setTimeout(() => {
+          this.appendLog(`正在尝试重新连接 (${this.reconnectDelay / 1000}s)...`);
+          this.connectWebSocket();
+          this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
+        }, this.reconnectDelay);
+      }
+
+      handleEvent(msg) {
+        const { type, timestamp, data } = msg;
+        const ts = new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false });
+
+        switch (type) {
+          case 'connected':
+            break;
+          case 'pong':
+            break;
+          case 'stage_change':
+            this.updatePipelineView(data);
+            this.appendLog(`[${data.status}] 阶段: ${data.stage}${data.demand_id ? ' - ' + data.demand_id : ''}`);
+            // Refresh tables on relevant changes
+            if (['completed', 'failed'].includes(data.status)) {
+              this.fetchDemands();
+              this.fetchBuilds();
+              this.fetchApps();
+              this.fetchDashboard();
+            }
+            break;
+          case 'build_update':
+            this.appendLog(`[构建] ${data.demand_id} - ${data.step}: ${data.progress_pct}% ${data.message}`);
+            this.fetchBuilds();
+            break;
+          case 'pipeline_update':
+            this.appendLog(`[流水线] 运行 ${data.run_id} - ${JSON.stringify(data.stats)}`);
+            this.fetchDashboard();
+            break;
+          case 'demand_update':
+            this.appendLog(`[需求] ${JSON.stringify(data)}`);
+            this.fetchDemands();
+            break;
+          case 'error':
+            this.appendLog(`[错误] ${data.source}: ${data.message}`, 'text-red-400');
+            break;
+          case 'metrics_update':
+            this.appendLog(`[指标] 指标已更新`);
+            this.fetchDashboard();
+            break;
+          default:
+            this.appendLog(`[${type}] ${JSON.stringify(data)}`);
+        }
+
+        document.getElementById('last-update').textContent =
+          `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
+      }
+
+      // ─── Activity Log ──────────────────────────────────────
+      appendLog(message, colorClass = 'text-gray-300') {
+        const container = document.getElementById('activity-log');
+        const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        const line = document.createElement('div');
+        line.className = `fade-in ${colorClass}`;
+        line.textContent = `[${ts}] ${message}`;
+
+        this.logLines.push(line);
+        if (this.logLines.length > this.maxLogLines) {
+          const removed = this.logLines.shift();
+          if (removed.parentNode) removed.parentNode.removeChild(removed);
+        }
+
+        // Remove the "等待连接" placeholder
+        const placeholder = container.querySelector('.text-gray-600');
+        if (placeholder) placeholder.remove();
+
+        container.appendChild(line);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      // ─── API Fetchers ──────────────────────────────────────
+      async fetchDashboard() {
+        try {
+          const resp = await fetch('/api/dashboard');
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+
+          document.getElementById('metric-total-apps').textContent = data.total_apps ?? '--';
+          document.getElementById('metric-live-apps').textContent = data.live_apps ?? '--';
+          document.getElementById('metric-developing').textContent = data.developing_apps ?? '--';
+          document.getElementById('metric-demands-today').textContent = data.approved_today ?? '--';
+          document.getElementById('metric-builds-today').textContent = data.builds_today ?? '--';
+          document.getElementById('metric-pending').textContent = data.pending_demands ?? '--';
+        } catch (e) {
+          // Show dashes on error (no DB)
+          ['metric-total-apps', 'metric-live-apps', 'metric-developing',
+           'metric-demands-today', 'metric-builds-today', 'metric-pending'
+          ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el.textContent === '--') return; // already default
+          });
+        }
+      }
+
+      async fetchDemands() {
+        try {
+          const resp = await fetch('/api/demands?page_size=50');
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          this.renderDemands(data.items || []);
+        } catch (e) {
+          // Keep "暂无数据" on error
+        }
+      }
+
+      async fetchBuilds() {
+        try {
+          const resp = await fetch('/api/builds?limit=50');
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          this.renderBuilds(data.items || []);
+        } catch (e) {
+          // Keep "暂无数据" on error
+        }
+      }
+
+      async fetchApps() {
+        try {
+          const resp = await fetch('/api/apps?page_size=50');
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          this.renderApps(data.items || []);
+        } catch (e) {
+          // Keep "暂无数据" on error
+        }
+      }
+
+      // ─── Renderers ─────────────────────────────────────────
+      statusBadge(status) {
+        const colors = {
+          pending: 'bg-gray-600 text-gray-300',
+          evaluating: 'bg-blue-600/30 text-blue-400',
+          approved: 'bg-green-600/30 text-green-400',
+          rejected: 'bg-red-600/30 text-red-400',
+          developing: 'bg-purple-600/30 text-purple-400',
+          published: 'bg-green-600/30 text-green-400',
+          live: 'bg-green-600/30 text-green-400',
+          draft: 'bg-gray-600 text-gray-300',
+          code_generated: 'bg-blue-600/30 text-blue-400',
+          building: 'bg-yellow-600/30 text-yellow-400',
+          built: 'bg-green-600/30 text-green-400',
+          failed: 'bg-red-600/30 text-red-400',
+          success: 'bg-green-600/30 text-green-400',
+          running: 'bg-blue-600/30 text-blue-400',
+        };
+        const statusLower = (status || 'unknown').toLowerCase();
+        const cls = colors[statusLower] || 'bg-gray-600 text-gray-300';
+
+        const labels = {
+          pending: '待处理', evaluating: '评估中', approved: '已通过',
+          rejected: '已拒绝', developing: '开发中', published: '已发布',
+          live: '已上架', draft: '草稿', code_generated: '已生成',
+          building: '构建中', built: '已构建', failed: '失败',
+          success: '成功', running: '运行中',
+        };
+        const label = labels[statusLower] || status;
+
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${cls}">${label}</span>`;
+      }
+
+      buildStatusIcon(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'success' || s === 'completed') return '<span class="text-green-400">✅</span>';
+        if (s === 'failed' || s === 'error') return '<span class="text-red-400">❌</span>';
+        if (s === 'running' || s === 'pending') return '<span class="text-blue-400">🔄</span>';
+        return '<span class="text-gray-400">⏳</span>';
+      }
+
+      renderDemands(items) {
+        const body = document.getElementById('demands-body');
+        if (!items.length) {
+          body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">暂无数据</td></tr>';
+          return;
+        }
+        body.innerHTML = items.map(d => `
+          <tr class="hover:bg-gray-700/50 transition-colors">
+            <td class="py-2 px-2 text-gray-400 text-xs">${d.demand_id || '--'}</td>
+            <td class="py-2 px-2 text-gray-200">${this.escapeHtml(d.title || '未知')}</td>
+            <td class="py-2 px-2 text-gray-400 text-xs">${d.source || '--'}</td>
+            <td class="py-2 px-2">${this.statusBadge(d.status)}</td>
+          </tr>
+        `).join('');
+      }
+
+      renderBuilds(items) {
+        const body = document.getElementById('builds-body');
+        if (!items.length) {
+          body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">暂无数据</td></tr>';
+          return;
+        }
+        body.innerHTML = items.map(b => {
+          const time = b.created_at ? new Date(b.created_at).toLocaleTimeString('zh-CN', { hour12: false }) : '--';
+          return `
+            <tr class="hover:bg-gray-700/50 transition-colors">
+              <td class="py-2 px-2 text-gray-400 text-xs">${time}</td>
+              <td class="py-2 px-2 text-gray-400 text-xs">${b.demand_id || '--'}</td>
+              <td class="py-2 px-2 text-gray-200">${b.step || '--'}</td>
+              <td class="py-2 px-2">${this.buildStatusIcon(b.status)} ${this.statusBadge(b.status)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        // Auto-scroll builds
+        const scroll = document.getElementById('builds-scroll');
+        scroll.scrollTop = 0;
+      }
+
+      renderApps(items) {
+        const body = document.getElementById('apps-body');
+        if (!items.length) {
+          body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500">暂无数据</td></tr>';
+          return;
+        }
+        body.innerHTML = items.map(a => `
+          <tr class="hover:bg-gray-700/50 transition-colors">
+            <td class="py-2 px-2 text-gray-200">${this.escapeHtml(a.app_name || '未知')}</td>
+            <td class="py-2 px-2 text-gray-400 text-xs font-mono">${a.package_name || '--'}</td>
+            <td class="py-2 px-2">${this.statusBadge(a.status)}</td>
+            <td class="py-2 px-2 text-right text-gray-300">${a.total_downloads ?? '--'}</td>
+            <td class="py-2 px-2 text-right text-yellow-400">${a.rating != null ? a.rating.toFixed(1) : '--'}</td>
+            <td class="py-2 px-2 text-right text-green-400">${a.revenue_usd != null ? '$' + a.revenue_usd.toFixed(2) : '--'}</td>
+          </tr>
+        `).join('');
+      }
+
+      escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    }
+
+    // ─── Boot ────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      window.dashboard = new Dashboard();
+    });
+  </script>
+</body>
+</html>

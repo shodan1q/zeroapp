@@ -432,6 +432,48 @@ async def get_stats(
 # ── Pipeline ─────────────────────────────────────────────────────
 
 
+@router.get("/pipeline/status/{thread_id}")
+async def get_pipeline_status(thread_id: str) -> dict:
+    """Return the current LangGraph checkpoint state for a given pipeline run.
+
+    If the checkpointer is not available or the thread has no state,
+    returns a graceful fallback.
+    """
+    try:
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+        from autodev.pipeline.graph import build_main_graph
+
+        checkpointer = AsyncSqliteSaver.from_conn_string("checkpoints.db")
+        graph = build_main_graph(checkpointer=checkpointer)
+        config = {"configurable": {"thread_id": thread_id}}
+        state = await graph.aget_state(config)
+        if state and state.values:
+            return {
+                "thread_id": thread_id,
+                "status": "found",
+                "stage": state.values.get("stage", "unknown"),
+                "values": {
+                    k: v
+                    for k, v in state.values.items()
+                    if k
+                    not in (
+                        "demands_raw",
+                        "demands_structured",
+                        "demands_evaluated",
+                    )
+                },
+            }
+        return {"thread_id": thread_id, "status": "not_found", "values": {}}
+    except Exception as exc:
+        logger.warning("Could not fetch pipeline state for %s: %s", thread_id, exc)
+        return {
+            "thread_id": thread_id,
+            "status": "error",
+            "message": str(exc),
+        }
+
+
 @router.post("/pipeline/trigger", response_model=PipelineTriggerResponse)
 async def trigger_pipeline(
     session: AsyncSession = Depends(get_session),

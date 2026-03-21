@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+import pathlib
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from autodev.config import get_settings
 from autodev.database import get_async_engine
@@ -78,6 +81,27 @@ def create_app() -> FastAPI:
     from autodev.api.routes import router
 
     application.include_router(router)
+
+    # Include WebSocket routes
+    from autodev.api.websocket import router as ws_router
+
+    application.include_router(ws_router)
+
+    # Serve static files
+    static_dir = pathlib.Path(__file__).resolve().parent.parent / "static"
+    if static_dir.is_dir():
+        application.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    # Root route serves the dashboard
+    @application.get("/", response_class=HTMLResponse)
+    async def serve_dashboard() -> HTMLResponse:
+        index_path = static_dir / "index.html"
+        if index_path.exists():
+            return HTMLResponse(content=index_path.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            content="<h1>Dashboard not found</h1><p>static/index.html is missing.</p>",
+            status_code=404,
+        )
 
     return application
 

@@ -58,6 +58,12 @@ async def node_crawl(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[crawl] Starting demand crawl.")
 
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("crawl", status="started")
+    except Exception:
+        pass
+
     crawlers = [RedditCrawler(), ProductHuntCrawler()]
     all_demands: List[Dict[str, Any]] = []
 
@@ -75,6 +81,13 @@ async def node_crawl(state: Dict[str, Any]) -> Dict[str, Any]:
             logger.exception("[crawl] %s failed.", type(crawler).__name__)
 
     logger.info("[crawl] Total raw demands: %d.", len(all_demands))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("crawl", status="completed", detail={"count": len(all_demands)})
+    except Exception:
+        pass
+
     return {
         "demands_raw": all_demands,
         "demands_crawled_count": len(all_demands),
@@ -89,6 +102,12 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
     """Process raw demands into structured form via Claude."""
     raw_demands: List[Dict[str, Any]] = state.get("demands_raw", [])
     logger.info("[process] Processing %d raw demands.", len(raw_demands))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("process", status="started")
+    except Exception:
+        pass
 
     try:
         from autodev.crawler.processor import DemandProcessor
@@ -107,6 +126,13 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
                     raw.get("title", "?"),
                 )
         logger.info("[process] Structured %d demands.", len(structured))
+
+        try:
+            from autodev.api.events import emit_stage_change
+            await emit_stage_change("process", status="completed", detail={"count": len(structured)})
+        except Exception:
+            pass
+
         return {"demands_structured": structured, "stage": "process"}
 
     except ImportError:
@@ -118,6 +144,13 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
             d.setdefault("title", d.get("title", "Untitled"))
             d.setdefault("description", d.get("raw_text", ""))
             d.setdefault("core_features", "")
+
+        try:
+            from autodev.api.events import emit_stage_change
+            await emit_stage_change("process", status="completed", detail={"count": len(raw_demands)})
+        except Exception:
+            pass
+
         return {"demands_structured": raw_demands, "stage": "process"}
 
 
@@ -131,6 +164,12 @@ async def node_evaluate_batch(state: Dict[str, Any]) -> Dict[str, Any]:
 
     structured: List[Dict[str, Any]] = state.get("demands_structured", [])
     logger.info("[evaluate] Evaluating %d demands.", len(structured))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("evaluate_batch", status="started")
+    except Exception:
+        pass
 
     evaluated: List[Dict[str, Any]] = []
     errors: list[str] = list(state.get("errors") or [])
@@ -153,6 +192,13 @@ async def node_evaluate_batch(state: Dict[str, Any]) -> Dict[str, Any]:
             errors.append(msg)
 
     logger.info("[evaluate] Evaluated %d / %d demands.", len(evaluated), len(structured))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("evaluate_batch", status="completed", detail={"evaluated": len(evaluated), "total": len(structured)})
+    except Exception:
+        pass
+
     return {
         "demands_evaluated": evaluated,
         "errors": errors,
@@ -167,6 +213,12 @@ async def node_decide_batch(state: Dict[str, Any]) -> Dict[str, Any]:
     settings = get_settings()
     evaluated: List[Dict[str, Any]] = state.get("demands_evaluated", [])
     logger.info("[decide] Deciding on %d demands.", len(evaluated))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("decide_batch", status="started")
+    except Exception:
+        pass
 
     approved: List[Dict[str, Any]] = []
     rejected: List[Dict[str, Any]] = []
@@ -211,6 +263,13 @@ async def node_decide_batch(state: Dict[str, Any]) -> Dict[str, Any]:
         len(approved),
         len(rejected),
     )
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("decide_batch", status="completed", detail={"approved": len(approved), "rejected": len(rejected)})
+    except Exception:
+        pass
+
     return {
         "demands_approved": approved,
         "demands_rejected": rejected,
@@ -382,6 +441,12 @@ async def node_generate(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("[generate] Starting code generation for %s.", demand_id)
 
     try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("generate", demand_id=demand_id, status="started")
+    except Exception:
+        pass
+
+    try:
         from autodev.generator import (
             auto_fix_project,
             check_and_fix_dependencies,
@@ -409,6 +474,12 @@ async def node_generate(state: Dict[str, Any]) -> Dict[str, Any]:
                 fix_result.errors[:3],
             )
 
+        try:
+            from autodev.api.events import emit_stage_change
+            await emit_stage_change("generate", demand_id=demand_id, status="completed")
+        except Exception:
+            pass
+
         return {"project_path": project.path, "stage": "generate"}
 
     except ImportError as exc:
@@ -424,6 +495,11 @@ async def node_generate(state: Dict[str, Any]) -> Dict[str, Any]:
             demand.get("title", "app"),
         )
         if result.success:
+            try:
+                from autodev.api.events import emit_stage_change
+                await emit_stage_change("generate", demand_id=demand_id, status="completed")
+            except Exception:
+                pass
             return {"project_path": result.artifact_path, "stage": "generate"}
         raise RuntimeError(f"flutter create failed: {result.errors}")
 
@@ -444,6 +520,12 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("No project_path in state -- cannot build.")
 
     logger.info("[build] Building %s at %s.", demand_id, project)
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("build", demand_id=demand_id, status="started")
+    except Exception:
+        pass
 
     builder = FlutterBuilder()
 
@@ -478,6 +560,13 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     logger.info("[build] Artifacts for %s: %s.", demand_id, list(artifacts.keys()))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("build", demand_id=demand_id, status="completed", detail={"artifacts": list(artifacts.keys())})
+    except Exception:
+        pass
+
     return {"build_artifacts": artifacts, "stage": "build"}
 
 
@@ -497,6 +586,12 @@ async def node_assets(state: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("No project_path in state -- cannot generate assets.")
 
     logger.info("[assets] Generating assets for %s.", demand_id)
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("assets", demand_id=demand_id, status="started")
+    except Exception:
+        pass
     assets: Dict[str, Any] = {}
 
     try:
@@ -526,6 +621,13 @@ async def node_assets(state: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("[assets] Store listing failed for %s: %s", demand_id, exc)
 
     logger.info("[assets] Generated assets for %s: %s.", demand_id, list(assets.keys()))
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("assets", demand_id=demand_id, status="completed", detail={"assets": list(assets.keys())})
+    except Exception:
+        pass
+
     return {"assets": assets, "stage": "assets"}
 
 
@@ -544,6 +646,12 @@ async def node_publish(state: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("No project_path in state -- cannot publish.")
 
     logger.info("[publish] Publishing %s.", demand_id)
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("publish", demand_id=demand_id, status="started")
+    except Exception:
+        pass
 
     listing = (state.get("assets") or {}).get("listing", {})
     en = listing.get("en", {})
@@ -579,6 +687,13 @@ async def node_publish(state: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("[publish] App Store: %s", ap_result.store_url)
 
     logger.info("[publish] Publish complete for %s.", demand_id)
+
+    try:
+        from autodev.api.events import emit_stage_change
+        await emit_stage_change("publish", demand_id=demand_id, status="completed")
+    except Exception:
+        pass
+
     return {"publish_results": publish_results, "stage": "publish"}
 
 
