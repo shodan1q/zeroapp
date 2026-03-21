@@ -78,6 +78,25 @@ class Settings(BaseSettings):
         default=0.30, description="Score below which demands are auto-rejected"
     )
 
+    # ── LangGraph pipeline checkpoint / retry ────────────────────
+    pipeline_checkpoint_backend: str = Field(
+        default="sqlite",
+        description="Checkpoint backend: 'memory' (dev) or 'sqlite' (production)",
+    )
+    pipeline_checkpoint_path: str = Field(
+        default="data/checkpoints.db",
+        description="Path to SQLite checkpoint database (used when backend='sqlite')",
+    )
+    pipeline_max_retries: int = Field(
+        default=3, description="Max retry attempts per pipeline node"
+    )
+    pipeline_retry_backoff_base: float = Field(
+        default=2.0, description="Base seconds for exponential retry backoff"
+    )
+    pipeline_retry_backoff_max: float = Field(
+        default=300.0, description="Maximum retry backoff delay in seconds"
+    )
+
     # ── Logging ─────────────────────────────────────────────────
     log_level: str = Field(default="INFO")
 

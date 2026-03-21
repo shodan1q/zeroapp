@@ -2,6 +2,9 @@
 
 Periodically collects pipeline health metrics: task counts, error rates,
 build success rates, and stores them for the dashboard.
+
+NOTE: This module is unchanged from the original -- it does not go through
+the LangGraph pipeline since it is purely a monitoring / health-check concern.
 """
 
 from __future__ import annotations

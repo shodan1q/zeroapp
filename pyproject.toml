@@ -32,6 +32,7 @@ dependencies = [
     "Pillow>=10.2",
     "numpy>=1.26",
     "sentence-transformers>=2.3",
+    "langgraph>=0.2",
 ]
 
 [project.optional-dependencies]
