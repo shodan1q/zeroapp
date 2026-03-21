@@ -169,8 +169,11 @@ class PipelineRunner:
 
         logger.info("[%s] App idea: %s - %s", run_id, app_name, idea["description"])
 
+        features_list = idea.get("features", [])
         await emit_stage_change("crawl", run_id, "completed", {"message": f"创意生成完成: {app_name}"})
         await self._log(f"创意生成完成: {app_name} - {idea['description']}", "stage_change")
+        await self._log(f"功能列表: {', '.join(features_list)}", "info")
+        await self._log(f"输出目录: {app_dir}", "info")
 
         await emit_stage_change("process", run_id, "active", {"message": f"正在处理需求: {app_name}"})
         await self._log(f"正在处理需求: {app_name}", "stage_change")
@@ -215,7 +218,8 @@ class PipelineRunner:
 
         line_count = len(code.split("\n"))
         await emit_stage_change("generate", run_id, "completed", {"message": f"代码生成完成: {line_count} 行"})
-        await self._log(f"代码生成完成: {line_count} 行", "stage_change")
+        await self._log(f"代码生成完成: {line_count} 行 Dart 代码", "stage_change")
+        await self._log(f"代码文件: {app_dir}/lib/main.dart", "info")
 
         # Step 3: Create Flutter project
         await emit_stage_change("build", run_id, "active", {"message": "正在创建 Flutter 项目..."})
@@ -280,11 +284,13 @@ class PipelineRunner:
                     len(error_lines),
                 )
 
+        analyze_status = "零错误" if not has_errors else f"{len(error_lines) if has_errors else 0} 个错误"
         logger.info("[%s] Project created at %s", run_id, app_dir)
         self._stats["apps_generated"] += 1
 
         await emit_stage_change("build", run_id, "completed", {"message": f"构建完成: {app_name}"})
-        await self._log(f"构建完成: {app_name}", "stage_change")
+        await self._log(f"项目创建完成: {app_dir}", "stage_change")
+        await self._log(f"dart analyze 结果: {analyze_status}", "info")
 
         # Step 4: Push to GitHub
         await emit_stage_change("publish", run_id, "active", {"message": "正在推送到 GitHub..."})
@@ -292,8 +298,11 @@ class PipelineRunner:
 
         await self._push_to_github(app_dir, app_id, idea)
 
+        settings_gh = get_settings()
+        gh_org = settings_gh.github_org
+        github_url = f"https://github.com/{gh_org}/{app_id}" if gh_org else f"https://github.com/{app_id}"
         await emit_stage_change("publish", run_id, "completed", {"message": f"已推送到 GitHub: {app_id}"})
-        await self._log(f"已推送到 GitHub: {app_id}", "stage_change")
+        await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
         await emit_pipeline_summary(
             run_id,
             {
@@ -301,13 +310,21 @@ class PipelineRunner:
                 "app_id": app_id,
                 "description": idea["description"],
                 "path": str(app_dir),
+                "github_url": github_url,
                 "status": "completed",
                 "message": f"周期完成: {app_name}",
             },
         )
 
         logger.info("[%s] Cycle complete: %s", run_id, app_name)
-        await self._log(f"周期完成: {app_name}", "stage_change")
+        await self._log(f"--- 周期完成 ---", "stage_change")
+        await self._log(f"  App: {app_name}", "info")
+        await self._log(f"  描述: {idea['description']}", "info")
+        await self._log(f"  代码: {line_count} 行", "info")
+        await self._log(f"  目录: {app_dir}", "info")
+        await self._log(f"  GitHub: {github_url}", "info")
+        await self._log(f"  分析: {analyze_status}", "info")
+        await self._log(f"---", "stage_change")
 
     async def _push_to_github(self, app_dir: Path, app_id: str, idea: dict):
         """Initialize git, create GitHub repo, and push."""
