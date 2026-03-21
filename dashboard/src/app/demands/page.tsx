@@ -25,27 +25,28 @@ import type {
   PaginatedResponse,
 } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useI18n } from "@/lib/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
 const STATUS_OPTIONS = [
-  { value: "", label: "全部状态" },
-  { value: "pending", label: "待评估" },
-  { value: "evaluating", label: "评估中" },
-  { value: "approved", label: "已通过" },
-  { value: "rejected", label: "已拒绝" },
-  { value: "in_progress", label: "开发中" },
-  { value: "done", label: "已完成" },
+  { value: "", labelKey: "demands.all_status" },
+  { value: "pending", labelKey: "pending" },
+  { value: "evaluating", labelKey: "evaluating" },
+  { value: "approved", labelKey: "approved" },
+  { value: "rejected", labelKey: "rejected" },
+  { value: "in_progress", labelKey: "in_progress" },
+  { value: "done", labelKey: "done" },
 ] as const;
 
 const SOURCE_OPTIONS = [
-  { value: "", label: "全部来源" },
-  { value: "reddit", label: "Reddit" },
-  { value: "producthunt", label: "Product Hunt" },
-  { value: "twitter", label: "Twitter" },
-  { value: "manual", label: "手动" },
+  { value: "", labelKey: "demands.all_source" },
+  { value: "reddit", labelKey: "Reddit" },
+  { value: "producthunt", labelKey: "Product Hunt" },
+  { value: "twitter", labelKey: "Twitter" },
+  { value: "manual", labelKey: "manual" },
 ] as const;
 
 function statusBadge(status: string) {
@@ -96,6 +97,7 @@ function formatScore(score: number | null | undefined): string {
 /* ------------------------------------------------------------------ */
 
 export default function DemandsPage() {
+  const { t } = useI18n();
   const [data, setData] = useState<PaginatedResponse<DemandOut> | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -186,7 +188,7 @@ export default function DemandsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-6 w-6 text-amber-500" />
-          <h1 className="text-2xl font-semibold text-gray-900">需求管理</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("demands.title")}</h1>
         </div>
 
         {/* Filters */}
@@ -201,7 +203,7 @@ export default function DemandsPage() {
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -216,7 +218,7 @@ export default function DemandsPage() {
           >
             {SOURCE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -229,15 +231,15 @@ export default function DemandsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
-                <th className="px-4 py-3 font-medium">ID</th>
-                <th className="px-4 py-3 font-medium">标题</th>
-                <th className="px-4 py-3 font-medium">分类</th>
-                <th className="px-4 py-3 font-medium">来源</th>
-                <th className="px-4 py-3 font-medium">综合分</th>
-                <th className="px-4 py-3 font-medium">趋势分</th>
-                <th className="px-4 py-3 font-medium">状态</th>
-                <th className="px-4 py-3 font-medium">时间</th>
-                <th className="px-4 py-3 font-medium">操作</th>
+                <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.name")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.category")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.source")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.score")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.trend")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.status")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.time")}</th>
+                <th className="px-4 py-3 font-medium">{t("demands.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -251,7 +253,7 @@ export default function DemandsPage() {
                     colSpan={9}
                     className="px-4 py-12 text-center text-gray-400"
                   >
-                    暂无数据
+                    {t("common.no_data")}
                   </td>
                 </tr>
               ) : (
@@ -286,7 +288,7 @@ export default function DemandsPage() {
                                 className="flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                               >
                                 <Check className="h-3.5 w-3.5" />
-                                通过
+                                {t("demands.approve")}
                               </button>
                               <button
                                 onClick={(e) => {
@@ -297,7 +299,7 @@ export default function DemandsPage() {
                                 className="flex items-center gap-1 rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
                               >
                                 <X className="h-3.5 w-3.5" />
-                                拒绝
+                                {t("demands.reject")}
                               </button>
                             </>
                           )}

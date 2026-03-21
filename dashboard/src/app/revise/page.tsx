@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Wrench, Loader2, CheckCircle, XCircle, FileCode } from "lucide-react";
 import { listGeneratedApps, reviseApp } from "@/lib/api";
 import type { GeneratedApp, RevisionResult } from "@/lib/types";
+import { useI18n } from "@/lib/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -21,6 +22,7 @@ interface RevisionEntry {
 /* ------------------------------------------------------------------ */
 
 export default function RevisePage() {
+  const { t } = useI18n();
   const [apps, setApps] = useState<GeneratedApp[]>([]);
   const [selectedApp, setSelectedApp] = useState<string>("");
   const [instruction, setInstruction] = useState("");
@@ -64,7 +66,7 @@ export default function RevisePage() {
       {/* Header */}
       <div className="flex items-center gap-2">
         <Wrench className="h-6 w-6 text-gray-500" />
-        <h1 className="text-2xl font-semibold text-gray-900">修改完善</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t("revise.title")}</h1>
       </div>
 
       {/* Main form card */}
@@ -76,7 +78,7 @@ export default function RevisePage() {
           {/* App selector */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              选择应用
+              {t("revise.select_app")}
             </label>
             {loadingApps ? (
               <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -120,7 +122,7 @@ export default function RevisePage() {
             <textarea
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
-              placeholder="描述你想要修改的内容..."
+              placeholder={t("revise.instruction_placeholder")}
               rows={4}
               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
@@ -141,7 +143,7 @@ export default function RevisePage() {
               ) : (
                 <>
                   <Wrench className="h-4 w-4" />
-                  提交修改
+                  {t("revise.submit")}
                 </>
               )}
             </button>

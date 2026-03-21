@@ -23,6 +23,7 @@ import { fetchApps, rebuildApp, listGeneratedApps, fetchDeviceStatus, runAppOnDe
 import type { AppOut, PaginatedResponse, GeneratedApp } from "@/lib/types";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -79,6 +80,7 @@ function SkeletonCard() {
 /* ------------------------------------------------------------------ */
 
 export default function AppsPage() {
+  const { t } = useI18n();
   const [data, setData] = useState<PaginatedResponse<AppOut> | null>(null);
   const [generatedApps, setGeneratedApps] = useState<GeneratedApp[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,7 +231,7 @@ export default function AppsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Smartphone className="h-6 w-6 text-blue-500" />
-          <h1 className="text-2xl font-semibold text-gray-900">应用管理</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("apps.title")}</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -238,7 +240,7 @@ export default function AppsPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="搜索应用..."
+              placeholder={t("apps.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-700 shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -254,7 +256,7 @@ export default function AppsPage() {
             }}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">全部状态</option>
+            <option value="">{t("apps.all_status")}</option>
             <option value="draft">草稿</option>
             <option value="code_generated">已生成代码</option>
             <option value="building">构建中</option>
@@ -268,7 +270,7 @@ export default function AppsPage() {
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
           >
             <RefreshCw className="h-4 w-4" />
-            刷新
+            {t("overview.refresh")}
           </button>
         </div>
       </div>
@@ -278,7 +280,7 @@ export default function AppsPage() {
         <div>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
             <FolderOpen className="h-4 w-4 text-emerald-500" />
-            已生成的应用
+            {t("apps.generated_apps")}
             {!loading && (
               <span className="text-xs font-normal text-gray-400">
                 ({filteredGenApps.length} 个)
@@ -373,7 +375,7 @@ export default function AppsPage() {
                           className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
                         >
                           <Wrench className="h-3 w-3" />
-                          修改完善
+                          {t("apps.revise")}
                         </Link>
                       </div>
                     </div>

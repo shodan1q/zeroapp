@@ -13,6 +13,7 @@ import {
   Server,
   Monitor,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Section wrapper                                                    */
@@ -115,6 +116,7 @@ function MaskedField({ label, value }: { label: string; value: string }) {
 /* ------------------------------------------------------------------ */
 
 export default function SettingsPage() {
+  const { t } = useI18n();
   // Claude API config
   const [claudeMode, setClaudeMode] = useState("api");
   const [claudeApiKey, setClaudeApiKey] = useState("");
@@ -171,7 +173,7 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Settings className="h-6 w-6 text-gray-500" />
-          <h1 className="text-2xl font-semibold text-gray-900">设置</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("settings.title")}</h1>
         </div>
         <button
           onClick={handleSave}
