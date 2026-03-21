@@ -269,19 +269,49 @@ class PipelineRunner:
 
         resp = await client.messages.create(
             model=settings.claude_model,
-            max_tokens=800,
-            system="You are an app idea generator. Reply with JSON only. No markdown fences.",
+            max_tokens=1200,
+            system=(
+                "You are a creative app product designer who specializes in small, "
+                "beautiful, polished utility apps. You focus on apps that are visually "
+                "stunning with smooth animations, delightful micro-interactions, and "
+                "a unique differentiating feature that makes them stand out. "
+                "Reply with JSON only. No markdown fences."
+            ),
             messages=[{"role": "user", "content": (
-                "Suggest ONE practical utility mobile app idea that is complex enough "
-                "for app store submission. "
-                "It should have at least 3 screens, local data storage, and be ad-supported. "
-                "Examples: habit tracker, expense splitter, unit converter with history, "
-                "meditation timer, workout log, recipe book, color palette generator, mood journal. "
-                "Do NOT suggest: pomodoro timer, water reminder, noise meter, bill splitter. "
-                'Return JSON: {"name": "AppName", "description": "2 sentence description", '
-                '"features": ["f1", "f2", "f3", "f4", "f5", "f6"], '
-                '"screens": ["HomeScreen", "Screen2", "Screen3", "SettingsScreen"], '
-                '"data_models": ["Model1", "Model2"]}. '
+                "Design ONE unique, polished mobile app with these requirements:\n\n"
+                "QUALITY STANDARDS:\n"
+                "- Must have a unique angle or differentiating feature (not a generic clone)\n"
+                "- Must feel premium and polished -- smooth animations, transitions, micro-interactions\n"
+                "- Beautiful custom UI with thoughtful color palette, typography, and spacing\n"
+                "- At least 4-5 screens with meaningful navigation\n"
+                "- Local data persistence with meaningful statistics/insights\n"
+                "- Ad-supported (AdMob banner)\n\n"
+                "ANIMATION & INTERACTION REQUIREMENTS:\n"
+                "- Hero animations between screens\n"
+                "- Animated progress indicators (not just spinners)\n"
+                "- Smooth page transitions (slide, fade, scale)\n"
+                "- Tap feedback animations (ripple, scale bounce)\n"
+                "- Animated charts or data visualizations\n"
+                "- Custom animated widgets (not just default Material widgets)\n\n"
+                "DO NOT suggest: pomodoro timer, water reminder, noise meter, bill splitter, "
+                "habit tracker, simple calculator, unit converter, flashlight, QR scanner.\n\n"
+                "THINK of something creative like: mood-based music color visualizer, "
+                "personal energy level tracker with biometric-style UI, dream journal "
+                "with AI interpretation, plant growth simulator, breathing exercise "
+                "with particle animations, micro-journaling with sentiment analysis UI, "
+                "daily challenge generator with gamification.\n\n"
+                'Return JSON:\n'
+                '{\n'
+                '  "name": "AppName",\n'
+                '  "description": "2-3 sentence description highlighting what makes it unique",\n'
+                '  "unique_selling_point": "The ONE thing that differentiates this app",\n'
+                '  "visual_style": "Description of the visual design direction",\n'
+                '  "animations": ["anim1", "anim2", "anim3"],\n'
+                '  "features": ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"],\n'
+                '  "screens": ["Screen1", "Screen2", "Screen3", "Screen4", "SettingsScreen"],\n'
+                '  "data_models": ["Model1", "Model2", "Model3"],\n'
+                '  "color_palette": {"primary": "#hex", "secondary": "#hex", "accent": "#hex", "background": "#hex"}\n'
+                '}\n'
                 "PascalCase name, no spaces."
             )}],
         )
@@ -311,16 +341,39 @@ class PipelineRunner:
         prd_resp = await client.messages.create(
             model=settings.claude_model,
             max_tokens=2000,
-            system="You are a product manager. Output a concise PRD in plain text. No markdown fences.",
+            system=(
+                "You are a senior product manager and UX designer who creates detailed, "
+                "high-quality PRDs for premium mobile apps. You care deeply about animation, "
+                "micro-interactions, visual polish, and user delight. "
+                "Output a detailed PRD in plain text. No markdown fences."
+            ),
             messages=[{"role": "user", "content": (
-                f"Write a brief PRD for this Flutter app:\n"
+                f"Write a detailed PRD for this Flutter app:\n\n"
                 f"Name: {app_name}\n"
                 f"Description: {idea['description']}\n"
+                f"Unique Selling Point: {idea.get('unique_selling_point', 'N/A')}\n"
+                f"Visual Style: {idea.get('visual_style', 'Modern and clean')}\n"
+                f"Color Palette: {json.dumps(idea.get('color_palette', {}))}\n"
                 f"Features: {json.dumps(idea.get('features', []))}\n"
-                f"Screens: {json.dumps(idea.get('screens', []))}\n\n"
-                f"Include: screen descriptions, data models, navigation flow, AdMob ad placements.\n"
-                f"The app must include google_mobile_ads banner ads on the home screen.\n"
-                f"Keep it concise (under 800 words)."
+                f"Screens: {json.dumps(idea.get('screens', []))}\n"
+                f"Animations: {json.dumps(idea.get('animations', []))}\n"
+                f"Data Models: {json.dumps(idea.get('data_models', []))}\n\n"
+                f"The PRD MUST include:\n"
+                f"1. SCREEN DESCRIPTIONS -- For each screen: layout, widgets, interactions\n"
+                f"2. ANIMATION SPEC -- For each screen transition and interaction:\n"
+                f"   - Hero animations between list items and detail views\n"
+                f"   - AnimatedContainer / AnimatedOpacity for state changes\n"
+                f"   - SlideTransition / FadeTransition for page navigation\n"
+                f"   - Custom animated widgets (progress rings, counters, charts)\n"
+                f"   - Staggered list animations on screen load\n"
+                f"   - Bouncing/scaling tap feedback on buttons\n"
+                f"3. DATA MODELS -- Field definitions for each model\n"
+                f"4. NAVIGATION -- Route structure with transition animations\n"
+                f"5. ADMOB -- Banner ad on home screen, interstitial on specific actions\n"
+                f"6. VISUAL DESIGN -- Colors (use {json.dumps(idea.get('color_palette', {}))}), "
+                f"typography, spacing, card styles, shadows\n"
+                f"7. STORAGE -- shared_preferences for settings, hive or json files for data\n\n"
+                f"Keep it under 1500 words but be specific about animations and interactions."
             )}],
         )
         prd = _strip_fences(prd_resp.content[0].text)
@@ -388,18 +441,38 @@ class PipelineRunner:
         generated_files: dict[str, str] = {}
         total_lines = 0
 
+        color_palette = idea.get("color_palette", {})
+        primary_color = color_palette.get("primary", "#3F51B5")
         system_prompt = (
-            "You are an expert Flutter developer generating production-quality code.\n\n"
-            "HARD RULES:\n"
-            "- Dart 2.19 / Flutter 3.7+ (NO super parameters, NO records, NO patterns, NO sealed classes)\n"
-            "- Constructor style: Key? key parameter, pass via super(key: key)\n"
-            "- Material Design 2: useMaterial3: false, NO colorSchemeSeed\n"
-            "- Use primarySwatch: Colors.indigo for theming\n"
-            "- Include google_mobile_ads for AdMob banner ads (use test ad unit IDs)\n"
-            "- Include shared_preferences for local storage\n"
-            "- NO emoji anywhere in code, UI, or comments\n"
+            "You are a senior Flutter developer who creates BEAUTIFUL, POLISHED apps "
+            "with smooth animations and delightful interactions. Your code is production-quality "
+            "and visually impressive.\n\n"
+            "DART VERSION RULES (CRITICAL):\n"
+            "- Dart 2.19 / Flutter 3.7+ ONLY\n"
+            "- NO super parameters (use Key? key, pass via super(key: key))\n"
+            "- NO dot shorthands (.blue is WRONG, use Colors.blue)\n"
+            "- NO records, patterns, sealed classes, class modifiers\n"
+            "- useMaterial3: false, NO colorSchemeSeed, NO ColorScheme.fromSeed\n\n"
+            "VISUAL & ANIMATION RULES (CRITICAL):\n"
+            f"- Use this color palette: primary={primary_color}, "
+            f"secondary={color_palette.get('secondary', '#FF5722')}, "
+            f"accent={color_palette.get('accent', '#FFC107')}\n"
+            "- Every screen MUST have entrance animations (FadeTransition, SlideTransition, or staggered)\n"
+            "- List items MUST animate in with staggered delays (AnimationController + intervals)\n"
+            "- Use Hero widgets for transitions between list and detail screens\n"
+            "- Buttons MUST have tap animations (InkWell with custom splash, or ScaleTransition on tap)\n"
+            "- Use AnimatedContainer for state changes (color, size, padding)\n"
+            "- Use AnimatedOpacity for show/hide transitions\n"
+            "- Progress indicators must be custom animated (CircularProgressIndicator with AnimatedBuilder, or CustomPainter)\n"
+            "- Page transitions: use PageRouteBuilder with SlideTransition or FadeTransition\n"
+            "- Add subtle shadows, rounded corners (16+), and generous padding for premium feel\n"
+            "- Use Google Fonts or custom TextStyle with proper hierarchy (headline, body, caption)\n\n"
+            "ARCHITECTURE:\n"
+            "- google_mobile_ads for AdMob banner ads (test IDs)\n"
+            "- shared_preferences for local storage\n"
             "- All package imports (never relative imports)\n"
-            "- Complete working code, no TODOs\n\n"
+            "- Complete working code, no TODOs, no placeholders\n"
+            "- NO emoji anywhere\n\n"
             "OUTPUT: Raw file content only. No markdown fences, no explanation, no file path header."
         )
 
