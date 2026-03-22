@@ -12,6 +12,7 @@ from pathlib import Path
 
 from zerodev.config import get_settings
 from zerodev.api.events import emit_error, emit_pipeline_summary, emit_stage_change
+from zerodev.pipeline.validator import is_valid_dart_code, is_valid_yaml, parse_multi_file_output
 
 logger = logging.getLogger(__name__)
 
@@ -250,11 +251,14 @@ async def _post_generation_cleanup(app_dir: Path, app_id: str, log_fn) -> None:
         # Fix common version issues
         pubspec_text = re.sub(r'intl:\s*\^?\d+\.\d+\.\d+', 'intl: ^0.20.2', pubspec_text)
         pubspec_text = re.sub(r'google_mobile_ads:\s*\^?[0-4]\.', 'google_mobile_ads: ^5.', pubspec_text)
-        pubspec_text = re.sub(
-            r"sdk:\s*['\"]>=2\.19\.\d+\s*<3\.0\.0['\"]",
-            "sdk: '>=3.0.0 <4.0.0'",
-            pubspec_text,
-        )
+        # Normalize SDK constraint to >=3.0.0 <4.0.0
+        if re.search(r"sdk:\s*['\"]", pubspec_text):
+            pubspec_text = re.sub(
+                r"sdk:\s*['\"].*?['\"]",
+                "sdk: '>=3.0.0 <4.0.0'",
+                pubspec_text,
+                count=1,
+            )
 
         pubspec_path.write_text(pubspec_text + "\n", encoding="utf-8")
         await log_fn("  pubspec.yaml 已验证和修复", "info")
@@ -759,7 +763,7 @@ class PipelineRunner:
             "with smooth animations and delightful interactions. Your code is production-quality "
             "and visually impressive.\n\n"
             "DART VERSION RULES (CRITICAL):\n"
-            "- Dart 2.19 / Flutter 3.7+ ONLY\n"
+            "- Dart 3.x / Flutter 3.7+ ONLY\n"
             "- NO super parameters (use Key? key, pass via super(key: key))\n"
             "- NO dot shorthands (.blue is WRONG, use Colors.blue)\n"
             "- NO records, patterns, sealed classes, class modifiers\n"
@@ -798,7 +802,13 @@ class PipelineRunner:
             "- All package imports (never relative imports)\n"
             "- Complete working code, no TODOs, no placeholders\n"
             "- ABSOLUTELY NO emoji characters anywhere in code, UI text, strings, or comments\n\n"
-            "OUTPUT: Raw file content only. No markdown fences, no explanation, no file path header."
+            "OUTPUT FORMAT - THIS IS CRITICAL:\n"
+            "- You MUST output the raw source code of the file directly.\n"
+            "- Start your response with the FIRST LINE of actual code (e.g. 'import' or 'name:').\n"
+            "- Do NOT describe what the file contains. Do NOT say 'The file has been generated'.\n"
+            "- Do NOT say 'Here is the code'. Do NOT write a summary.\n"
+            "- Do NOT use markdown fences. Do NOT write file paths.\n"
+            "- JUST the code. Nothing else. The very first character must be part of the code."
         )
 
         for idx, entry in enumerate(file_plan):
@@ -828,15 +838,61 @@ class PipelineRunner:
                 )
                 if context:
                     user_prompt += f"Already generated files (for reference):\n{context}\n\n"
-                user_prompt += "Output ONLY the complete file content."
-
-                resp = await client.messages.create(
-                    model=settings.claude_model,
-                    max_tokens=8192,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
+                user_prompt += (
+                    "IMPORTANT: Output ONLY the raw source code. "
+                    "Start with 'import' or 'name:' or 'class' -- NOT a description. "
+                    "Do NOT say 'The file has been generated' or 'Here is the code'."
                 )
-                code = _strip_fences(resp.content[0].text)
+
+                # Try up to 2 times to get valid code
+                code = ""
+                for attempt in range(2):
+                    resp = await client.messages.create(
+                        model=settings.claude_model,
+                        max_tokens=8192,
+                        system=system_prompt,
+                        messages=[{"role": "user", "content": user_prompt}],
+                    )
+                    code = _strip_fences(resp.content[0].text)
+
+                    # Validate: check if this looks like actual code
+                    is_dart = file_path.endswith(".dart")
+                    is_yaml = file_path.endswith(".yaml") or file_path.endswith(".yml")
+                    is_arb = file_path.endswith(".arb")
+
+                    first_line = code.split("\n")[0].strip() if code else ""
+                    valid = False
+
+                    if is_dart:
+                        valid = any(kw in first_line for kw in [
+                            "import", "class", "void", "final", "const", "enum",
+                            "typedef", "library", "part", "export", "//", "/*",
+                            "mixin", "abstract", "extension",
+                        ]) or (len(code.split("\n")) > 20 and "import" in code[:500])
+                    elif is_yaml:
+                        valid = any(kw in first_line for kw in [
+                            "name:", "description:", "version:", "dependencies:",
+                            "flutter:", "environment:", "#",
+                        ])
+                    elif is_arb:
+                        valid = first_line.startswith("{") or first_line.startswith("//")
+                    else:
+                        valid = True  # Other file types, accept as-is
+
+                    if valid:
+                        break
+                    elif attempt == 0:
+                        await self._log(f"  文件内容无效 (非代码), 重试: {file_path}", "info")
+                        user_prompt = (
+                            f"You MUST output ONLY source code for {file_path}. "
+                            f"Do NOT describe the file. Do NOT use markdown.\n\n"
+                            f"File: {file_path}\nPurpose: {file_purpose}\n"
+                            f"Package: {app_id}\n\n"
+                            f"Start your response with the first line of code. "
+                            f"For .dart files, start with 'import'. "
+                            f"For .yaml files, start with 'name:'."
+                        )
+
                 generated_files[file_path] = code
 
                 # Write file
@@ -986,7 +1042,7 @@ class PipelineRunner:
                         "For each file that needs fixing, output in this format:\n"
                         "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n\n"
                         "CRITICAL RULES:\n"
-                        "- Dart 2.19 syntax ONLY. Do NOT use dot shorthands (.blue instead of Colors.blue)\n"
+                        "- Dart 3.x syntax ONLY. Do NOT use dot shorthands (.blue instead of Colors.blue)\n"
                         "- Do NOT use super parameters (super.key). Use Key? key with super(key: key)\n"
                         "- Do NOT use records, patterns, sealed classes\n"
                         "- useMaterial3: false, no colorSchemeSeed\n"
@@ -1073,7 +1129,7 @@ class PipelineRunner:
                 "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n\n"
                 "If no issues found, output: NO_ISSUES_FOUND\n\n"
                 "CRITICAL RULES:\n"
-                "- Dart 2.19, no super parameters, no dot shorthands\n"
+                "- Dart 3.x, no super parameters, no dot shorthands\n"
                 "- No emoji\n"
                 "- All text must use intl localization"
             ),
@@ -1189,7 +1245,7 @@ class PipelineRunner:
                             "You are fixing Flutter build errors. "
                             "For each file that needs fixing, output in this format:\n"
                             "===FILE: path/to/file===\n<complete fixed file>\n===END===\n\n"
-                            "CRITICAL: Output COMPLETE file contents. Dart 2.19 syntax only."
+                            "CRITICAL: Output COMPLETE file contents. Dart 3.x syntax only."
                         ),
                         messages=[{"role": "user", "content": (
                             f"Flutter build apk --debug failed with:\n\n"
@@ -1253,7 +1309,7 @@ class PipelineRunner:
             f"Test each screen's key widgets and interactions.\n"
             f"Return in format:\n"
             f"===FILE: test/screen_name_test.dart===\n<test code>\n===END===\n\n"
-            f"Rules: Dart 2.19, no super parameters, use flutter_test package.\n"
+            f"Rules: Dart 3.x, no super parameters, use flutter_test package.\n"
             f"Test that key widgets exist and can be rendered without errors.\n"
             f"Use pumpWidget with MaterialApp wrapper.\n"
             f"Keep tests simple and focused on widget rendering."
@@ -1265,7 +1321,7 @@ class PipelineRunner:
             system=(
                 "You are a Flutter test engineer. Generate widget tests.\n"
                 "Output format: ===FILE: test/xxx_test.dart===\n<code>\n===END===\n"
-                "Rules: Dart 2.19, no super parameters, flutter_test, simple pump tests.\n"
+                "Rules: Dart 3.x, no super parameters, flutter_test, simple pump tests.\n"
                 "No markdown fences. No explanations."
             ),
             messages=[{"role": "user", "content": test_files_prompt}],
@@ -1325,7 +1381,7 @@ class PipelineRunner:
                     "You are fixing failing Flutter widget tests. "
                     "For each file that needs fixing, output in this format:\n"
                     "===FILE: test/xxx_test.dart===\n<complete fixed file>\n===END===\n"
-                    "Rules: Dart 2.19, no super parameters, flutter_test, simple tests.\n"
+                    "Rules: Dart 3.x, no super parameters, flutter_test, simple tests.\n"
                     "No markdown fences."
                 ),
                 messages=[{"role": "user", "content": (
@@ -1563,26 +1619,85 @@ class PipelineRunner:
             "message": f"PRD 和文件规划完成: {len(file_plan)} 个文件"
         })
 
-        # ── Stage: generate -- 逐文件生成代码 ─────────────────────────
+        # ── Stage: generate -- 两阶段代码生成 ─────────────────────────
         await emit_stage_change("generate", run_id, "active", {
-            "message": f"正在逐文件生成代码 (0/{len(file_plan)})..."
+            "message": "正在生成项目蓝图..."
         })
-        await self._log(f"开始逐文件生成代码，共 {len(file_plan)} 个文件...", "stage_change")
+        await self._log("阶段一: 生成项目蓝图 (所有文件骨架)...", "stage_change")
+
+        color_palette = idea.get("color_palette", {})
+        primary_color = color_palette.get("primary", "#3F51B5")
+
+        dart_rules = (
+            "DART VERSION RULES (CRITICAL):\n"
+            "- Target Dart 3.x / Flutter 3.7+\n"
+            "- NO records, patterns, sealed classes, class modifiers\n"
+            "- useMaterial3: false\n"
+            "- NO emoji characters anywhere\n"
+        )
+
+        # ── Phase 1: Blueprint (all file skeletons in one call) ──────
+        blueprint_system = (
+            "You are a senior Flutter architect. Generate a complete project skeleton.\n\n"
+            f"{dart_rules}\n"
+            "OUTPUT FORMAT: For each file, use this exact format:\n"
+            "===FILE: path/to/file===\n<file content>\n===END===\n\n"
+            "CRITICAL: Output actual Dart/YAML code, NOT descriptions of what the code does.\n"
+            "No markdown fences. No explanatory text between files."
+        )
+
+        file_list_text = "\n".join(
+            f"- {e['path']}: {e['purpose']}" for e in file_plan
+        )
+
+        blueprint_resp = await client.messages.create(
+            model=settings.claude_model,
+            max_tokens=16384,
+            system=blueprint_system,
+            messages=[{"role": "user", "content": (
+                f"App: {app_name}\nDescription: {idea['description']}\n\n"
+                f"PRD:\n{prd[:2000]}\n\n"
+                f"Color palette: primary={primary_color}, "
+                f"secondary={color_palette.get('secondary', '#FF5722')}, "
+                f"accent={color_palette.get('accent', '#FFC107')}\n\n"
+                f"Files to generate:\n{file_list_text}\n\n"
+                "For each file, generate the SKELETON: all imports, class definitions, "
+                "method signatures, constructor parameters, and type annotations. "
+                "Method bodies should contain minimal placeholder logic (return null, "
+                "return Container(), etc.) -- just enough that the project compiles.\n\n"
+                "pubspec.yaml MUST use: sdk: '>=3.0.0 <4.0.0'\n\n"
+                "CRITICAL: Output actual Dart/YAML code. Do NOT output descriptions like "
+                "'The file has been generated' or 'File written'. Output the CODE itself."
+            )}],
+        )
+
+        blueprint_text = blueprint_resp.content[0].text
+        blueprint_files = parse_multi_file_output(blueprint_text)
+
+        if not blueprint_files:
+            await self._log("蓝图解析失败，尝试用 _strip_fences 重解析...", "info")
+            # Fallback: try parsing the whole thing as a single file
+            blueprint_files = {}
+
+        blueprint_context = "\n\n".join(
+            f"// === {path} ===\n{code}" for path, code in blueprint_files.items()
+        )
+
+        await self._log(f"蓝图生成完成: {len(blueprint_files)} 个文件骨架", "stage_change")
+
+        # ── Phase 2: Full implementation per file ────────────────────
+        await emit_stage_change("generate", run_id, "active", {
+            "message": f"正在逐文件实现代码 (0/{len(file_plan)})..."
+        })
+        await self._log(f"阶段二: 逐文件生成完整实现，共 {len(file_plan)} 个文件...", "stage_change")
 
         generated_files: dict[str, str] = {}
         total_lines = 0
 
-        color_palette = idea.get("color_palette", {})
-        primary_color = color_palette.get("primary", "#3F51B5")
-        system_prompt = (
+        impl_system = (
             "You are a senior Flutter developer who creates BEAUTIFUL, POLISHED apps "
             "with smooth animations and delightful interactions.\n\n"
-            "DART VERSION RULES (CRITICAL):\n"
-            "- Dart 2.19 / Flutter 3.7+ ONLY\n"
-            "- NO super parameters (use Key? key, pass via super(key: key))\n"
-            "- NO dot shorthands (.blue is WRONG, use Colors.blue)\n"
-            "- NO records, patterns, sealed classes, class modifiers\n"
-            "- useMaterial3: false\n\n"
+            f"{dart_rules}\n"
             "VISUAL & ANIMATION RULES:\n"
             f"- Use color palette: primary={primary_color}, "
             f"secondary={color_palette.get('secondary', '#FF5722')}, "
@@ -1593,70 +1708,104 @@ class PipelineRunner:
             "- Buttons MUST have tap animations\n\n"
             "LAYOUT RULES:\n"
             "- ALL layouts MUST use Flexible/Expanded inside Row/Column\n"
-            "- Scrollable content MUST be wrapped in SingleChildScrollView or ListView\n"
+            "- Scrollable content MUST use SingleChildScrollView or ListView\n"
             "- Use SafeArea to avoid notch/status bar occlusion\n\n"
             "ARCHITECTURE:\n"
             "- google_mobile_ads for AdMob\n"
             "- shared_preferences for local storage\n"
             "- intl package for i18n: Chinese and English\n"
             "- All package imports (never relative imports)\n"
-            "- Complete working code, no TODOs\n"
+            "- Complete working code, no TODOs, no placeholders\n"
             "- NO emoji characters anywhere\n\n"
-            "OUTPUT: Raw file content only. No markdown fences."
+            "CRITICAL: Output ONLY the raw file content. No markdown fences. "
+            "No explanatory text. No 'The file has been generated' messages."
         )
 
+        max_retries = 2
         for idx, entry in enumerate(file_plan):
             file_path = entry["path"]
             file_purpose = entry["purpose"]
-            try:
-                await emit_stage_change(
-                    "generate", run_id, "active",
-                    {"message": f"正在生成 ({idx+1}/{len(file_plan)}): {file_path}"}
+            is_yaml = file_path.endswith(".yaml")
+
+            await emit_stage_change(
+                "generate", run_id, "active",
+                {"message": f"正在实现 ({idx+1}/{len(file_plan)}): {file_path}"}
+            )
+            await self._log(f"  生成文件 [{idx+1}/{len(file_plan)}]: {file_path}", "info")
+
+            # Build context: blueprint + recently completed files
+            completed_context = "\n\n".join(
+                f"// === {p} (complete) ===\n{c}"
+                for p, c in list(generated_files.items())[-5:]
+            )
+
+            skeleton = blueprint_files.get(file_path, "")
+            user_prompt = (
+                f"App: {app_name}\nDescription: {idea['description']}\n"
+                f"Package name: {app_id}\n\n"
+            )
+            if blueprint_context:
+                user_prompt += f"PROJECT BLUEPRINT (all file skeletons):\n{blueprint_context}\n\n"
+            if completed_context:
+                user_prompt += f"COMPLETED FILES:\n{completed_context}\n\n"
+            if skeleton:
+                user_prompt += (
+                    f"SKELETON for {file_path}:\n{skeleton}\n\n"
+                    f"Implement this file fully. Keep the same class names, method signatures, "
+                    f"and imports from the skeleton. Fill in all method bodies with real logic.\n"
                 )
-                await self._log(f"  生成文件 [{idx+1}/{len(file_plan)}]: {file_path}", "info")
-
-                context_parts = []
-                for prev_path, prev_code in generated_files.items():
-                    preview = "\n".join(prev_code.split("\n")[:30])
-                    context_parts.append(f"--- {prev_path} (preview) ---\n{preview}\n")
-                context = "\n".join(context_parts[-5:])
-
-                user_prompt = (
-                    f"App: {app_name}\nDescription: {idea['description']}\n\n"
-                    f"PRD:\n{prd[:1500]}\n\n"
-                    f"Generate the file: {file_path}\n"
+            else:
+                user_prompt += (
+                    f"Generate complete file: {file_path}\n"
                     f"Purpose: {file_purpose}\n"
-                    f"Package name: {app_id}\n\n"
                 )
-                if context:
-                    user_prompt += f"Already generated files (for reference):\n{context}\n\n"
-                user_prompt += "Output ONLY the complete file content."
+            user_prompt += "\nOutput ONLY the complete file content. No explanations."
 
-                resp = await client.messages.create(
-                    model=settings.claude_model,
-                    max_tokens=8192,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}],
-                )
-                code = _strip_fences(resp.content[0].text)
-                generated_files[file_path] = code
+            code = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    resp = await client.messages.create(
+                        model=settings.claude_model,
+                        max_tokens=8192,
+                        system=impl_system,
+                        messages=[{"role": "user", "content": user_prompt}],
+                    )
+                    candidate = _strip_fences(resp.content[0].text)
 
-                full_path = app_dir / file_path
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-                full_path.write_text(code, encoding="utf-8")
-                file_lines = len(code.split("\n"))
-                total_lines += file_lines
-            except Exception as e:
-                await self._log(f"  文件生成失败: {file_path} ({e}), 跳过", "error")
+                    # Validate output is actual code, not prose
+                    validator = is_valid_yaml if is_yaml else is_valid_dart_code
+                    if validator(candidate):
+                        code = candidate
+                        break
+                    else:
+                        await self._log(
+                            f"    验证失败 (第 {attempt} 次): 输出不是有效代码，重试", "info"
+                        )
+                except Exception as e:
+                    await self._log(f"    生成异常 (第 {attempt} 次): {e}", "error")
+
+            if code is None:
+                # Last resort: use blueprint skeleton if available and valid
+                if skeleton:
+                    skeleton_valid = is_valid_yaml(skeleton) if is_yaml else is_valid_dart_code(skeleton)
+                    if skeleton_valid:
+                        code = skeleton
+                        await self._log(f"    使用蓝图骨架作为后备: {file_path}", "info")
+
+            if code is None:
+                await self._log(f"    文件生成失败: {file_path}, 跳过", "error")
                 continue
 
+            generated_files[file_path] = code
+            total_lines += len(code.split("\n"))
+
         await emit_stage_change("generate", run_id, "completed", {
-            "message": f"代码生成完成: {len(file_plan)} 文件, {total_lines} 行"
+            "message": f"代码生成完成: {len(generated_files)} 文件, {total_lines} 行"
         })
         await self._log(
-            f"代码生成完成: {len(file_plan)} 个文件, 共 {total_lines} 行", "stage_change"
+            f"代码生成完成: {len(generated_files)} 个文件, 共 {total_lines} 行", "stage_change"
         )
-        await _save_build_log(demand_id, "code_gen", "success", f"{len(file_plan)} files, {total_lines} lines")
+        await _save_build_log(demand_id, "code_gen", "success", f"{len(generated_files)} files, {total_lines} lines")
 
         # ── Stage: build -- 创建项目、安装依赖、分析修复 ──────────────
         await emit_stage_change("build", run_id, "active", {"message": "正在创建 Flutter 项目..."})
@@ -1681,6 +1830,9 @@ class PipelineRunner:
             full_path = app_dir / file_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(code, encoding="utf-8")
+
+        # Post-generation cleanup: fix markdown fences, pubspec, manifest, etc.
+        await _post_generation_cleanup(app_dir, app_id, self._log)
 
         await _update_demand_status(demand_id, "generated")
 
@@ -1774,7 +1926,7 @@ class PipelineRunner:
                         "For each file that needs fixing, output in this format:\n"
                         "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n\n"
                         "CRITICAL RULES:\n"
-                        "- Dart 2.19 syntax ONLY\n"
+                        "- Dart 3.x syntax ONLY\n"
                         "- No emoji characters anywhere\n"
                         "- Output COMPLETE file contents, not partial"
                     ),
@@ -1844,7 +1996,7 @@ class PipelineRunner:
                 "For each file that needs fixing, output:\n"
                 "===FILE: path/to/file.dart===\n<complete fixed file>\n===END===\n\n"
                 "If no issues found, output: NO_ISSUES_FOUND\n"
-                "Rules: Dart 2.19, no super parameters, no dot shorthands, no emoji."
+                "Rules: Dart 3.x, no super parameters, no dot shorthands, no emoji."
             ),
             messages=[{"role": "user", "content": (
                 f"Review these Flutter files for layout and routing issues:\n\n"
@@ -1953,7 +2105,7 @@ class PipelineRunner:
                             "You are fixing Flutter build errors. "
                             "For each file that needs fixing, output in this format:\n"
                             "===FILE: path/to/file===\n<complete fixed file>\n===END===\n\n"
-                            "CRITICAL: Output COMPLETE file contents. Dart 2.19 syntax only."
+                            "CRITICAL: Output COMPLETE file contents. Dart 3.x syntax only."
                         ),
                         messages=[{"role": "user", "content": (
                             f"Flutter build apk --debug failed with:\n\n"
@@ -2015,7 +2167,7 @@ class PipelineRunner:
             system=(
                 "You are a Flutter test engineer. Generate widget tests.\n"
                 "Output format: ===FILE: test/xxx_test.dart===\n<code>\n===END===\n"
-                "Rules: Dart 2.19, no super parameters, flutter_test, simple pump tests.\n"
+                "Rules: Dart 3.x, no super parameters, flutter_test, simple pump tests.\n"
                 "No markdown fences."
             ),
             messages=[{"role": "user", "content": (
@@ -2073,7 +2225,7 @@ class PipelineRunner:
                 system=(
                     "You are fixing failing Flutter widget tests. "
                     "For each file: ===FILE: test/xxx_test.dart===\n<fixed>\n===END===\n"
-                    "Rules: Dart 2.19, no super parameters, flutter_test."
+                    "Rules: Dart 3.x, no super parameters, flutter_test."
                 ),
                 messages=[{"role": "user", "content": (
                     f"Test output:\n{test_output[-3000:]}\n\n"

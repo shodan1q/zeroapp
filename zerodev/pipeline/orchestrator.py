@@ -72,7 +72,6 @@ async def run_pipeline(
     PipelineRunSummary
     """
     settings = get_settings()
-    checkpointer = get_checkpointer()
 
     if thread_id is None:
         thread_id = f"run-{uuid.uuid4().hex[:12]}"
@@ -95,48 +94,49 @@ async def run_pipeline(
         resumed,
     )
 
-    graph = build_main_graph(checkpointer=checkpointer)
-    config = {"configurable": {"thread_id": thread_id}}
+    async with get_checkpointer() as checkpointer:
+        graph = build_main_graph(checkpointer=checkpointer)
+        config = {"configurable": {"thread_id": thread_id}}
 
-    try:
-        # When resuming, pass None so LangGraph loads from checkpoint.
-        # For a fresh run, supply the initial state.
-        if resumed:
-            initial_input = None
-            logger.info("Resuming pipeline from checkpoint (thread_id=%s).", thread_id)
-        else:
-            initial_input: dict[str, Any] | None = {
-                "demands_raw": [],
-                "demands_structured": [],
-                "demands_evaluated": [],
-                "demands_approved": [],
-                "demands_rejected": [],
-                "demand_results": [],
-                "stage": "init",
-                "errors": [],
-                "retry_count": 0,
-                "run_id": run_id,
-                "demands_crawled_count": 0,
-                "demands_approved_count": 0,
-                "demands_rejected_count": 0,
-                "demands_built_count": 0,
-                "demands_published_count": 0,
-            }
+        try:
+            # When resuming, pass None so LangGraph loads from checkpoint.
+            # For a fresh run, supply the initial state.
+            if resumed:
+                initial_input = None
+                logger.info("Resuming pipeline from checkpoint (thread_id=%s).", thread_id)
+            else:
+                initial_input: dict[str, Any] | None = {
+                    "demands_raw": [],
+                    "demands_structured": [],
+                    "demands_evaluated": [],
+                    "demands_approved": [],
+                    "demands_rejected": [],
+                    "demand_results": [],
+                    "stage": "init",
+                    "errors": [],
+                    "retry_count": 0,
+                    "run_id": run_id,
+                    "demands_crawled_count": 0,
+                    "demands_approved_count": 0,
+                    "demands_rejected_count": 0,
+                    "demands_built_count": 0,
+                    "demands_published_count": 0,
+                }
 
-        final_state = await graph.ainvoke(initial_input, config=config)
+            final_state = await graph.ainvoke(initial_input, config=config)
 
-        # Extract summary from final state.
-        summary.demands_crawled = final_state.get("demands_crawled_count", 0)
-        summary.demands_approved = final_state.get("demands_approved_count", 0)
-        summary.demands_rejected = final_state.get("demands_rejected_count", 0)
-        summary.demands_built = final_state.get("demands_built_count", 0)
-        summary.demands_published = final_state.get("demands_published_count", 0)
-        summary.errors = final_state.get("errors", [])
-        summary.final_state = final_state
+            # Extract summary from final state.
+            summary.demands_crawled = final_state.get("demands_crawled_count", 0)
+            summary.demands_approved = final_state.get("demands_approved_count", 0)
+            summary.demands_rejected = final_state.get("demands_rejected_count", 0)
+            summary.demands_built = final_state.get("demands_built_count", 0)
+            summary.demands_published = final_state.get("demands_published_count", 0)
+            summary.errors = final_state.get("errors", [])
+            summary.final_state = final_state
 
-    except Exception as exc:
-        logger.exception("Pipeline run %s failed.", run_id)
-        summary.errors.append(f"Pipeline error: {exc}")
+        except Exception as exc:
+            logger.exception("Pipeline run %s failed.", run_id)
+            summary.errors.append(f"Pipeline error: {exc}")
 
     summary.finished_at = datetime.datetime.now(datetime.timezone.utc)
 
@@ -190,9 +190,6 @@ async def run_single_demand(
     dict
         The final DemandState dict.
     """
-    checkpointer = get_checkpointer()
-    graph = build_demand_graph(checkpointer=checkpointer)
-
     if thread_id is None:
         thread_id = f"demand-{uuid.uuid4().hex[:12]}"
 
@@ -210,8 +207,10 @@ async def run_single_demand(
         "failed": False,
     }
 
-    config = {"configurable": {"thread_id": thread_id}}
-    result = await graph.ainvoke(initial_state, config=config)
+    async with get_checkpointer() as checkpointer:
+        graph = build_demand_graph(checkpointer=checkpointer)
+        config = {"configurable": {"thread_id": thread_id}}
+        result = await graph.ainvoke(initial_state, config=config)
     return result
 
 
@@ -263,26 +262,26 @@ async def get_pipeline_status(thread_id: str) -> Dict[str, Any]:
     dict
         The stored state, or a status dict indicating not found.
     """
-    checkpointer = get_checkpointer()
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
-        # Build the graph to access the checkpointer through it.
-        graph = build_main_graph(checkpointer=checkpointer)
-        state = await graph.aget_state(config)
-        if state and state.values:
-            return {
-                "thread_id": thread_id,
-                "found": True,
-                "stage": state.values.get("stage", "unknown"),
-                "errors": state.values.get("errors", []),
-                "demands_crawled": state.values.get("demands_crawled_count", 0),
-                "demands_approved": state.values.get("demands_approved_count", 0),
-                "demands_built": state.values.get("demands_built_count", 0),
-                "demands_published": state.values.get("demands_published_count", 0),
-                "next_steps": list(state.next) if state.next else [],
-            }
-        return {"thread_id": thread_id, "found": False}
+        async with get_checkpointer() as checkpointer:
+            # Build the graph to access the checkpointer through it.
+            graph = build_main_graph(checkpointer=checkpointer)
+            state = await graph.aget_state(config)
+            if state and state.values:
+                return {
+                    "thread_id": thread_id,
+                    "found": True,
+                    "stage": state.values.get("stage", "unknown"),
+                    "errors": state.values.get("errors", []),
+                    "demands_crawled": state.values.get("demands_crawled_count", 0),
+                    "demands_approved": state.values.get("demands_approved_count", 0),
+                    "demands_built": state.values.get("demands_built_count", 0),
+                    "demands_published": state.values.get("demands_published_count", 0),
+                    "next_steps": list(state.next) if state.next else [],
+                }
+            return {"thread_id": thread_id, "found": False}
     except Exception as exc:
         logger.warning("Failed to get pipeline status for %s: %s", thread_id, exc)
         return {"thread_id": thread_id, "found": False, "error": str(exc)}
