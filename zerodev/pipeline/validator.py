@@ -33,15 +33,19 @@ def parse_multi_file_output(text: str) -> dict[str, str]:
 def is_valid_dart_code(text: str) -> bool:
     """Return True if *text* looks like actual Dart source code.
 
-    Rejects empty/whitespace-only strings, and rejects LLM confirmation prose
-    like "The file has been generated at lib/main.dart. It includes: ...".
+    Rejects empty/whitespace-only strings. Rejects text that is entirely prose
+    (no code markers found). Allows text that has some preamble prose as long
+    as actual code markers are present.
     """
     stripped = text.strip()
     if not stripped:
         return False
-    if _PROSE_MARKERS.search(stripped):
-        return False
+    # Must contain at least one code marker
     if not _DART_CODE_MARKERS.search(stripped):
+        return False
+    # If prose markers are found but code markers are also present,
+    # only reject if the text is very short (likely just a description).
+    if _PROSE_MARKERS.search(stripped) and len(stripped.splitlines()) < 5:
         return False
     return True
 
@@ -49,14 +53,17 @@ def is_valid_dart_code(text: str) -> bool:
 def is_valid_yaml(text: str) -> bool:
     """Return True if *text* looks like actual YAML content.
 
-    Rejects empty/whitespace-only strings, and rejects LLM confirmation prose.
-    Requires at least one key: value line to be present.
+    Rejects empty/whitespace-only strings. Requires at least one key: value line.
+    Only rejects prose if no YAML structure is found.
     """
     stripped = text.strip()
     if not stripped:
         return False
-    if _PROSE_MARKERS.search(stripped):
-        return False
+    # Must have key: value structure
     if not _YAML_KEY_VALUE.search(stripped):
+        return False
+    # If prose markers are found but YAML is also present,
+    # only reject if the text is very short.
+    if _PROSE_MARKERS.search(stripped) and len(stripped.splitlines()) < 3:
         return False
     return True

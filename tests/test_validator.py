@@ -24,6 +24,8 @@ from zerodev.pipeline.validator import is_valid_dart_code, is_valid_yaml
         "@override\nvoid initState() { super.initState(); }",
         "Widget build(BuildContext context) { return Container(); }",
         "Future<void> fetchData() async {}",
+        # Code with preamble prose should still be valid (Claude sometimes adds preamble)
+        "The file has been implemented:\n\nimport 'package:flutter/material.dart';\n\nclass MyApp extends StatelessWidget {\n  @override\n  Widget build(BuildContext context) {\n    return Container();\n  }\n}",
     ],
 )
 def test_is_valid_dart_code_valid(text: str) -> None:

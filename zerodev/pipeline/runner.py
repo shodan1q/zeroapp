@@ -1778,8 +1778,9 @@ class PipelineRunner:
                         code = candidate
                         break
                     else:
+                        first_line = candidate.split("\n")[0][:80] if candidate else "(empty)"
                         await self._log(
-                            f"    验证失败 (第 {attempt} 次): 输出不是有效代码，重试", "info"
+                            f"    验证失败 (第 {attempt} 次): 首行={first_line}", "info"
                         )
                 except Exception as e:
                     await self._log(f"    生成异常 (第 {attempt} 次): {e}", "error")
