@@ -167,22 +167,23 @@ def _strip_fences(text: str) -> str:
                 break
         text = "\n".join(lines[1:end])
 
-    # If the text doesn't look like code (no import, no class, no void, no {),
-    # try to find the code part
+    # If the text doesn't look like code, try to find the code part.
+    # Use precise patterns (keyword + space/quote) to avoid matching prose
+    # like "importThe file has been..." or "classifies as..."
+    _code_line_starts = [
+        "import ", "import'", 'import"',
+        "class ", "void ", "final ", "const ", "enum ", "typedef ",
+        "library ", "part ", "export ",
+        "//", "/*", "@",
+        "name:", "description:", "dependencies:", "flutter:", "sdk:",
+    ]
     first_line = text.split("\n")[0].strip() if text else ""
-    if first_line and not any(kw in first_line for kw in [
-        "import", "class", "void", "final", "const", "enum", "typedef",
-        "library", "part", "export", "//", "/*", "name:", "description:",
-        "dependencies:", "flutter:", "sdk:",
-    ]):
+    if first_line and not any(first_line.startswith(kw) for kw in _code_line_starts):
         # Look for the first line that looks like code
         lines = text.split("\n")
         for i, line in enumerate(lines):
             stripped = line.strip()
-            if any(kw in stripped for kw in [
-                "import ", "class ", "void ", "final ", "const ", "enum ",
-                "library ", "part ", "name:", "dependencies:",
-            ]):
+            if any(stripped.startswith(kw) for kw in _code_line_starts):
                 text = "\n".join(lines[i:])
                 break
 
@@ -1793,10 +1794,12 @@ class PipelineRunner:
                         ],
                     )
                     raw = resp.content[0].text
-                    # Prepend prefill only if model didn't already start with it
-                    if not raw.lstrip().startswith(prefill):
-                        raw = prefill + raw
-                    candidate = _strip_fences(raw)
+                    # The prefill was sent as an assistant turn; prepend it to
+                    # reconstruct the full response, but only if the model
+                    # continued with code (starts with quote, punctuation, or
+                    # a known code token) rather than prose.
+                    full = prefill + raw
+                    candidate = _strip_fences(full)
 
                     # Validate output is actual code, not prose
                     validator = is_valid_yaml if is_yaml else is_valid_dart_code
