@@ -153,8 +153,10 @@ async def _save_app(demand_id: int | None, idea: dict, app_id: str, app_dir: str
 
 
 def _strip_fences(text: str) -> str:
-    """Remove markdown code fences if present."""
+    """Remove markdown code fences and any non-code text."""
     text = text.strip()
+
+    # Remove markdown fences
     if text.startswith("```"):
         lines = text.split("\n")
         end = len(lines)
@@ -163,7 +165,27 @@ def _strip_fences(text: str) -> str:
                 end = i
                 break
         text = "\n".join(lines[1:end])
-    return text
+
+    # If the text doesn't look like code (no import, no class, no void, no {),
+    # try to find the code part
+    first_line = text.split("\n")[0].strip() if text else ""
+    if first_line and not any(kw in first_line for kw in [
+        "import", "class", "void", "final", "const", "enum", "typedef",
+        "library", "part", "export", "//", "/*", "name:", "description:",
+        "dependencies:", "flutter:", "sdk:",
+    ]):
+        # Look for the first line that looks like code
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if any(kw in stripped for kw in [
+                "import ", "class ", "void ", "final ", "const ", "enum ",
+                "library ", "part ", "name:", "dependencies:",
+            ]):
+                text = "\n".join(lines[i:])
+                break
+
+    return text.strip()
 
 
 class PipelineRunner:
@@ -565,7 +587,7 @@ class PipelineRunner:
                 f"- Data models\n"
                 f"- Localization files for Chinese and English (lib/l10n/app_zh.arb, lib/l10n/app_en.arb)\n"
                 f"- A localization helper/delegate file\n\n"
-                f"IMPORTANT: Do NOT exceed 50 files total.\n"
+                f"IMPORTANT: Do NOT exceed 25 files total. Keep it focused and minimal.\n"
                 f"Return ONLY the JSON array, nothing else."
             )}],
         )
@@ -587,10 +609,10 @@ class PipelineRunner:
                 "HomeScreen", "SettingsScreen", "StatsScreen",
             ]))
 
-        # Safety limit: truncate to 50 files
-        if len(file_plan) > 50:
-            await self._log(f"文件列表过长 ({len(file_plan)})，截断为 50 个", "info")
-            file_plan = file_plan[:50]
+        # Safety limit: truncate to 25 files
+        if len(file_plan) > 25:
+            await self._log(f"文件列表过长 ({len(file_plan)})，截断为 25 个", "info")
+            file_plan = file_plan[:25]
 
         await emit_stage_change("process", run_id, "completed", {
             "message": f"PRD 和文件规划完成: {len(file_plan)} 个文件"
@@ -658,47 +680,50 @@ class PipelineRunner:
         for idx, entry in enumerate(file_plan):
             file_path = entry["path"]
             file_purpose = entry["purpose"]
+            try:
+                await emit_stage_change(
+                    "generate", run_id, "active",
+                    {"message": f"正在生成 ({idx+1}/{len(file_plan)}): {file_path}"}
+                )
+                await self._log(f"  生成文件 [{idx+1}/{len(file_plan)}]: {file_path}", "info")
 
-            await emit_stage_change(
-                "generate", run_id, "active",
-                {"message": f"正在生成 ({idx+1}/{len(file_plan)}): {file_path}"}
-            )
-            await self._log(f"  生成文件 [{idx+1}/{len(file_plan)}]: {file_path}", "info")
+                # Build context from already generated files (abbreviated)
+                context_parts = []
+                for prev_path, prev_code in generated_files.items():
+                    # Show first 30 lines of each previous file for context
+                    preview = "\n".join(prev_code.split("\n")[:30])
+                    context_parts.append(f"--- {prev_path} (preview) ---\n{preview}\n")
+                context = "\n".join(context_parts[-5:])  # Last 5 files for context window
 
-            # Build context from already generated files (abbreviated)
-            context_parts = []
-            for prev_path, prev_code in generated_files.items():
-                # Show first 30 lines of each previous file for context
-                preview = "\n".join(prev_code.split("\n")[:30])
-                context_parts.append(f"--- {prev_path} (preview) ---\n{preview}\n")
-            context = "\n".join(context_parts[-5:])  # Last 5 files for context window
+                user_prompt = (
+                    f"App: {app_name}\nDescription: {idea['description']}\n\n"
+                    f"PRD:\n{prd[:1500]}\n\n"
+                    f"Generate the file: {file_path}\n"
+                    f"Purpose: {file_purpose}\n"
+                    f"Package name: {app_id}\n\n"
+                )
+                if context:
+                    user_prompt += f"Already generated files (for reference):\n{context}\n\n"
+                user_prompt += "Output ONLY the complete file content."
 
-            user_prompt = (
-                f"App: {app_name}\nDescription: {idea['description']}\n\n"
-                f"PRD:\n{prd[:1500]}\n\n"
-                f"Generate the file: {file_path}\n"
-                f"Purpose: {file_purpose}\n"
-                f"Package name: {app_id}\n\n"
-            )
-            if context:
-                user_prompt += f"Already generated files (for reference):\n{context}\n\n"
-            user_prompt += "Output ONLY the complete file content."
+                resp = await client.messages.create(
+                    model=settings.claude_model,
+                    max_tokens=8192,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                code = _strip_fences(resp.content[0].text)
+                generated_files[file_path] = code
 
-            resp = await client.messages.create(
-                model=settings.claude_model,
-                max_tokens=8192,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
-            code = _strip_fences(resp.content[0].text)
-            generated_files[file_path] = code
-
-            # Write file
-            full_path = app_dir / file_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_text(code, encoding="utf-8")
-            file_lines = len(code.split("\n"))
-            total_lines += file_lines
+                # Write file
+                full_path = app_dir / file_path
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                full_path.write_text(code, encoding="utf-8")
+                file_lines = len(code.split("\n"))
+                total_lines += file_lines
+            except Exception as e:
+                await self._log(f"  文件生成失败: {file_path} ({e}), 跳过", "error")
+                continue
 
         await emit_stage_change("generate", run_id, "completed", {
             "message": f"代码生成完成: {len(file_plan)} 文件, {total_lines} 行"
@@ -746,7 +771,37 @@ class PipelineRunner:
             "flutter", "pub", "get", cwd=str(app_dir),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
         )
-        await proc.wait()
+        stdout, stderr = await proc.communicate()
+
+        # After pub get, if it failed, try fixing versions
+        if proc.returncode != 0:
+            pub_output = stdout.decode() + stderr.decode()
+            await self._log("pub get 失败，尝试自动修复依赖版本...", "stage_change")
+
+            # Common fixes: update intl, remove version constraints that conflict
+            pubspec_path = app_dir / "pubspec.yaml"
+            pubspec_content = pubspec_path.read_text(encoding="utf-8")
+
+            # Fix intl version
+            pubspec_content = re.sub(r'intl:\s*\^?\d+\.\d+\.\d+', 'intl: ^0.20.2', pubspec_content)
+
+            # Ensure sdk constraint is compatible
+            pubspec_content = re.sub(
+                r"sdk:\s*['\"].*?['\"]",
+                "sdk: '>=3.0.0 <4.0.0'",
+                pubspec_content
+            )
+
+            pubspec_path.write_text(pubspec_content, encoding="utf-8")
+
+            # Retry pub get
+            proc = await asyncio.create_subprocess_exec(
+                "flutter", "pub", "get", cwd=str(app_dir),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                await self._log(f"pub get 仍然失败: {stderr.decode()[-200:]}", "error")
 
         # Run dart analyze
         await emit_stage_change("build", run_id, "active", {"message": "正在运行 dart analyze..."})
@@ -941,6 +996,114 @@ class PipelineRunner:
         await emit_stage_change("assets", run_id, "completed", {
             "message": "路由和布局检查完成"
         })
+
+        # ── Stage: compile -- 编译 APK ────────────────────────────────
+        await emit_stage_change("build", run_id, "active", {"message": "正在编译 Android APK..."})
+        self._start_stage_timer("compile")
+        await self._log("正在编译 flutter build apk --debug...", "stage_change")
+
+        proc = await asyncio.create_subprocess_exec(
+            "flutter", "build", "apk", "--debug",
+            cwd=str(app_dir), env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        build_output = stdout.decode() + stderr.decode()
+
+        if proc.returncode != 0:
+            await self._log("APK 编译失败，尝试修复...", "stage_change")
+
+            # Check for common build issues
+            if "coreLibraryDesugaring" in build_output or "desugaring" in build_output.lower():
+                # Fix: enable core library desugaring
+                gradle_path = app_dir / "android" / "app" / "build.gradle.kts"
+                if gradle_path.exists():
+                    gradle = gradle_path.read_text()
+                    if "isCoreLibraryDesugaringEnabled" not in gradle:
+                        gradle = gradle.replace(
+                            "compileOptions {",
+                            "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
+                        )
+                        if 'coreLibraryDesugaring' not in gradle:
+                            gradle = gradle.replace(
+                                "flutter {",
+                                'dependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n\nflutter {'
+                            )
+                        gradle_path.write_text(gradle)
+                        await self._log("  已修复: 启用 core library desugaring", "info")
+
+                # Retry build
+                proc = await asyncio.create_subprocess_exec(
+                    "flutter", "build", "apk", "--debug",
+                    cwd=str(app_dir), env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+                build_output = stdout.decode() + stderr.decode()
+
+            if proc.returncode != 0:
+                # Send build errors to Claude for fix (max 2 rounds)
+                await self._log("编译仍然失败，发送给 Claude 修复...", "stage_change")
+                for compile_fix_round in range(1, 3):
+                    build_error_lines = build_output[-3000:]
+
+                    # Collect relevant source files
+                    compile_source_context = "\n".join(
+                        f"--- {p} ---\n{generated_files[p]}\n"
+                        for p in list(generated_files.keys())[:10]
+                    )
+                    if len(compile_source_context) > 12000:
+                        compile_source_context = compile_source_context[:12000] + "\n... (truncated)"
+
+                    compile_fix_resp = await client.messages.create(
+                        model=settings.claude_model,
+                        max_tokens=16384,
+                        system=(
+                            "You are fixing Flutter build errors. "
+                            "For each file that needs fixing, output in this format:\n"
+                            "===FILE: path/to/file===\n<complete fixed file>\n===END===\n\n"
+                            "CRITICAL: Output COMPLETE file contents. Dart 2.19 syntax only."
+                        ),
+                        messages=[{"role": "user", "content": (
+                            f"Flutter build apk --debug failed with:\n\n"
+                            f"{build_error_lines}\n\n"
+                            f"Source files:\n{compile_source_context}"
+                        )}],
+                    )
+
+                    compile_fix_text = compile_fix_resp.content[0].text
+                    compile_matches = re.findall(
+                        r"===FILE:\s*(.+?)===\n(.*?)===END===", compile_fix_text, re.DOTALL
+                    )
+                    for fix_path, fix_code in compile_matches:
+                        fix_path = fix_path.strip()
+                        fix_code = fix_code.strip()
+                        full_path = app_dir / fix_path
+                        full_path.parent.mkdir(parents=True, exist_ok=True)
+                        full_path.write_text(fix_code + "\n", encoding="utf-8")
+                        if fix_path in generated_files:
+                            generated_files[fix_path] = fix_code
+                        await self._log(f"  已修复: {fix_path}", "info")
+
+                    # Retry build
+                    proc = await asyncio.create_subprocess_exec(
+                        "flutter", "build", "apk", "--debug",
+                        cwd=str(app_dir), env=env,
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                    )
+                    stdout, stderr = await proc.communicate()
+                    build_output = stdout.decode() + stderr.decode()
+
+                    if proc.returncode == 0:
+                        await self._log(f"编译修复成功 (第 {compile_fix_round} 轮)", "stage_change")
+                        break
+                    else:
+                        await self._log(f"编译修复第 {compile_fix_round} 轮后仍然失败", "info")
+
+        compile_ok = proc.returncode == 0
+        compile_status = "编译成功" if compile_ok else "编译失败"
+        await self._log(f"APK 编译结果: {compile_status}", "stage_change")
+        await _save_build_log(demand_id, "build_apk", "success" if compile_ok else "failed", compile_status)
 
         # ── Stage: evaluate -- 生成测试并运行 ─────────────────────────
         await emit_stage_change("evaluate", run_id, "active", {
@@ -1245,7 +1408,7 @@ class PipelineRunner:
                 f"- All model/service/screen/widget files\n"
                 f"- AdMob integration\n"
                 f"- Localization files\n\n"
-                f"IMPORTANT: Do NOT exceed 50 files total.\n"
+                f"IMPORTANT: Do NOT exceed 25 files total. Keep it focused and minimal.\n"
                 f"Return ONLY the JSON array."
             )}],
         )
@@ -1265,9 +1428,9 @@ class PipelineRunner:
                 "HomeScreen", "SettingsScreen", "StatsScreen",
             ]))
 
-        if len(file_plan) > 50:
-            await self._log(f"文件列表过长 ({len(file_plan)})，截断为 50 个", "info")
-            file_plan = file_plan[:50]
+        if len(file_plan) > 25:
+            await self._log(f"文件列表过长 ({len(file_plan)})，截断为 25 个", "info")
+            file_plan = file_plan[:25]
 
         await emit_stage_change("process", run_id, "completed", {
             "message": f"PRD 和文件规划完成: {len(file_plan)} 个文件"
@@ -1318,44 +1481,47 @@ class PipelineRunner:
         for idx, entry in enumerate(file_plan):
             file_path = entry["path"]
             file_purpose = entry["purpose"]
+            try:
+                await emit_stage_change(
+                    "generate", run_id, "active",
+                    {"message": f"正在生成 ({idx+1}/{len(file_plan)}): {file_path}"}
+                )
+                await self._log(f"  生成文件 [{idx+1}/{len(file_plan)}]: {file_path}", "info")
 
-            await emit_stage_change(
-                "generate", run_id, "active",
-                {"message": f"正在生成 ({idx+1}/{len(file_plan)}): {file_path}"}
-            )
-            await self._log(f"  生成文件 [{idx+1}/{len(file_plan)}]: {file_path}", "info")
+                context_parts = []
+                for prev_path, prev_code in generated_files.items():
+                    preview = "\n".join(prev_code.split("\n")[:30])
+                    context_parts.append(f"--- {prev_path} (preview) ---\n{preview}\n")
+                context = "\n".join(context_parts[-5:])
 
-            context_parts = []
-            for prev_path, prev_code in generated_files.items():
-                preview = "\n".join(prev_code.split("\n")[:30])
-                context_parts.append(f"--- {prev_path} (preview) ---\n{preview}\n")
-            context = "\n".join(context_parts[-5:])
+                user_prompt = (
+                    f"App: {app_name}\nDescription: {idea['description']}\n\n"
+                    f"PRD:\n{prd[:1500]}\n\n"
+                    f"Generate the file: {file_path}\n"
+                    f"Purpose: {file_purpose}\n"
+                    f"Package name: {app_id}\n\n"
+                )
+                if context:
+                    user_prompt += f"Already generated files (for reference):\n{context}\n\n"
+                user_prompt += "Output ONLY the complete file content."
 
-            user_prompt = (
-                f"App: {app_name}\nDescription: {idea['description']}\n\n"
-                f"PRD:\n{prd[:1500]}\n\n"
-                f"Generate the file: {file_path}\n"
-                f"Purpose: {file_purpose}\n"
-                f"Package name: {app_id}\n\n"
-            )
-            if context:
-                user_prompt += f"Already generated files (for reference):\n{context}\n\n"
-            user_prompt += "Output ONLY the complete file content."
+                resp = await client.messages.create(
+                    model=settings.claude_model,
+                    max_tokens=8192,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                code = _strip_fences(resp.content[0].text)
+                generated_files[file_path] = code
 
-            resp = await client.messages.create(
-                model=settings.claude_model,
-                max_tokens=8192,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
-            code = _strip_fences(resp.content[0].text)
-            generated_files[file_path] = code
-
-            full_path = app_dir / file_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_text(code, encoding="utf-8")
-            file_lines = len(code.split("\n"))
-            total_lines += file_lines
+                full_path = app_dir / file_path
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                full_path.write_text(code, encoding="utf-8")
+                file_lines = len(code.split("\n"))
+                total_lines += file_lines
+            except Exception as e:
+                await self._log(f"  文件生成失败: {file_path} ({e}), 跳过", "error")
+                continue
 
         await emit_stage_change("generate", run_id, "completed", {
             "message": f"代码生成完成: {len(file_plan)} 文件, {total_lines} 行"
@@ -1398,7 +1564,37 @@ class PipelineRunner:
             "flutter", "pub", "get", cwd=str(app_dir),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
         )
-        await proc.wait()
+        stdout, stderr = await proc.communicate()
+
+        # After pub get, if it failed, try fixing versions
+        if proc.returncode != 0:
+            pub_output = stdout.decode() + stderr.decode()
+            await self._log("pub get 失败，尝试自动修复依赖版本...", "stage_change")
+
+            # Common fixes: update intl, remove version constraints that conflict
+            pubspec_path = app_dir / "pubspec.yaml"
+            pubspec_content = pubspec_path.read_text(encoding="utf-8")
+
+            # Fix intl version
+            pubspec_content = re.sub(r'intl:\s*\^?\d+\.\d+\.\d+', 'intl: ^0.20.2', pubspec_content)
+
+            # Ensure sdk constraint is compatible
+            pubspec_content = re.sub(
+                r"sdk:\s*['\"].*?['\"]",
+                "sdk: '>=3.0.0 <4.0.0'",
+                pubspec_content
+            )
+
+            pubspec_path.write_text(pubspec_content, encoding="utf-8")
+
+            # Retry pub get
+            proc = await asyncio.create_subprocess_exec(
+                "flutter", "pub", "get", cwd=str(app_dir),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                await self._log(f"pub get 仍然失败: {stderr.decode()[-200:]}", "error")
 
         await emit_stage_change("build", run_id, "active", {"message": "正在运行 dart analyze..."})
         await self._log("正在运行 dart analyze...", "stage_change")
@@ -1565,10 +1761,119 @@ class PipelineRunner:
             "message": "路由和布局检查完成"
         })
 
+        # ── Stage: compile -- 编译 APK ────────────────────────────────
+        await emit_stage_change("build", run_id, "active", {"message": "正在编译 Android APK..."})
+        self._start_stage_timer("compile")
+        await self._log("正在编译 flutter build apk --debug...", "stage_change")
+
+        proc = await asyncio.create_subprocess_exec(
+            "flutter", "build", "apk", "--debug",
+            cwd=str(app_dir), env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        build_output = stdout.decode() + stderr.decode()
+
+        if proc.returncode != 0:
+            await self._log("APK 编译失败，尝试修复...", "stage_change")
+
+            # Check for common build issues
+            if "coreLibraryDesugaring" in build_output or "desugaring" in build_output.lower():
+                # Fix: enable core library desugaring
+                gradle_path = app_dir / "android" / "app" / "build.gradle.kts"
+                if gradle_path.exists():
+                    gradle = gradle_path.read_text()
+                    if "isCoreLibraryDesugaringEnabled" not in gradle:
+                        gradle = gradle.replace(
+                            "compileOptions {",
+                            "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
+                        )
+                        if 'coreLibraryDesugaring' not in gradle:
+                            gradle = gradle.replace(
+                                "flutter {",
+                                'dependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n\nflutter {'
+                            )
+                        gradle_path.write_text(gradle)
+                        await self._log("  已修复: 启用 core library desugaring", "info")
+
+                # Retry build
+                proc = await asyncio.create_subprocess_exec(
+                    "flutter", "build", "apk", "--debug",
+                    cwd=str(app_dir), env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+                build_output = stdout.decode() + stderr.decode()
+
+            if proc.returncode != 0:
+                # Send build errors to Claude for fix (max 2 rounds)
+                await self._log("编译仍然失败，发送给 Claude 修复...", "stage_change")
+                for compile_fix_round in range(1, 3):
+                    build_error_lines = build_output[-3000:]
+
+                    # Collect relevant source files
+                    compile_source_context = "\n".join(
+                        f"--- {p} ---\n{generated_files[p]}\n"
+                        for p in list(generated_files.keys())[:10]
+                    )
+                    if len(compile_source_context) > 12000:
+                        compile_source_context = compile_source_context[:12000] + "\n... (truncated)"
+
+                    compile_fix_resp = await client.messages.create(
+                        model=settings.claude_model,
+                        max_tokens=16384,
+                        system=(
+                            "You are fixing Flutter build errors. "
+                            "For each file that needs fixing, output in this format:\n"
+                            "===FILE: path/to/file===\n<complete fixed file>\n===END===\n\n"
+                            "CRITICAL: Output COMPLETE file contents. Dart 2.19 syntax only."
+                        ),
+                        messages=[{"role": "user", "content": (
+                            f"Flutter build apk --debug failed with:\n\n"
+                            f"{build_error_lines}\n\n"
+                            f"Source files:\n{compile_source_context}"
+                        )}],
+                    )
+
+                    compile_fix_text = compile_fix_resp.content[0].text
+                    compile_matches = re.findall(
+                        r"===FILE:\s*(.+?)===\n(.*?)===END===", compile_fix_text, re.DOTALL
+                    )
+                    for fix_path, fix_code in compile_matches:
+                        fix_path = fix_path.strip()
+                        fix_code = fix_code.strip()
+                        full_path = app_dir / fix_path
+                        full_path.parent.mkdir(parents=True, exist_ok=True)
+                        full_path.write_text(fix_code + "\n", encoding="utf-8")
+                        if fix_path in generated_files:
+                            generated_files[fix_path] = fix_code
+                        await self._log(f"  已修复: {fix_path}", "info")
+
+                    # Retry build
+                    proc = await asyncio.create_subprocess_exec(
+                        "flutter", "build", "apk", "--debug",
+                        cwd=str(app_dir), env=env,
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                    )
+                    stdout, stderr = await proc.communicate()
+                    build_output = stdout.decode() + stderr.decode()
+
+                    if proc.returncode == 0:
+                        await self._log(f"编译修复成功 (第 {compile_fix_round} 轮)", "stage_change")
+                        break
+                    else:
+                        await self._log(f"编译修复第 {compile_fix_round} 轮后仍然失败", "info")
+
+        compile_ok = proc.returncode == 0
+        compile_status = "编译成功" if compile_ok else "编译失败"
+        await self._log(f"APK 编译结果: {compile_status}", "stage_change")
+        await _save_build_log(demand_id, "build_apk", "success" if compile_ok else "failed", compile_status)
+
         # ── Stage: evaluate -- 生成测试并运行 ─────────────────────────
         await emit_stage_change("evaluate", run_id, "active", {
             "message": "正在生成测试用例..."
         })
+        self._start_stage_timer("test")
         await self._log("正在生成功能测试用例...", "stage_change")
 
         screen_sources = "\n".join(
