@@ -188,6 +188,130 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
+async def _post_generation_cleanup(app_dir: Path, app_id: str, log_fn) -> None:
+    """Fix common issues in generated code after all files are written."""
+    import yaml as yaml_mod
+
+    await log_fn("正在执行生成后清理...", "stage_change")
+
+    # 1. Strip markdown fences from ALL generated files
+    fixed_files = 0
+    for f in app_dir.rglob("*.dart"):
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        original = text
+        # Strip leading ```dart or ```
+        if text.lstrip().startswith("```"):
+            lines = text.lstrip().split("\n")
+            if lines[0].strip().startswith("```"):
+                lines = lines[1:]
+            text = "\n".join(lines)
+        # Strip trailing ```
+        if text.rstrip().endswith("```"):
+            lines = text.rstrip().split("\n")
+            while lines and lines[-1].strip() == "```":
+                lines.pop()
+            text = "\n".join(lines)
+        if text != original:
+            f.write_text(text + "\n", encoding="utf-8")
+            fixed_files += 1
+    if fixed_files:
+        await log_fn(f"  清理了 {fixed_files} 个文件的 markdown 围栏", "info")
+
+    # 2. Validate and fix pubspec.yaml
+    pubspec_path = app_dir / "pubspec.yaml"
+    if pubspec_path.exists():
+        pubspec_text = pubspec_path.read_text(encoding="utf-8")
+        # Strip fences from pubspec too
+        if pubspec_text.lstrip().startswith("```"):
+            lines = pubspec_text.strip().split("\n")
+            start = 1 if lines[0].strip().startswith("```") else 0
+            end = len(lines)
+            for i in range(len(lines) - 1, 0, -1):
+                if lines[i].strip() == "```":
+                    end = i
+                    break
+            pubspec_text = "\n".join(lines[start:end])
+
+        # Check if it starts with valid YAML (name:)
+        first_real = ""
+        for line in pubspec_text.split("\n"):
+            if line.strip() and not line.strip().startswith("#"):
+                first_real = line.strip()
+                break
+
+        if not first_real.startswith("name:"):
+            # Find the name: line
+            lines = pubspec_text.split("\n")
+            for i, line in enumerate(lines):
+                if line.strip().startswith("name:"):
+                    pubspec_text = "\n".join(lines[i:])
+                    break
+
+        # Fix common version issues
+        pubspec_text = re.sub(r'intl:\s*\^?\d+\.\d+\.\d+', 'intl: ^0.20.2', pubspec_text)
+        pubspec_text = re.sub(r'google_mobile_ads:\s*\^?[0-4]\.', 'google_mobile_ads: ^5.', pubspec_text)
+        pubspec_text = re.sub(
+            r"sdk:\s*['\"]>=2\.19\.\d+\s*<3\.0\.0['\"]",
+            "sdk: '>=3.0.0 <4.0.0'",
+            pubspec_text,
+        )
+
+        pubspec_path.write_text(pubspec_text + "\n", encoding="utf-8")
+        await log_fn("  pubspec.yaml 已验证和修复", "info")
+
+    # 3. Ensure AndroidManifest has AdMob test App ID
+    manifest_path = app_dir / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
+    if manifest_path.exists():
+        manifest = manifest_path.read_text(encoding="utf-8")
+        if "com.google.android.gms.ads.APPLICATION_ID" not in manifest:
+            manifest = manifest.replace(
+                "</application>",
+                '        <meta-data\n'
+                '            android:name="com.google.android.gms.ads.APPLICATION_ID"\n'
+                '            android:value="ca-app-pub-3940256099942544~3347511713"/>\n'
+                '    </application>'
+            )
+            manifest_path.write_text(manifest, encoding="utf-8")
+            await log_fn("  AndroidManifest 已添加 AdMob 测试 ID", "info")
+
+    # 4. Fix main.dart: ensure MobileAds.init is async with try/catch
+    main_path = app_dir / "lib" / "main.dart"
+    if main_path.exists():
+        main_text = main_path.read_text(encoding="utf-8")
+        # Fix synchronous MobileAds init
+        if "MobileAds.instance.initialize();" in main_text and "await MobileAds" not in main_text and "try" not in main_text.split("MobileAds")[0].split("\n")[-1]:
+            main_text = main_text.replace(
+                "MobileAds.instance.initialize();",
+                "try { await MobileAds.instance.initialize(); } catch (_) {}"
+            )
+            # Ensure main is async
+            main_text = main_text.replace(
+                "void main() {",
+                "void main() async {"
+            )
+            main_path.write_text(main_text, encoding="utf-8")
+            await log_fn("  main.dart: MobileAds.init 改为 async", "info")
+
+    # 5. Ensure Gradle has core library desugaring
+    gradle_path = app_dir / "android" / "app" / "build.gradle.kts"
+    if gradle_path.exists():
+        gradle = gradle_path.read_text(encoding="utf-8")
+        if "isCoreLibraryDesugaringEnabled" not in gradle:
+            gradle = gradle.replace(
+                "compileOptions {",
+                "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
+            )
+            if "coreLibraryDesugaring" not in gradle:
+                gradle = gradle.replace(
+                    "flutter {",
+                    'dependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n\nflutter {'
+                )
+            gradle_path.write_text(gradle, encoding="utf-8")
+            await log_fn("  Gradle: 已启用 core library desugaring", "info")
+
+    await log_fn("生成后清理完成", "stage_change")
+
+
 class PipelineRunner:
     """Singleton that runs the pipeline loop in background."""
 
@@ -759,6 +883,9 @@ class PipelineRunner:
             full_path = app_dir / file_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(code, encoding="utf-8")
+
+        # Post-generation cleanup: fix markdown fences, pubspec, manifest, etc.
+        await _post_generation_cleanup(app_dir, app_id, self._log)
 
         # Update demand status
         await _update_demand_status(demand_id, "generated")
