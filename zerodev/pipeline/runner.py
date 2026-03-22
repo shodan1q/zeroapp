@@ -1654,24 +1654,31 @@ class PipelineRunner:
             model=settings.claude_model,
             max_tokens=16384,
             system=blueprint_system,
-            messages=[{"role": "user", "content": (
-                f"App: {app_name}\nDescription: {idea['description']}\n\n"
-                f"PRD:\n{prd[:2000]}\n\n"
-                f"Color palette: primary={primary_color}, "
-                f"secondary={color_palette.get('secondary', '#FF5722')}, "
-                f"accent={color_palette.get('accent', '#FFC107')}\n\n"
-                f"Files to generate:\n{file_list_text}\n\n"
-                "For each file, generate the SKELETON: all imports, class definitions, "
-                "method signatures, constructor parameters, and type annotations. "
-                "Method bodies should contain minimal placeholder logic (return null, "
-                "return Container(), etc.) -- just enough that the project compiles.\n\n"
-                "pubspec.yaml MUST use: sdk: '>=3.0.0 <4.0.0'\n\n"
-                "CRITICAL: Output actual Dart/YAML code. Do NOT output descriptions like "
-                "'The file has been generated' or 'File written'. Output the CODE itself."
-            )}],
+            messages=[
+                {"role": "user", "content": (
+                    f"App: {app_name}\nDescription: {idea['description']}\n\n"
+                    f"PRD:\n{prd[:2000]}\n\n"
+                    f"Color palette: primary={primary_color}, "
+                    f"secondary={color_palette.get('secondary', '#FF5722')}, "
+                    f"accent={color_palette.get('accent', '#FFC107')}\n\n"
+                    f"Files to generate:\n{file_list_text}\n\n"
+                    "For each file, generate the SKELETON: all imports, class definitions, "
+                    "method signatures, constructor parameters, and type annotations. "
+                    "Method bodies should contain minimal placeholder logic (return null, "
+                    "return Container(), etc.) -- just enough that the project compiles.\n\n"
+                    "pubspec.yaml MUST use: sdk: '>=3.0.0 <4.0.0'\n\n"
+                    "Start your response immediately with ===FILE: pubspec.yaml=== "
+                    "followed by the actual YAML content. Do NOT describe what you are doing."
+                )},
+                {"role": "assistant", "content": "===FILE: pubspec.yaml===\n"},
+            ],
         )
 
-        blueprint_text = blueprint_resp.content[0].text
+        bp_raw = blueprint_resp.content[0].text
+        if not bp_raw.lstrip().startswith("===FILE:"):
+            blueprint_text = "===FILE: pubspec.yaml===\n" + bp_raw
+        else:
+            blueprint_text = bp_raw
         blueprint_files = parse_multi_file_output(blueprint_text)
 
         if not blueprint_files:
@@ -1759,7 +1766,19 @@ class PipelineRunner:
                     f"Generate complete file: {file_path}\n"
                     f"Purpose: {file_purpose}\n"
                 )
-            user_prompt += "\nOutput ONLY the complete file content. No explanations."
+            user_prompt += (
+                "\n\nYou MUST output ONLY the raw file content -- the exact text that "
+                "would be saved to disk. Do NOT describe what you did. Do NOT say "
+                "'The file has been written' or 'Here is the implementation'. "
+                "Start your response with the first line of the file (e.g. 'import' "
+                "for Dart files, 'name:' for pubspec.yaml)."
+            )
+
+            # Use assistant prefill to force code output
+            if is_yaml:
+                prefill = "name:"
+            else:
+                prefill = "import"
 
             code = None
             for attempt in range(1, max_retries + 1):
@@ -1768,9 +1787,16 @@ class PipelineRunner:
                         model=settings.claude_model,
                         max_tokens=8192,
                         system=impl_system,
-                        messages=[{"role": "user", "content": user_prompt}],
+                        messages=[
+                            {"role": "user", "content": user_prompt},
+                            {"role": "assistant", "content": prefill},
+                        ],
                     )
-                    candidate = _strip_fences(resp.content[0].text)
+                    raw = resp.content[0].text
+                    # Prepend prefill only if model didn't already start with it
+                    if not raw.lstrip().startswith(prefill):
+                        raw = prefill + raw
+                    candidate = _strip_fences(raw)
 
                     # Validate output is actual code, not prose
                     validator = is_valid_yaml if is_yaml else is_valid_dart_code
