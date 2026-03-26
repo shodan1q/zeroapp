@@ -1684,11 +1684,8 @@ class PipelineRunner:
 
         await self._push_to_github(app_dir, app_id, idea)
 
-        gh_org = settings.github_org
-        github_url = (
-            f"https://github.com/{gh_org}/{app_id}" if gh_org
-            else f"https://github.com/{app_id}"
-        )
+        gh_org = settings.github_org or "shodan1q"
+        github_url = f"https://github.com/{gh_org}/zerogenerate/tree/main/{app_id}"
 
         await emit_stage_change("publish", run_id, "completed", {
             "message": f"已推送: {github_url}"
@@ -2570,11 +2567,8 @@ class PipelineRunner:
 
         await self._push_to_github(app_dir, app_id, idea)
 
-        gh_org = settings.github_org
-        github_url = (
-            f"https://github.com/{gh_org}/{app_id}" if gh_org
-            else f"https://github.com/{app_id}"
-        )
+        gh_org = settings.github_org or "shodan1q"
+        github_url = f"https://github.com/{gh_org}/zerogenerate/tree/main/{app_id}"
 
         await emit_stage_change("publish", run_id, "completed", {
             "message": f"已推送: {github_url}"
@@ -2607,54 +2601,77 @@ class PipelineRunner:
         await self._log("===================================", "stage_change")
 
     async def _push_to_github(self, app_dir: Path, app_id: str, idea: dict):
-        """Initialize git, create GitHub repo, and push."""
+        """Copy app into the zerogenerate monorepo and push."""
+        import shutil
+
+        settings = get_settings()
+        gh_org = settings.github_org or "shodan1q"
+        repo_name = "zerogenerate"
+        remote_url = f"https://github.com/{gh_org}/{repo_name}.git"
+
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "NO_PROXY": "127.0.0.1,localhost"}
 
-        for cmd in [
-            ["git", "init"],
-            ["git", "add", "-A"],
-            ["git", "commit", "-m",
-             f"feat: {idea.get('name', app_id)} - {idea.get('description', '')[:80]}"],
-        ]:
+        # Clone or update the monorepo
+        monorepo_dir = Path(settings.output_dir) / f".{repo_name}-repo"
+        if (monorepo_dir / ".git").exists():
+            # Pull latest
             proc = await asyncio.create_subprocess_exec(
-                *cmd, cwd=str(app_dir), env=env,
+                "git", "pull", "--rebase", "origin", "main",
+                cwd=str(monorepo_dir), env=env,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
             await proc.wait()
+        else:
+            # Clone the repo
+            proc = await asyncio.create_subprocess_exec(
+                "git", "clone", remote_url, str(monorepo_dir),
+                env=env,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                # Repo might be empty, init locally
+                monorepo_dir.mkdir(parents=True, exist_ok=True)
+                for cmd in [
+                    ["git", "init"],
+                    ["git", "remote", "add", "origin", remote_url],
+                ]:
+                    p = await asyncio.create_subprocess_exec(
+                        *cmd, cwd=str(monorepo_dir), env=env,
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                    )
+                    await p.wait()
 
-        settings = get_settings()
-        gh_org = settings.github_org
-        repo_name = f"{gh_org}/{app_id}" if gh_org else app_id
-
-        proc = await asyncio.create_subprocess_exec(
-            "gh", "repo", "create", repo_name,
-            "--public", "--source", str(app_dir), "--remote", "origin", "--push",
-            cwd=str(app_dir), env=env,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        # Copy app into monorepo as a subdirectory
+        target_dir = monorepo_dir / app_id
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
+        shutil.copytree(
+            app_dir, target_dir,
+            ignore=shutil.ignore_patterns(
+                ".git", "build", ".dart_tool", ".flutter-plugins-dependencies",
+                "*.lock", ".packages", "ios/Pods", "android/.gradle",
+            ),
         )
-        stdout, stderr = await proc.communicate()
+
+        # Commit and push
+        app_name = idea.get("name", app_id)
+        desc = idea.get("description", "")[:80]
+        for cmd in [
+            ["git", "add", "-A"],
+            ["git", "commit", "-m", f"feat({app_id}): {app_name} - {desc}"],
+            ["git", "push", "-u", "origin", "main"],
+        ]:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, cwd=str(monorepo_dir), env=env,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
 
         if proc.returncode == 0:
             self._stats["apps_pushed"] += 1
-            await self._log(f"GitHub 仓库创建成功: {repo_name}", "info")
+            await self._log(f"已推送到 {gh_org}/{repo_name}/{app_id}", "info")
         else:
             err = stderr.decode()
-            if "already exists" in err:
-                remote_url = (
-                    f"https://github.com/{gh_org}/{app_id}.git" if gh_org
-                    else f"https://github.com/{app_id}.git"
-                )
-                for cmd in [
-                    ["git", "remote", "add", "origin", remote_url],
-                    ["git", "push", "-u", "origin", "main", "--force"],
-                ]:
-                    proc = await asyncio.create_subprocess_exec(
-                        *cmd, cwd=str(app_dir), env=env,
-                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                    )
-                    await proc.wait()
-                if proc.returncode == 0:
-                    self._stats["apps_pushed"] += 1
-            else:
-                await self._log(f"GitHub 推送失败: {err[:200]}", "error")
-                logger.error("GitHub push failed for %s: %s", app_id, err)
+            await self._log(f"GitHub 推送失败: {err[:200]}", "error")
+            logger.error("GitHub push failed for %s: %s", app_id, err)
