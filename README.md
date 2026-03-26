@@ -2,6 +2,10 @@
 
 自动化 Flutter 应用工厂 -- 从互联网挖掘需求，AI 自动生成 Flutter 代码，三端构建（Android / iOS / HarmonyOS），自动上架应用商店。
 
+![登录页](docs/images/login.png)
+
+![仪表盘](docs/images/dashboard.png)
+
 ## 架构概览
 
 系统采用五层流水线架构，由 LangGraph 有向图编排，支持 SQLite checkpoint 持久化与中断恢复：

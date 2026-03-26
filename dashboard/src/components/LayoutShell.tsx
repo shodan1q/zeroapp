@@ -92,7 +92,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Main content */}
-            <main className="relative z-10 flex-1 overflow-y-auto p-6">
+            <main className="relative z-10 flex-1 overflow-y-auto p-6 min-h-screen">
               {/* Mobile hamburger */}
               <button
                 onClick={toggleMobile}
