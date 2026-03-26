@@ -682,6 +682,8 @@ def _get_defaults() -> dict[str, Any]:
         "googlePlayKeyPath": cfg.google_play_json_key_path,
         "appStoreKeyPath": cfg.apple_api_key_path,
         "huaweiKeyPath": "",
+        "outputDir": cfg.output_dir,
+        "githubOrg": cfg.github_org,
     }
 
 

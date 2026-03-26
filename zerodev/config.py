@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # ── Output / GitHub ────────────────────────────────────────
     output_dir: str = Field(default="/Users/shodan/project/zerodev", description="Output directory for generated app projects")
-    github_org: str = Field(default="", description="GitHub org/user for auto-creating repos (uses gh CLI)")
+    github_org: str = Field(default="zerogenerate", description="GitHub org/user for auto-creating repos (uses gh CLI)")
 
     # ── Pipeline settings ───────────────────────────────────────
     pipeline_crawl_interval_hours: int = Field(default=6, description="Hours between crawl cycles")

@@ -144,6 +144,10 @@ export default function SettingsPage() {
     hackernews: true,
   });
 
+  // Output / GitHub config
+  const [outputDir, setOutputDir] = useState("/Users/shodan/project/zerodev");
+  const [githubOrg, setGithubOrg] = useState("zerogenerate");
+
   // Publish config
   const [googlePlayKeyPath, setGooglePlayKeyPath] = useState("");
   const [appStoreKeyPath, setAppStoreKeyPath] = useState("");
@@ -178,6 +182,8 @@ export default function SettingsPage() {
         if (data.enabledSources && typeof data.enabledSources === "object") {
           setEnabledSources(data.enabledSources as typeof enabledSources);
         }
+        if (data.outputDir !== undefined) setOutputDir(String(data.outputDir));
+        if (data.githubOrg !== undefined) setGithubOrg(String(data.githubOrg));
         if (data.googlePlayKeyPath !== undefined) setGooglePlayKeyPath(String(data.googlePlayKeyPath));
         if (data.appStoreKeyPath !== undefined) setAppStoreKeyPath(String(data.appStoreKeyPath));
         if (data.huaweiKeyPath !== undefined) setHuaweiKeyPath(String(data.huaweiKeyPath));
@@ -208,6 +214,8 @@ export default function SettingsPage() {
         enabledSources,
         redditClientId,
         redditClientSecret,
+        outputDir,
+        githubOrg,
         googlePlayKeyPath,
         appStoreKeyPath,
         huaweiKeyPath,
@@ -427,6 +435,26 @@ export default function SettingsPage() {
               </Field>
             </div>
           </div>
+        </div>
+      </Section>
+
+      {/* Output / GitHub config */}
+      <Section title={t("settings.output_config")} icon={GitBranch}>
+        <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+          <Field label={t("settings.output_dir")}>
+            <TextInput
+              value={outputDir}
+              onChange={setOutputDir}
+              placeholder="/path/to/output"
+            />
+          </Field>
+          <Field label={t("settings.github_org")}>
+            <TextInput
+              value={githubOrg}
+              onChange={setGithubOrg}
+              placeholder="zerogenerate"
+            />
+          </Field>
         </div>
       </Section>
 
