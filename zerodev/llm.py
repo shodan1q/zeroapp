@@ -10,6 +10,7 @@ to match the Anthropic SDK interface so all calling code works unchanged.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -111,16 +112,26 @@ class _LocalAsyncMessages:
             "messages": oai_messages,
         }
 
-        async with httpx.AsyncClient(timeout=300.0, proxy=None) as client:
-            resp = await client.post(self._url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=600.0, proxy=None) as client:
+                    resp = await client.post(self._url, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
 
-        text = data["choices"][0]["message"]["content"]
-        return _ShimResponse(
-            content=[_TextBlock(text=text)],
-            model=data.get("model", model),
-        )
+                text = data["choices"][0]["message"]["content"]
+                return _ShimResponse(
+                    content=[_TextBlock(text=text)],
+                    model=data.get("model", model),
+                )
+            except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.HTTPStatusError) as e:
+                if attempt == max_retries:
+                    raise
+                wait = 60
+                logger.warning("Claude proxy request failed (attempt %d/%d): %s. Retrying in %ds...", attempt, max_retries, e, wait)
+                await asyncio.sleep(wait)
+        raise RuntimeError("Unreachable")
 
 
 class _LocalClient:

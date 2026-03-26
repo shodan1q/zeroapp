@@ -70,7 +70,7 @@ export default function RevisePage() {
       </div>
 
       {/* Main form card */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+      <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl shadow-sm">
         <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("revise.submit_request")}</h2>
         </div>
@@ -91,7 +91,7 @@ export default function RevisePage() {
               <select
                 value={selectedApp}
                 onChange={(e) => setSelectedApp(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {apps.map((app) => (
                   <option key={app.id} value={app.path}>
@@ -108,7 +108,7 @@ export default function RevisePage() {
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-300">
                 {t("revise.project_path")}
               </label>
-              <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-gray-50 dark:bg-[#0a0e27] px-3 py-2 font-mono text-sm text-gray-500 dark:text-slate-400">
+              <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-gray-50/70 dark:bg-[#0a0e27]/60 backdrop-blur-xl px-3 py-2 font-mono text-sm text-gray-500 dark:text-slate-400">
                 {selectedAppInfo.path}
               </div>
             </div>
@@ -124,7 +124,7 @@ export default function RevisePage() {
               onChange={(e) => setInstruction(e.target.value)}
               placeholder={t("revise.instruction_placeholder")}
               rows={4}
-              className="w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -153,7 +153,7 @@ export default function RevisePage() {
 
       {/* Revision history */}
       {history.length > 0 && (
-        <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+        <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl shadow-sm">
           <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("revise.history")}</h2>
           </div>

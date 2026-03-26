@@ -7,6 +7,7 @@ import {
   Cpu, CheckCircle, Code, Hammer, FlaskConical, Rocket, Search,
   Languages, ArrowRight, Lock,
 } from "lucide-react";
+import { WaterFlow } from "@/components/WaterFlow";
 
 const STAGES = [
   { key: "login.stage_crawl", icon: Search },
@@ -230,16 +231,18 @@ export default function LoginPage() {
         }
       `}</style>
 
-      <div className={`page-bg min-h-screen relative overflow-hidden flex flex-row ${phase === "leaving" ? "page-leaving" : ""}`}>
+      <div className={`min-h-screen relative overflow-hidden flex flex-row ${phase === "leaving" ? "page-leaving" : ""}`}>
         {/* Flash overlay on leaving */}
         {phase === "leaving" && <div className="flash-overlay" />}
+        {/* Water flow animation as full background */}
+        <WaterFlow forceDark />
         {/* Grid background */}
-        <div className="grid-bg absolute inset-0 z-0" />
+        <div className="grid-bg absolute inset-0 z-[1]" />
         {/* Scan beam on entrance */}
         <div className="scan-beam" />
         {/* Radial glow */}
-        <div className="absolute inset-0 z-0 pointer-events-none"
-          style={{ background: "radial-gradient(circle at 40% 50%, rgba(59,130,246,0.07) 0%, transparent 50%)" }}
+        <div className="absolute inset-0 z-[1] pointer-events-none"
+          style={{ background: "radial-gradient(circle at 40% 50%, rgba(59,130,246,0.1) 0%, transparent 50%)" }}
         />
 
         {/* ── Brand / Content Section ── */}
@@ -251,7 +254,7 @@ export default function LoginPage() {
             }`}
               style={{ animation: "fadeInUp 0.6s ease-out both" }}
             >
-              ZeroDev Agent
+              湍流ZeroDev
             </h1>
 
             <p className="text-blue-200/70 font-medium mb-1"
@@ -397,7 +400,7 @@ export default function LoginPage() {
               </div>
 
               <p className="mt-6 text-center text-[9px] text-gray-700">
-                ZeroDev Agent v0.1
+                湍流ZeroDev v0.1
               </p>
             </div>
           )}

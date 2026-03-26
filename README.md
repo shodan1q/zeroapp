@@ -1,4 +1,4 @@
-# ZeroDev Agent
+# 湍流ZeroDev
 
 自动化 Flutter 应用工厂 -- 从互联网挖掘需求，AI 自动生成 Flutter 代码，三端构建（Android / iOS / HarmonyOS），自动上架应用商店。
 
@@ -139,26 +139,42 @@ zerodev pipeline         # 运行一次完整流水线
 |------|------|------|
 | `/ws` | WebSocket | 实时事件推送 |
 | `/api/dashboard` | GET | 概览统计数据 |
-| `/api/demands` | GET | 需求列表（分页、筛选） |
-| `/api/apps` | GET | 应用列表（分页、搜索） |
+| `/api/demands` | GET | 需求列表（分页、状态/来源筛选） |
+| `/api/demands/{id}` | GET | 需求详情 |
+| `/api/demands/{id}/approve` | POST | 审批需求 |
+| `/api/demands/{id}/reject` | POST | 驳回需求 |
+| `/api/apps` | GET | 应用列表（分页、搜索、状态筛选） |
+| `/api/apps/{id}` | GET | 应用详情 |
+| `/api/apps/{id}/rebuild` | POST | 重新构建 |
 | `/api/builds` | GET | 构建日志 |
-| `/api/stats` | GET | 统计数据 |
+| `/api/stats` | GET | 统计数据（收入、评分、日活） |
+| `/api/generated-apps` | GET | 已生成的 Flutter 项目列表 |
+| `/api/generated-apps/revise` | POST | AI 修改现有应用 |
+| `/api/settings` | GET | 获取系统设置 |
+| `/api/settings` | POST | 保存系统设置 |
 | `/api/pipeline/status/{thread_id}` | GET | 流水线状态 |
-| `/api/pipeline/trigger` | POST | 手动触发流水线 |
+| `/api/pipeline/trigger` | POST | 触发单次流水线 |
+| `/api/pipeline/start` | POST | 启动持续流水线 |
+| `/api/pipeline/stop` | POST | 停止持续流水线 |
+| `/api/pipeline/generate-custom` | POST | 自定义主题生成 App |
+| `/api/pipeline/runner-status` | GET | 流水线运行状态 |
+| `/api/pipeline/logs` | GET | 流水线日志 |
+| `/api/devices/status` | GET | 模拟器/真机状态 |
+| `/api/apps/run` | POST | 在设备上运行 App |
 
 后端默认端口：9716，前端默认端口：9717。
 
 ## Dashboard 使用
 
-Dashboard 是独立的 Next.js 15 前端应用，通过 API 代理连接 FastAPI 后端。
+Dashboard 是独立的 Next.js 15 前端应用，通过 API 连接 FastAPI 后端。采用全屏水流动画背景 + 毛玻璃卡片设计。
 
-功能包括：
-- 概览卡片（总应用数、已上架、开发中、今日需求等）
-- 流水线实时状态（WebSocket 驱动，动画指示当前阶段）
-- 需求队列管理
-- 构建日志（自动滚动）
-- 应用列表（含下载量、评分、收入）
-- 活动日志（实时滚动）
+功能模块：
+- **概览** -- 统计卡片、流水线控制（启动/停止/单次触发）、自定义生成、实时日志
+- **需求管理** -- 需求列表、状态/来源筛选、分页、审批/驳回、详情展开
+- **应用管理** -- 应用列表、搜索、设备运行（Android/iOS/HarmonyOS）、重构建
+- **修改完善** -- 选择已生成应用、输入修改指令、AI 自动修改代码并提交
+- **构建日志** -- 构建记录、状态筛选、展开输出/错误详情
+- **设置** -- Claude API 配置、流水线参数、数据源开关、发布密钥管理
 
 启动方式：
 ```bash
@@ -214,3 +230,36 @@ make build-ohos
 - records、patterns、sealed classes
 - `colorSchemeSeed` / `ColorScheme.fromSeed()`
 - Material Design 3（统一使用 `useMaterial3: false`）
+
+### 代码生成流水线
+
+采用两阶段生成架构：
+
+1. **蓝图阶段** -- 一次性生成所有文件的骨架（类定义、方法签名、import）
+2. **实现阶段** -- 逐文件生成完整实现，携带蓝图和已完成文件作为上下文
+
+### 自动修复管道
+
+生成后自动执行 12 项修复，确保代码编译通过：
+
+1. Markdown 围栏清理（处理前导文本等边缘情况）
+2. pubspec.yaml 验证与修复（版本、SDK 约束）
+3. Android AdMob 配置（AndroidManifest.xml）
+4. MobileAds 异步初始化修复
+5. iOS AdMob 配置（Info.plist）
+6. Dart 3.x `super.key` 转换为 Dart 2.19 `Key? key` 风格
+7. 缺失 import 自动检测（覆盖 40+ 常用库）
+8. Provider 类自动继承 ChangeNotifier
+9. CardTheme -> CardThemeData 类型修复
+10. Gradle core library desugaring
+11. 项目内部 import 自动解析（扫描类/枚举定义并补全 import）
+12. package 名称不匹配修复（pubspec name vs 目录名）
+
+修复后自动运行 `dart analyze`，如有剩余错误则调用 Claude 进行最多 3 轮修复。
+
+### LLM 容错机制
+
+Claude API 调用内置重试机制：
+- 超时（ReadTimeout）、连接超时、服务器 500 错误自动重试
+- 每次重试等待 60 秒
+- 最多 3 次重试

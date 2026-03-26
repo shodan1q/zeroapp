@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import datetime
+import json
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, cast, Date, func, select
@@ -631,6 +633,109 @@ async def revise_app(body: dict):
     reviser = AppReviser()
     result = await reviser.revise(app_dir, instruction)
     return result
+
+
+# ── Settings ──────────────────────────────────────────────────────
+
+
+SETTINGS_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "settings.json"
+
+_SENSITIVE_KEYWORDS = ("key", "secret", "password", "token")
+
+
+def _mask_value(value: str) -> str:
+    """Mask a sensitive string, showing only last 4 characters."""
+    if not value or len(value) <= 4:
+        return "****"
+    return "*" * (len(value) - 4) + value[-4:]
+
+
+def _is_sensitive(field_name: str) -> bool:
+    """Return True if the field name suggests a sensitive value."""
+    lower = field_name.lower()
+    return any(kw in lower for kw in _SENSITIVE_KEYWORDS)
+
+
+def _get_defaults() -> dict[str, Any]:
+    """Build default settings dict from config.py Settings class."""
+    from zerodev.config import get_settings
+
+    cfg = get_settings()
+    return {
+        "claudeMode": cfg.claude_mode,
+        "claudeApiKey": cfg.claude_api_key,
+        "claudeModel": cfg.claude_model,
+        "claudeBaseUrl": cfg.claude_base_url,
+        "crawlInterval": str(cfg.pipeline_crawl_interval_hours),
+        "maxConcurrent": str(cfg.pipeline_max_concurrent_builds),
+        "autoApproveThreshold": str(cfg.pipeline_auto_approve_threshold),
+        "maxRetries": str(cfg.pipeline_max_retries),
+        "retryDelay": str(cfg.pipeline_retry_backoff_base),
+        "enabledSources": {
+            "reddit": True,
+            "producthunt": True,
+            "twitter": False,
+            "hackernews": True,
+        },
+        "redditClientId": cfg.reddit_client_id,
+        "redditClientSecret": cfg.reddit_client_secret,
+        "googlePlayKeyPath": cfg.google_play_json_key_path,
+        "appStoreKeyPath": cfg.apple_api_key_path,
+        "huaweiKeyPath": "",
+    }
+
+
+def _load_settings_file() -> dict[str, Any]:
+    """Load settings from the JSON file, returning empty dict if missing."""
+    if SETTINGS_FILE.exists():
+        try:
+            return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to read settings file: %s", exc)
+    return {}
+
+
+def _save_settings_file(data: dict[str, Any]) -> None:
+    """Write settings dict to the JSON file."""
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SETTINGS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+@router.get("/settings")
+async def get_settings_api() -> dict[str, Any]:
+    """Return current settings (merge file + env defaults), with secrets masked."""
+    defaults = _get_defaults()
+    saved = _load_settings_file()
+    merged = {**defaults, **saved}
+
+    # Mask sensitive top-level string fields
+    masked = {}
+    for k, v in merged.items():
+        if isinstance(v, str) and _is_sensitive(k) and v:
+            masked[k] = _mask_value(v)
+        else:
+            masked[k] = v
+    return masked
+
+
+@router.post("/settings")
+async def save_settings_api(body: dict[str, Any]) -> MessageResponse:
+    """Save settings to data/settings.json."""
+    # Strip out masked values -- don't overwrite real secrets with mask strings
+    current = _load_settings_file()
+    cleaned: dict[str, Any] = {}
+    for k, v in body.items():
+        if isinstance(v, str) and v.startswith("*"):
+            # Keep existing value if the user didn't change a masked field
+            if k in current:
+                cleaned[k] = current[k]
+            # else: skip, don't store the mask
+        else:
+            cleaned[k] = v
+
+    _save_settings_file(cleaned)
+    logger.info("Settings saved to %s", SETTINGS_FILE)
+    return MessageResponse(message="Settings saved successfully.")
 
 
 @router.get("/generated-apps")

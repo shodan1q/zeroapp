@@ -9,7 +9,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from zerodev.config import get_settings
@@ -92,16 +92,10 @@ def create_app() -> FastAPI:
     if static_dir.is_dir():
         application.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-    # Root route serves the dashboard
-    @application.get("/", response_class=HTMLResponse)
-    async def serve_dashboard() -> HTMLResponse:
-        index_path = static_dir / "index.html"
-        if index_path.exists():
-            return HTMLResponse(content=index_path.read_text(encoding="utf-8"))
-        return HTMLResponse(
-            content="<h1>Dashboard not found</h1><p>static/index.html is missing.</p>",
-            status_code=404,
-        )
+    # Root route redirects to the Next.js dashboard
+    @application.get("/")
+    async def root_redirect() -> RedirectResponse:
+        return RedirectResponse(url="http://localhost:9717")
 
     return application
 

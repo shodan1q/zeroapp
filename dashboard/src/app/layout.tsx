@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ZeroDev Agent",
-  description: "Monitoring dashboard for the automated app development pipeline",
+  title: "湍流ZeroDev",
+  description: "自动化 Flutter 应用工厂 - 监控仪表盘",
 };
 
 export default function RootLayout({

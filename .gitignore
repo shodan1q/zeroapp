@@ -61,3 +61,13 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Claude Code settings (user-specific)
+.claude/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+dashboard/tsconfig.tsbuildinfo
+
+# Internal planning docs
+docs/superpowers/

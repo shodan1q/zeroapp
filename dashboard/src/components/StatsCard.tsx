@@ -24,7 +24,7 @@ export default function StatsCard({ title, value, icon: Icon, color, trend }: St
   const colors = colorMap[color];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+    <div className="bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl border border-white/40 dark:border-[#1e2756]/50 rounded-xl shadow-sm p-6">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <p className="text-sm text-gray-500 mb-1">{title}</p>

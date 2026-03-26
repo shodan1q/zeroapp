@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   Key,
@@ -14,6 +14,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { fetchSettings, saveSettings } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
 /*  Section wrapper                                                    */
@@ -29,7 +30,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+    <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl shadow-sm">
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
         <Icon className="h-5 w-5 text-gray-400" />
         <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{title}</h2>
@@ -80,7 +81,7 @@ function TextInput({
       onChange={(e) => onChange?.(e.target.value)}
       placeholder={placeholder}
       readOnly={readOnly}
-      className={`w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${readOnly ? "cursor-not-allowed bg-gray-50 dark:bg-[#0a0e27] text-gray-500 dark:text-slate-400" : ""}`}
+      className={`w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${readOnly ? "cursor-not-allowed bg-gray-50 dark:bg-[#0a0e27] text-gray-500 dark:text-slate-400" : ""}`}
     />
   );
 }
@@ -94,12 +95,12 @@ function MaskedField({ label, value }: { label: string; value: string }) {
   return (
     <Field label={label}>
       <div className="flex items-center gap-2">
-        <div className="flex-1 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-gray-50 dark:bg-[#0a0e27] px-3 py-2 font-mono text-sm text-gray-500 dark:text-slate-400">
+        <div className="flex-1 rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-gray-50/70 dark:bg-[#0a0e27]/60 backdrop-blur-xl px-3 py-2 font-mono text-sm text-gray-500 dark:text-slate-400">
           {visible ? value || t("settings.not_configured") : masked}
         </div>
         <button
           onClick={() => setVisible(!visible)}
-          className="rounded-md border border-gray-200 dark:border-[#1e2756] p-2 text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] hover:text-gray-600 dark:hover:text-gray-300"
+          className="rounded-md border border-white/40 dark:border-[#1e2756]/50 p-2 text-gray-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] hover:text-gray-600 dark:hover:text-gray-300"
         >
           {visible ? (
             <EyeOff className="h-4 w-4" />
@@ -150,15 +151,79 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load settings from backend on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchSettings();
+        if (cancelled || !data || Object.keys(data).length === 0) {
+          setLoading(false);
+          return;
+        }
+        if (data.claudeMode !== undefined) setClaudeMode(String(data.claudeMode));
+        if (data.claudeApiKey !== undefined) setClaudeApiKey(String(data.claudeApiKey));
+        if (data.claudeBaseUrl !== undefined) setClaudeBaseUrl(String(data.claudeBaseUrl));
+        if (data.claudeModel !== undefined) setClaudeModel(String(data.claudeModel));
+        if (data.crawlInterval !== undefined) setCrawlInterval(String(data.crawlInterval));
+        if (data.maxConcurrent !== undefined) setMaxConcurrent(String(data.maxConcurrent));
+        if (data.autoApproveThreshold !== undefined) setAutoApproveThreshold(String(data.autoApproveThreshold));
+        if (data.maxRetries !== undefined) setMaxRetries(String(data.maxRetries));
+        if (data.retryDelay !== undefined) setRetryDelay(String(data.retryDelay));
+        if (data.redditClientId !== undefined) setRedditClientId(String(data.redditClientId));
+        if (data.redditClientSecret !== undefined) setRedditClientSecret(String(data.redditClientSecret));
+        if (data.enabledSources && typeof data.enabledSources === "object") {
+          setEnabledSources(data.enabledSources as typeof enabledSources);
+        }
+        if (data.googlePlayKeyPath !== undefined) setGooglePlayKeyPath(String(data.googlePlayKeyPath));
+        if (data.appStoreKeyPath !== undefined) setAppStoreKeyPath(String(data.appStoreKeyPath));
+        if (data.huaweiKeyPath !== undefined) setHuaweiKeyPath(String(data.huaweiKeyPath));
+      } catch (err) {
+        console.warn("Failed to load settings:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
-    // Simulate save
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setError(null);
+    try {
+      const payload = {
+        claudeMode,
+        claudeApiKey,
+        claudeModel,
+        claudeBaseUrl,
+        crawlInterval,
+        maxConcurrent,
+        autoApproveThreshold,
+        maxRetries,
+        retryDelay,
+        enabledSources,
+        redditClientId,
+        redditClientSecret,
+        googlePlayKeyPath,
+        appStoreKeyPath,
+        huaweiKeyPath,
+      };
+      const result = await saveSettings(payload);
+      if (result) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        setError("Failed to save settings.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleSource = (key: string) => {
@@ -168,6 +233,14 @@ export default function SettingsPage() {
     }));
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-gray-500 dark:text-slate-400">Loading settings...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -176,14 +249,19 @@ export default function SettingsPage() {
           <Settings className="h-6 w-6 text-gray-500 dark:text-slate-400" />
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("settings.title")}</h1>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
-        >
-          <Save className="h-4 w-4" />
-          {saving ? t("settings.saving") : saved ? t("settings.saved") : t("settings.save")}
-        </button>
+        <div className="flex items-center gap-3">
+          {error && (
+            <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? t("settings.saving") : saved ? t("settings.saved") : t("settings.save")}
+          </button>
+        </div>
       </div>
 
       {/* Claude API */}
@@ -196,7 +274,7 @@ export default function SettingsPage() {
                 className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
                   claudeMode === "api"
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                    : "border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                    : "border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                 }`}
               >
                 <Server className="h-4 w-4" />
@@ -207,7 +285,7 @@ export default function SettingsPage() {
                 className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
                   claudeMode === "local"
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                    : "border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                    : "border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                 }`}
               >
                 <Monitor className="h-4 w-4" />
@@ -220,7 +298,7 @@ export default function SettingsPage() {
             <select
               value={claudeModel}
               onChange={(e) => setClaudeModel(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
               <option value="claude-opus-4-20250514">Claude Opus 4</option>
@@ -382,22 +460,10 @@ export default function SettingsPage() {
       {/* Current env display */}
       <Section title={t("settings.env_vars")} icon={Key}>
         <div className="space-y-3">
-          <MaskedField
-            label="CLAUDE_API_KEY"
-            value="sk-ant-api03-xxxxxxxxxxxxxxxxxxxx"
-          />
-          <MaskedField
-            label="REDDIT_CLIENT_SECRET"
-            value="xxxxxxxxxxxxxxxxxxxxxxxx"
-          />
-          <MaskedField
-            label="GOOGLE_PLAY_KEY"
-            value="/etc/secrets/gplay.json"
-          />
-          <MaskedField
-            label="APP_STORE_KEY"
-            value="/etc/secrets/appstore.p8"
-          />
+          <MaskedField label="CLAUDE_API_KEY" value={claudeApiKey} />
+          <MaskedField label="REDDIT_CLIENT_SECRET" value={redditClientSecret} />
+          <MaskedField label="GOOGLE_PLAY_KEY" value={googlePlayKeyPath} />
+          <MaskedField label="APP_STORE_KEY" value={appStoreKeyPath} />
         </div>
       </Section>
     </div>

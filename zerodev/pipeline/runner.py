@@ -196,28 +196,56 @@ async def _post_generation_cleanup(app_dir: Path, app_id: str, log_fn) -> None:
 
     await log_fn("正在执行生成后清理...", "stage_change")
 
-    # 1. Strip markdown fences from ALL generated files
+    # 1. Strip markdown fences and preamble prose from ALL generated files
     fixed_files = 0
     for f in app_dir.rglob("*.dart"):
         text = f.read_text(encoding="utf-8", errors="ignore")
         original = text
-        # Strip leading ```dart or ```
-        if text.lstrip().startswith("```"):
-            lines = text.lstrip().split("\n")
-            if lines[0].strip().startswith("```"):
+        # Strip leading ```dart or ``` (with possible preamble prose before it)
+        if "```" in text:
+            # Find first ``` block
+            fence_match = re.search(r'^```(?:dart|yaml|xml|json|arb)?\s*\n', text, re.MULTILINE)
+            if fence_match:
+                text = text[fence_match.end():]
+            # Strip trailing ```
+            text = re.sub(r'\n```\s*$', '', text.rstrip())
+            # Handle multiple fence blocks - strip any remaining
+            while text.lstrip().startswith("```"):
+                lines = text.lstrip().split("\n")
                 lines = lines[1:]
-            text = "\n".join(lines)
-        # Strip trailing ```
-        if text.rstrip().endswith("```"):
-            lines = text.rstrip().split("\n")
-            while lines and lines[-1].strip() == "```":
+                text = "\n".join(lines)
+            while text.rstrip().endswith("```"):
+                lines = text.rstrip().split("\n")
                 lines.pop()
-            text = "\n".join(lines)
+                text = "\n".join(lines)
+        # If file starts with prose (not import/class/library/part/typedef/enum/mixin/extension/void/final/const)
+        lines = text.split("\n")
+        code_start = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("//") or stripped.startswith("/*"):
+                continue
+            if any(stripped.startswith(kw) for kw in ("import ", "library ", "part ", "export ",
+                                                       "class ", "enum ", "mixin ", "extension ",
+                                                       "typedef ", "void ", "final ", "const ",
+                                                       "abstract ", "Future", "int ", "double ",
+                                                       "String ", "bool ", "List", "Map", "Set",
+                                                       "/// ", "/** ")):
+                code_start = i
+                break
+            elif i < 5 and not any(c in stripped for c in (";", "{", "}", "(", ")", "=")):
+                # Likely prose line at top, skip it
+                continue
+            else:
+                code_start = i
+                break
+        if code_start > 0:
+            text = "\n".join(lines[code_start:])
         if text != original:
-            f.write_text(text + "\n", encoding="utf-8")
+            f.write_text(text.rstrip() + "\n", encoding="utf-8")
             fixed_files += 1
     if fixed_files:
-        await log_fn(f"  清理了 {fixed_files} 个文件的 markdown 围栏", "info")
+        await log_fn(f"  清理了 {fixed_files} 个文件的 markdown 围栏/前导文本", "info")
 
     # 2. Validate and fix pubspec.yaml
     pubspec_path = app_dir / "pubspec.yaml"
@@ -297,7 +325,160 @@ async def _post_generation_cleanup(app_dir: Path, app_id: str, log_fn) -> None:
             main_path.write_text(main_text, encoding="utf-8")
             await log_fn("  main.dart: MobileAds.init 改为 async", "info")
 
-    # 5. Ensure Gradle has core library desugaring
+    # 5. iOS AdMob plist config
+    ios_plist = app_dir / "ios" / "Runner" / "Info.plist"
+    if ios_plist.exists():
+        plist_text = ios_plist.read_text(encoding="utf-8")
+        if "GADApplicationIdentifier" not in plist_text:
+            plist_text = plist_text.replace(
+                "</dict>\n</plist>",
+                "\t<key>GADApplicationIdentifier</key>\n"
+                "\t<string>ca-app-pub-3940256099942544~1458002511</string>\n"
+                "</dict>\n</plist>",
+            )
+            ios_plist.write_text(plist_text, encoding="utf-8")
+            await log_fn("  iOS Info.plist 已添加 AdMob 测试 ID", "info")
+
+    # 6. Convert Dart 3.x super.key to Dart 2.19 Key? key style
+    super_key_fixed = 0
+    for f in app_dir.rglob("*.dart"):
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        original = text
+        # Pattern: ({super.key}) or ({super.key, ...}) -> ({Key? key, ...}) and add : super(key: key)
+        text = re.sub(
+            r'\(\{super\.key\}(\))',
+            r'({Key? key})',
+            text,
+        )
+        text = re.sub(
+            r'\(\{super\.key,\s*',
+            '({Key? key, ',
+            text,
+        )
+        # Add : super(key: key) to constructors that have Key? key but missing super(key: key)
+        if 'Key? key' in text and 'super(key: key)' not in text and 'super.key' not in text:
+            # Add super(key: key) after closing paren of constructor params, before semicolon or body
+            text = re.sub(
+                r'(Key\? key[^)]*\}?\))\s*;',
+                r'\1 : super(key: key);',
+                text,
+            )
+        if text != original:
+            f.write_text(text, encoding="utf-8")
+            super_key_fixed += 1
+    if super_key_fixed:
+        await log_fn(f"  修复了 {super_key_fixed} 个文件的 super.key -> Key? key", "info")
+
+    # 7. Auto-detect and add missing common imports
+    import_map = {
+        "jsonEncode": "dart:convert",
+        "jsonDecode": "dart:convert",
+        "json.encode": "dart:convert",
+        "json.decode": "dart:convert",
+        "utf8": "dart:convert",
+        "sin(": "dart:math",
+        "cos(": "dart:math",
+        "sqrt(": "dart:math",
+        "Random(": "dart:math",
+        "pi,": "dart:math",
+        " pi;": "dart:math",
+        " pi)": "dart:math",
+        "max(": "dart:math",
+        "min(": "dart:math",
+        "Platform.is": "dart:io",
+        "File(": "dart:io",
+        "Directory(": "dart:io",
+        "Timer(": "dart:async",
+        "Timer.periodic": "dart:async",
+        "StreamController": "dart:async",
+        "ChangeNotifier": "package:flutter/foundation.dart",
+        "notifyListeners": "package:flutter/foundation.dart",
+        "GlobalKey": "package:flutter/material.dart",
+        "NavigatorState": "package:flutter/material.dart",
+        "Widget ": "package:flutter/material.dart",
+        "BuildContext": "package:flutter/material.dart",
+        "StatelessWidget": "package:flutter/material.dart",
+        "StatefulWidget": "package:flutter/material.dart",
+        "State<": "package:flutter/material.dart",
+        "MaterialApp": "package:flutter/material.dart",
+        "Scaffold": "package:flutter/material.dart",
+        "ThemeData": "package:flutter/material.dart",
+        "Color(": "package:flutter/material.dart",
+        "Colors.": "package:flutter/material.dart",
+        "Icons.": "package:flutter/material.dart",
+        "EdgeInsets": "package:flutter/material.dart",
+        "Navigator.": "package:flutter/material.dart",
+        "SharedPreferences": "package:shared_preferences/shared_preferences.dart",
+        "Database ": "package:sqflite/sqflite.dart",
+        "openDatabase": "package:sqflite/sqflite.dart",
+        "getDatabasesPath": "package:sqflite/sqflite.dart",
+        "ConflictAlgorithm": "package:sqflite/sqflite.dart",
+        "AudioPlayer": "package:audioplayers/audioplayers.dart",
+        "AssetSource": "package:audioplayers/audioplayers.dart",
+    }
+    import_fixed = 0
+    for f in app_dir.rglob("*.dart"):
+        if "test/" in str(f):
+            continue
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        original = text
+        needed_imports: set[str] = set()
+        for usage, lib in import_map.items():
+            if usage in text and f"import '{lib}'" not in text and f'import "{lib}"' not in text:
+                # Special case: flutter/foundation.dart is covered by flutter/material.dart
+                if lib == "package:flutter/foundation.dart" and ("import 'package:flutter/material.dart'" in text or 'import "package:flutter/material.dart"' in text):
+                    continue
+                needed_imports.add(lib)
+        if needed_imports:
+            import_lines = "\n".join(f"import '{lib}';" for lib in sorted(needed_imports))
+            # Insert after existing imports or at top
+            if "import " in text:
+                last_import_idx = text.rfind("import ")
+                end_of_line = text.index("\n", last_import_idx)
+                text = text[:end_of_line + 1] + import_lines + "\n" + text[end_of_line + 1:]
+            else:
+                text = import_lines + "\n\n" + text
+            f.write_text(text, encoding="utf-8")
+            import_fixed += 1
+    if import_fixed:
+        await log_fn(f"  自动添加了 {import_fixed} 个文件的缺失 import", "info")
+
+    # 8. Ensure providers extend ChangeNotifier when used with ChangeNotifierProvider
+    providers_dir = app_dir / "lib" / "providers"
+    if providers_dir.exists():
+        provider_fixed = 0
+        for f in providers_dir.rglob("*.dart"):
+            text = f.read_text(encoding="utf-8", errors="ignore")
+            original = text
+            # Find classes that don't extend ChangeNotifier but should
+            text = re.sub(
+                r'class (\w+Provider)\s*\{',
+                r'class \1 extends ChangeNotifier {',
+                text,
+            )
+            # Avoid double extends
+            text = re.sub(
+                r'class (\w+Provider) extends ChangeNotifier extends ChangeNotifier',
+                r'class \1 extends ChangeNotifier',
+                text,
+            )
+            if text != original:
+                # Ensure foundation import
+                if "import 'package:flutter/foundation.dart'" not in text and "import 'package:flutter/material.dart'" not in text:
+                    text = "import 'package:flutter/foundation.dart';\n" + text
+                f.write_text(text, encoding="utf-8")
+                provider_fixed += 1
+        if provider_fixed:
+            await log_fn(f"  修复了 {provider_fixed} 个 Provider 类 (添加 extends ChangeNotifier)", "info")
+
+    # 9. Fix CardTheme -> CardThemeData (Flutter 3.7+ uses CardThemeData in ThemeData)
+    for f in app_dir.rglob("*.dart"):
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        if "CardTheme(" in text and "CardThemeData(" not in text and "cardTheme:" in text:
+            text = text.replace("CardTheme(", "CardThemeData(")
+            f.write_text(text, encoding="utf-8")
+
+    # 10. Ensure Gradle has core library desugaring
     gradle_path = app_dir / "android" / "app" / "build.gradle.kts"
     if gradle_path.exists():
         gradle = gradle_path.read_text(encoding="utf-8")
@@ -313,6 +494,77 @@ async def _post_generation_cleanup(app_dir: Path, app_id: str, log_fn) -> None:
                 )
             gradle_path.write_text(gradle, encoding="utf-8")
             await log_fn("  Gradle: 已启用 core library desugaring", "info")
+
+    # 11. Auto-resolve missing internal project imports
+    # Build index: class/enum/mixin name -> file path
+    # Use the pubspec.yaml name as the package name (not the directory name)
+    pubspec_path = app_dir / "pubspec.yaml"
+    pkg_name = app_dir.name
+    if pubspec_path.exists():
+        for line in pubspec_path.read_text(encoding="utf-8").split("\n"):
+            if line.startswith("name:"):
+                pkg_name = line.split(":", 1)[1].strip().strip("'\"")
+                break
+    type_index: dict[str, str] = {}
+    for f in (app_dir / "lib").rglob("*.dart"):
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        rel = str(f.relative_to(app_dir / "lib"))
+        for m in re.finditer(r'^(?:class|enum|mixin|typedef|extension)\s+(\w+)', text, re.MULTILINE):
+            type_index[m.group(1)] = f"package:{pkg_name}/{rel}"
+
+    internal_fixed = 0
+    for f in (app_dir / "lib").rglob("*.dart"):
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        original = text
+        # Find all type references that look like ClassName usage
+        used_types = set(re.findall(r'\b([A-Z]\w+)\b', text))
+        # Find types defined in this file
+        defined_here = set(re.findall(r'^(?:class|enum|mixin|typedef|extension)\s+(\w+)', text, re.MULTILINE))
+        # Find types already imported
+        imported = set()
+        for imp_line in re.findall(r"^import\s+'([^']+)'", text, re.MULTILINE):
+            for name, path in type_index.items():
+                if imp_line == path:
+                    imported.add(name)
+
+        missing_imports: set[str] = set()
+        for t in used_types:
+            if t in defined_here or t in imported:
+                continue
+            if t in type_index:
+                imp = type_index[t]
+                # Don't self-import
+                rel_self = str(f.relative_to(app_dir / "lib"))
+                if imp != f"package:{pkg_name}/{rel_self}" and f"import '{imp}'" not in text:
+                    missing_imports.add(imp)
+
+        if missing_imports:
+            import_lines = "\n".join(f"import '{p}';" for p in sorted(missing_imports))
+            # Insert after last import line
+            if "import " in text:
+                last_idx = text.rfind("import ")
+                end_of_line = text.index("\n", last_idx)
+                text = text[:end_of_line + 1] + import_lines + "\n" + text[end_of_line + 1:]
+            else:
+                text = import_lines + "\n\n" + text
+            f.write_text(text, encoding="utf-8")
+            internal_fixed += 1
+    if internal_fixed:
+        await log_fn(f"  自动添加了 {internal_fixed} 个文件的项目内部 import", "info")
+
+    # 12. Fix package name mismatches in imports (dir name vs pubspec name)
+    if pubspec_path.exists():
+        dir_name = app_dir.name
+        if dir_name != pkg_name:
+            pkg_name_fixed = 0
+            for f in (app_dir / "lib").rglob("*.dart"):
+                text = f.read_text(encoding="utf-8", errors="ignore")
+                if f"package:{dir_name}/" in text:
+                    text = text.replace(f"package:{dir_name}/", f"package:{pkg_name}/")
+                    f.write_text(text, encoding="utf-8")
+                    pkg_name_fixed += 1
+            if pkg_name_fixed:
+                await log_fn(f"  修复了 {pkg_name_fixed} 个文件的 package 名称 ({dir_name} -> {pkg_name})", "info")
 
     await log_fn("生成后清理完成", "stage_change")
 
@@ -1630,11 +1882,26 @@ class PipelineRunner:
         primary_color = color_palette.get("primary", "#3F51B5")
 
         dart_rules = (
-            "DART VERSION RULES (CRITICAL):\n"
-            "- Target Dart 3.x / Flutter 3.7+\n"
-            "- NO records, patterns, sealed classes, class modifiers\n"
-            "- useMaterial3: false\n"
-            "- NO emoji characters anywhere\n"
+            "DART VERSION RULES (CRITICAL - MUST FOLLOW):\n"
+            "- Target Dart 2.19 / Flutter 3.7+. FORBIDDEN: super parameters, records, patterns, sealed classes, class modifiers\n"
+            "- Constructor style: use `Key? key` named param with `: super(key: key)`. NEVER use `super.key`\n"
+            "- useMaterial3: false. NEVER use colorSchemeSeed / ColorScheme.fromSeed()\n"
+            "- Use CardThemeData (not CardTheme) inside ThemeData\n"
+            "- NO emoji characters anywhere in code or strings\n\n"
+            "IMPORT RULES (CRITICAL):\n"
+            "- Every file MUST start with all needed imports. NEVER assume implicit imports.\n"
+            "- Always import 'package:flutter/material.dart' in widget files\n"
+            "- Always import 'package:flutter/foundation.dart' or 'package:flutter/material.dart' when using ChangeNotifier\n"
+            "- Always import 'dart:convert' when using jsonEncode/jsonDecode\n"
+            "- Always import 'dart:math' when using Random, sin, cos, pi, min, max\n"
+            "- Always import 'dart:async' when using Timer, StreamController\n"
+            "- Always import 'package:sqflite/sqflite.dart' when using Database, openDatabase\n"
+            "- Always import 'package:audioplayers/audioplayers.dart' when using AudioPlayer\n\n"
+            "CLASS DEFINITION RULES (CRITICAL):\n"
+            "- Every enum, class, or typedef referenced MUST be defined somewhere in the project\n"
+            "- State management classes used with ChangeNotifierProvider MUST extend ChangeNotifier and call notifyListeners() on state changes\n"
+            "- If a model file references an enum, define the enum IN THAT SAME FILE or import it\n"
+            "- NEVER reference a type that is not imported or defined in the current file\n"
         )
 
         # ── Phase 1: Blueprint (all file skeletons in one call) ──────
@@ -1651,26 +1918,27 @@ class PipelineRunner:
             f"- {e['path']}: {e['purpose']}" for e in file_plan
         )
 
+        blueprint_user = (
+            f"App: {app_name}\nDescription: {idea['description']}\n\n"
+            f"PRD:\n{prd[:2000]}\n\n"
+            f"Color palette: primary={primary_color}, "
+            f"secondary={color_palette.get('secondary', '#FF5722')}, "
+            f"accent={color_palette.get('accent', '#FFC107')}\n\n"
+            f"Files to generate:\n{file_list_text}\n\n"
+            "For each file, generate the SKELETON: all imports, class definitions, "
+            "method signatures, constructor parameters, and type annotations. "
+            "Method bodies should contain minimal placeholder logic (return null, "
+            "return Container(), etc.) -- just enough that the project compiles.\n\n"
+            "pubspec.yaml MUST use: sdk: '>=3.0.0 <4.0.0'\n\n"
+            "Start your response immediately with ===FILE: pubspec.yaml=== "
+            "followed by the actual YAML content. Do NOT describe what you are doing."
+        )
         blueprint_resp = await client.messages.create(
             model=settings.claude_model,
             max_tokens=16384,
             system=blueprint_system,
             messages=[
-                {"role": "user", "content": (
-                    f"App: {app_name}\nDescription: {idea['description']}\n\n"
-                    f"PRD:\n{prd[:2000]}\n\n"
-                    f"Color palette: primary={primary_color}, "
-                    f"secondary={color_palette.get('secondary', '#FF5722')}, "
-                    f"accent={color_palette.get('accent', '#FFC107')}\n\n"
-                    f"Files to generate:\n{file_list_text}\n\n"
-                    "For each file, generate the SKELETON: all imports, class definitions, "
-                    "method signatures, constructor parameters, and type annotations. "
-                    "Method bodies should contain minimal placeholder logic (return null, "
-                    "return Container(), etc.) -- just enough that the project compiles.\n\n"
-                    "pubspec.yaml MUST use: sdk: '>=3.0.0 <4.0.0'\n\n"
-                    "Start your response immediately with ===FILE: pubspec.yaml=== "
-                    "followed by the actual YAML content. Do NOT describe what you are doing."
-                )},
+                {"role": "user", "content": blueprint_user},
                 {"role": "assistant", "content": "===FILE: pubspec.yaml===\n"},
             ],
         )

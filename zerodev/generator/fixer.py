@@ -42,7 +42,9 @@ Rules:
   - Fix all reported errors while preserving functionality.
   - Do not remove features or replace code with TODOs.
   - Ensure all imports are correct package imports (not relative).
-  - Maintain Flutter 3.22+ / Dart 3.4+ compatibility.
+  - Target Dart 2.19 / Flutter 3.7+. Do NOT use super parameters, records, patterns, or sealed classes.
+  - Constructors must use `Key? key` named parameter style with `: super(key: key)`.
+  - Use Material Design 2 (useMaterial3: false). Do NOT use colorSchemeSeed / ColorScheme.fromSeed().
 """
 
 BUILD_FIX_PROMPT = """\
@@ -58,6 +60,10 @@ Current code:
 ```
 
 Return ONLY the corrected Dart code, no markdown fences or explanations.
+
+Rules:
+  - Target Dart 2.19 / Flutter 3.7+. Do NOT use super parameters, records, patterns, or sealed classes.
+  - Constructors must use `Key? key` named parameter style with `: super(key: key)`.
 """
 
 

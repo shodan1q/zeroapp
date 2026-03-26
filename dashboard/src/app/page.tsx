@@ -51,7 +51,7 @@ import { useI18n } from "@/lib/i18n";
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm">
+    <div className="animate-pulse rounded-lg border border-white/30 dark:border-[#1e2756]/50 backdrop-blur-xl bg-white/60 dark:bg-[#111738]/60 p-5 shadow-sm">
       <div className="mb-3 h-4 w-24 rounded bg-gray-200 dark:bg-[#161d45]" />
       <div className="h-8 w-16 rounded bg-gray-200 dark:bg-[#161d45]" />
     </div>
@@ -502,16 +502,20 @@ export default function OverviewPage() {
     },
   ];
 
+  /* ---------- Glass card style --------------------------------- */
+  const glass = "backdrop-blur-xl bg-white/70 dark:bg-[#111738]/60 border-white/40 dark:border-[#1e2756]/50";
+
   /* ---------- Render -------------------------------------------- */
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
+      <div className="relative z-10 space-y-6">
       {/* Page title */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("overview.title")}</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200 drop-shadow-sm">{t("overview.title")}</h1>
         <button
           onClick={loadData}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-1.5 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
+          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-white/80 dark:hover:bg-[#161d45]/80 ${glass}`}
         >
           <RefreshCw className="h-4 w-4" />
           {t("overview.refresh")}
@@ -535,7 +539,7 @@ export default function OverviewPage() {
               return (
                 <div
                   key={card.labelKey}
-                  className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm"
+                  className={`rounded-lg border p-5 shadow-sm ${glass}`}
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -556,7 +560,7 @@ export default function OverviewPage() {
       </div>
 
       {/* B) Compact pipeline status indicator */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-5 py-3 shadow-sm">
+      <div className={`rounded-lg border px-5 py-3 shadow-sm ${glass}`}>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             {runnerStatus.running ? (
@@ -582,7 +586,7 @@ export default function OverviewPage() {
       </div>
 
       {/* C) Custom generation card */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-6 shadow-sm">
+      <div className={`rounded-lg border p-6 shadow-sm ${glass}`}>
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="h-5 w-5 text-indigo-500" />
           <h2 className="text-base font-semibold text-gray-900 dark:text-slate-200">{t("overview.custom_gen")}</h2>
@@ -624,7 +628,7 @@ export default function OverviewPage() {
       </div>
 
       {/* D) Pipeline control panel (merged from pipeline page) */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-6 shadow-sm">
+      <div className={`rounded-lg border p-6 shadow-sm ${glass}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -709,7 +713,7 @@ export default function OverviewPage() {
       </div>
 
       {/* E) Thread search */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm">
+      <div className={`rounded-lg border p-5 shadow-sm ${glass}`}>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
           {t("overview.query_pipeline")}
         </label>
@@ -741,7 +745,7 @@ export default function OverviewPage() {
       </div>
 
       {/* F) Pipeline stage visualization */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-6 shadow-sm">
+      <div className={`rounded-lg border p-6 shadow-sm ${glass}`}>
         <h2 className="mb-5 text-sm font-semibold text-gray-700 dark:text-slate-300">
           {t("overview.pipeline_stages")}
           {pipelineStatus && (
@@ -827,7 +831,7 @@ export default function OverviewPage() {
       </div>
 
       {/* G) Pipeline logs */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+      <div className={`rounded-lg border shadow-sm ${glass}`}>
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
           <Activity className="h-4 w-4 text-gray-400" />
           <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.pipeline_logs")}</h2>
@@ -884,7 +888,7 @@ export default function OverviewPage() {
       {/* H) Two-column tables */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent demands */}
-        <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+        <div className={`rounded-lg border shadow-sm ${glass}`}>
           <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.recent_demands")}</h2>
           </div>
@@ -937,7 +941,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Recent builds */}
-        <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+        <div className={`rounded-lg border shadow-sm ${glass}`}>
           <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.recent_builds")}</h2>
           </div>
@@ -988,6 +992,7 @@ export default function OverviewPage() {
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

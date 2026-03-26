@@ -38,7 +38,7 @@ export default function ActivityLog({ events, maxLines = 100 }: ActivityLogProps
   return (
     <div
       ref={containerRef}
-      className="bg-gray-50 border border-gray-200 rounded-xl overflow-y-auto max-h-64 p-3"
+      className="bg-gray-50/70 dark:bg-[#0a0e27]/60 backdrop-blur-xl border border-white/40 dark:border-[#1e2756]/50 rounded-xl overflow-y-auto max-h-64 p-3"
     >
       {visibleEvents.length === 0 && (
         <p className="text-sm text-gray-400 text-center py-4">暂无日志</p>

@@ -4,7 +4,7 @@ export function SkeletonCard({ className }: { className?: string }) {
   return (
     <div
       className={clsx(
-        'bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-4',
+        'bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl border border-white/40 dark:border-[#1e2756]/50 rounded-xl shadow-sm p-6 space-y-4',
         className
       )}
     >

@@ -117,6 +117,7 @@ export default function DemandsPage() {
         page,
         page_size: 20,
         status: statusFilter || undefined,
+        source: sourceFilter || undefined,
       });
       setData(res);
     } catch (err) {
@@ -124,7 +125,7 @@ export default function DemandsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, sourceFilter]);
 
   useEffect(() => {
     loadData();
@@ -199,7 +200,7 @@ export default function DemandsPage() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -214,7 +215,7 @@ export default function DemandsPage() {
               setSourceFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             {SOURCE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -226,7 +227,7 @@ export default function DemandsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] shadow-sm">
+      <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -361,25 +362,25 @@ export default function DemandsPage() {
                               <div className="space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
                                   {detail.complexity && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                    <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-3">
                                       <p className="text-xs text-gray-500 dark:text-slate-400">复杂度 / Complexity</p>
                                       <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.complexity}</p>
                                     </div>
                                   )}
                                   {detail.monetization && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                    <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-3">
                                       <p className="text-xs text-gray-500 dark:text-slate-400">变现方式 / Monetization</p>
                                       <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.monetization}</p>
                                     </div>
                                   )}
                                   {detail.competition_score !== null && detail.competition_score !== undefined && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                    <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-3">
                                       <p className="text-xs text-gray-500 dark:text-slate-400">竞争度 / Competition</p>
                                       <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.competition_score.toFixed(2)}</p>
                                     </div>
                                   )}
                                   {detail.feasibility_score !== null && detail.feasibility_score !== undefined && (
-                                    <div className="rounded-lg border border-gray-100 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-3">
+                                    <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-3">
                                       <p className="text-xs text-gray-500 dark:text-slate-400">可行性 / Feasibility</p>
                                       <p className="mt-1 font-semibold text-gray-800 dark:text-slate-200">{detail.feasibility_score.toFixed(2)}</p>
                                     </div>
@@ -433,7 +434,7 @@ export default function DemandsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
+                className="rounded-md border border-white/40 dark:border-[#1e2756]/50 p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -446,7 +447,7 @@ export default function DemandsPage() {
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       page === pageNum
                         ? "bg-blue-600 text-white"
-                        : "border border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                        : "border border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                     }`}
                   >
                     {pageNum}
@@ -456,7 +457,7 @@ export default function DemandsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
+                className="rounded-md border border-white/40 dark:border-[#1e2756]/50 p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

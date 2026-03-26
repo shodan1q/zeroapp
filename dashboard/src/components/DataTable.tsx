@@ -38,11 +38,11 @@ export default function DataTable<T extends Record<string, any>>({
     : 0;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl border border-white/40 dark:border-[#1e2756]/50 rounded-xl shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="bg-gray-50">
+            <tr className="bg-gray-50/50 dark:bg-[#0a0e27]/40">
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -100,7 +100,7 @@ export default function DataTable<T extends Record<string, any>>({
 
       {/* Pagination */}
       {pagination && totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-white/40 dark:border-[#1e2756]/50">
           <span className="text-sm text-gray-500">
             共 {pagination.total} 条
           </span>
@@ -109,7 +109,7 @@ export default function DataTable<T extends Record<string, any>>({
               onClick={() => pagination.onChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
               className={clsx(
-                'p-1.5 rounded-md border border-gray-200 transition-colors',
+                'p-1.5 rounded-md border border-white/40 dark:border-[#1e2756]/50 transition-colors',
                 pagination.page <= 1
                   ? 'text-gray-300 cursor-not-allowed'
                   : 'text-gray-600 hover:bg-gray-50'
@@ -143,7 +143,7 @@ export default function DataTable<T extends Record<string, any>>({
                       'w-8 h-8 text-sm rounded-md border transition-colors',
                       item === pagination.page
                         ? 'bg-gray-900 text-white border-gray-900'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : 'border-white/40 dark:border-[#1e2756]/50 text-gray-600 hover:bg-gray-50'
                     )}
                   >
                     {item}
@@ -154,7 +154,7 @@ export default function DataTable<T extends Record<string, any>>({
               onClick={() => pagination.onChange(pagination.page + 1)}
               disabled={pagination.page >= totalPages}
               className={clsx(
-                'p-1.5 rounded-md border border-gray-200 transition-colors',
+                'p-1.5 rounded-md border border-white/40 dark:border-[#1e2756]/50 transition-colors',
                 pagination.page >= totalPages
                   ? 'text-gray-300 cursor-not-allowed'
                   : 'text-gray-600 hover:bg-gray-50'

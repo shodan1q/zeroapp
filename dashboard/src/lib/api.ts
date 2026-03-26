@@ -80,6 +80,7 @@ export async function fetchDemands(params?: {
   page?: number;
   page_size?: number;
   status?: string;
+  source?: string;
 }): Promise<PaginatedResponse<DemandOut>> {
   const res = await request<PaginatedResponse<DemandOut>>(`/demands${qs(params ?? {})}`);
   return res ?? { items: [], total: 0, page: 1, page_size: 20 };
@@ -238,4 +239,19 @@ export async function generateConcurrentApp(theme: string): Promise<{status: str
   return (await request<{status: string; message: string; run_id?: string; concurrent_count?: number}>("/pipeline/generate-concurrent", {
     method: "POST", body: JSON.stringify({ theme }),
   })) ?? { status: "error", message: "Request failed" };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Settings                                                           */
+/* ------------------------------------------------------------------ */
+
+export async function fetchSettings(): Promise<Record<string, unknown>> {
+  return (await request<Record<string, unknown>>("/settings")) ?? {};
+}
+
+export async function saveSettings(settings: Record<string, unknown>): Promise<MessageResponse | null> {
+  return request<MessageResponse>("/settings", {
+    method: "POST",
+    body: JSON.stringify(settings),
+  });
 }

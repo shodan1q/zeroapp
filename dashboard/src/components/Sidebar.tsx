@@ -58,7 +58,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   return (
     <aside
       className={clsx(
-        "flex h-full flex-col border-r border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] transition-all duration-300 ease-in-out",
+        "flex h-full flex-col border-r border-blue-300/40 dark:border-[#1e2756]/50 bg-blue-100/90 dark:bg-[#111738]/70 backdrop-blur-xl transition-all duration-300 ease-in-out",
         collapsed ? "w-16" : "w-64",
       )}
     >
@@ -72,7 +72,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
               collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
             )}
           >
-            ZeroDev
+            湍流ZeroDev
           </span>
         </div>
         <button

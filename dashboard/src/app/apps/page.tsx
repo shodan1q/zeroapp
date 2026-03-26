@@ -59,7 +59,7 @@ function statusBadge(status: string, t: (key: string) => string) {
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm">
+    <div className="animate-pulse rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-3">
         <div className="h-12 w-12 rounded-lg bg-gray-200 dark:bg-[#161d45]" />
         <div className="flex-1 space-y-2">
@@ -243,7 +243,7 @@ export default function AppsPage() {
               placeholder={t("apps.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-slate-200 shadow-sm placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-slate-200 shadow-sm placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -254,7 +254,7 @@ export default function AppsPage() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">{t("apps.all_status")}</option>
             <option value="draft">{t("status.draft")}</option>
@@ -267,7 +267,7 @@ export default function AppsPage() {
 
           <button
             onClick={loadData}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-3 py-2 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
+            className="flex items-center gap-1.5 rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
           >
             <RefreshCw className="h-4 w-4" />
             {t("overview.refresh")}
@@ -293,7 +293,7 @@ export default function AppsPage() {
               : filteredGenApps.map((app) => (
                   <div
                     key={app.id}
-                    className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     {/* App header */}
                     <div className="mb-4 flex items-start gap-3">
@@ -372,7 +372,7 @@ export default function AppsPage() {
                       <div className="flex items-center gap-2">
                         <Link
                           href="/revise"
-                          className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#1e2756] px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                          className="flex items-center gap-1 rounded-md border border-white/40 dark:border-[#1e2756]/50 px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                         >
                           <Wrench className="h-3 w-3" />
                           {t("apps.revise")}
@@ -403,7 +403,7 @@ export default function AppsPage() {
               : filteredDbItems.map((app) => (
                   <div
                     key={app.app_id}
-                    className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     {/* App header */}
                     <div className="mb-4 flex items-start gap-3">
@@ -463,7 +463,7 @@ export default function AppsPage() {
                         <button
                           onClick={() => handleRebuild(app.app_id)}
                           disabled={rebuildingId === app.app_id}
-                          className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#1e2756] px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md border border-white/40 dark:border-[#1e2756]/50 px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
                         >
                           <RefreshCw
                             className={`h-3 w-3 ${rebuildingId === app.app_id ? "animate-spin" : ""}`}
@@ -475,7 +475,7 @@ export default function AppsPage() {
                             href={app.google_play_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 rounded-md border border-gray-200 dark:border-[#1e2756] px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                            className="flex items-center gap-1 rounded-md border border-white/40 dark:border-[#1e2756]/50 px-2 py-1 text-xs text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
                           >
                             <ExternalLink className="h-3 w-3" />
                             {t("apps.view_details")}
@@ -491,7 +491,7 @@ export default function AppsPage() {
 
       {/* Empty state */}
       {!loading && !hasAnyData && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] py-16 shadow-sm">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl py-16 shadow-sm">
           <Smartphone className="mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
           <p className="text-sm text-gray-400 dark:text-slate-500">{t("common.no_data")}</p>
           <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">
@@ -510,7 +510,7 @@ export default function AppsPage() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
+              className="rounded-md border border-white/40 dark:border-[#1e2756]/50 p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -523,7 +523,7 @@ export default function AppsPage() {
                   className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                     page === pageNum
                       ? "bg-blue-600 text-white"
-                      : "border border-gray-200 dark:border-[#1e2756] text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                      : "border border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
                   }`}
                 >
                   {pageNum}
@@ -533,7 +533,7 @@ export default function AppsPage() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="rounded-md border border-gray-200 dark:border-[#1e2756] p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
+              className="rounded-md border border-white/40 dark:border-[#1e2756]/50 p-1.5 text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

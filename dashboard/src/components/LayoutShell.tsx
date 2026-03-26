@@ -7,6 +7,7 @@ import { I18nProvider } from "@/lib/i18n";
 import { ThemeProvider } from "@/lib/theme";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Sidebar } from "@/components/Sidebar";
+import { WaterFlow } from "@/components/WaterFlow";
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -56,6 +57,8 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           }`}
             style={{ transformOrigin: "center center" }}
           >
+            {/* Global water flow background */}
+            <WaterFlow />
             {/* Mobile overlay */}
             {mobileOpen && (
               <div
@@ -66,7 +69,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
             {/* Sidebar - desktop */}
             <div
-              className={`hidden md:flex flex-shrink-0 transition-all duration-300 ease-in-out ${
+              className={`relative z-20 hidden md:flex flex-shrink-0 transition-all duration-300 ease-in-out ${
                 collapsed ? "w-16" : "w-64"
               }`}
             >
@@ -89,11 +92,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Main content */}
-            <main className="flex-1 overflow-y-auto p-6">
+            <main className="relative z-10 flex-1 overflow-y-auto p-6">
               {/* Mobile hamburger */}
               <button
                 onClick={toggleMobile}
-                className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-2 text-gray-600 dark:text-slate-300 shadow-sm md:hidden"
+                className="mb-4 flex items-center gap-2 rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl p-2 text-gray-600 dark:text-slate-300 shadow-sm md:hidden"
               >
                 <Menu className="h-5 w-5" />
               </button>
