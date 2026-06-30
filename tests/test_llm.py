@@ -55,3 +55,56 @@ def test_default_robustness_options(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert kwargs["max_retries"] == llm._DEFAULT_MAX_RETRIES
     assert kwargs["timeout"] == llm._DEFAULT_TIMEOUT
+
+
+# ── Claude Code identity injection (subscription OAuth) ──────────────
+
+
+def test_inject_system_from_none() -> None:
+    blocks = llm._inject_system(None)
+    assert blocks == [{"type": "text", "text": llm._CLAUDE_CODE_IDENTITY}]
+
+
+def test_inject_system_from_string() -> None:
+    blocks = llm._inject_system("You are a helpful designer.")
+    assert blocks[0]["text"] == llm._CLAUDE_CODE_IDENTITY
+    assert blocks[1] == {"type": "text", "text": "You are a helpful designer."}
+
+
+def test_inject_system_from_block_list() -> None:
+    original = [{"type": "text", "text": "Reply with JSON only."}]
+    blocks = llm._inject_system(original)
+    assert blocks[0]["text"] == llm._CLAUDE_CODE_IDENTITY
+    assert blocks[1:] == original
+
+
+def test_oauth_client_injects_identity_on_create(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return "ok"
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.messages = _FakeMessages()
+
+    fake = _FakeClient()
+    monkeypatch.setattr(llm.anthropic, "Anthropic", lambda **_: fake, raising=False)
+    _patch_settings(monkeypatch, claude_oauth_token="oat-123")
+
+    client = llm.get_claude_client()
+    result = client.messages.create(model="m", system="custom prompt", messages=[])
+
+    assert result == "ok"
+    assert captured["system"][0]["text"] == llm._CLAUDE_CODE_IDENTITY
+    assert captured["system"][1] == {"type": "text", "text": "custom prompt"}
+
+
+def test_api_key_client_not_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
+    sentinel = object()
+    monkeypatch.setattr(llm.anthropic, "Anthropic", lambda **_: sentinel, raising=False)
+    _patch_settings(monkeypatch, claude_api_key="sk-ant-456")
+
+    assert llm.get_claude_client() is sentinel
