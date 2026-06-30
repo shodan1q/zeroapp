@@ -2,7 +2,7 @@
 
 > **项目代号**：ZeroDev Agent
 > **目标**：24小时不间断从互联网挖掘需求 → AI 自动开发 Flutter App → 自动构建三端 → 自动提交上架
-> **技术栈**：Flutter + Dart | Python + LangGraph (Agent 编排) | Claude Opus 4.8 (代码生成，支持 API / Max Plan 本地代理)
+> **技术栈**：Flutter + Dart | Python + LangGraph (Agent 编排) | Claude Opus 4.8 (代码生成，支持 API Key / Max 订阅 OAuth Token)
 
 ---
 
@@ -48,7 +48,7 @@
 | 编号 | 子模块 | 说明 | 优先级 |
 |------|--------|------|--------|
 | 1.2.1 | 原始数据清洗管道 | 去重、去噪、语言翻译（统一为中/英文） | P0 |
-| 1.2.2 | LLM 需求提取器 | 调用 Claude Opus 4.8（API 或 Max Plan 本地代理）从非结构化文本中提取：App名称、核心功能、目标用户、变现模式 | P0 |
+| 1.2.2 | LLM 需求提取器 | 调用 Claude Opus 4.8（API Key 或 Max 订阅 OAuth Token）从非结构化文本中提取：App名称、核心功能、目标用户、变现模式 | P0 |
 | 1.2.3 | 需求去重引擎 | Embedding 向量相似度比对，避免重复开发同类 App | P0 |
 | 1.2.4 | 需求数据库 | PostgreSQL 存储所有采集到的需求，含状态字段（待评估/已通过/已开发/已上架） | P0 |
 
@@ -526,7 +526,7 @@ cd dashboard && npm run dev   # http://localhost:9717
 
 | 服务 | 用途 | 费用 |
 |------|------|------|
-| Claude Opus 4.8 | 代码生成 + 需求分析（支持两种模式：API 按量付费 或 Max Plan $100/月通过 claude-max-api 本地代理） | $0（Max Plan）或 ~$100-300/月（API 按量） |
+| Claude Opus 4.8 | 代码生成 + 需求分析（支持两种认证：API Key 按量付费 或 Max 订阅 OAuth Token，claude setup-token 获取） | $0（Max 订阅）或 ~$100-300/月（API 按量） |
 | DALL-E 3 API | 图标生成 | ~$20/月 |
 | Google Play Console | Android 上架 | $25 一次性 |
 | Apple Developer | iOS 上架 | $99/年 |
@@ -586,7 +586,7 @@ Account Pool:
 - [x] 搭建 Agent 主控框架（Python + LangGraph）
 - [x] 实现 LangGraph StateGraph 编排 + SQLite checkpoint 持久化
 - [x] 实现指数退避重试机制 + 中断恢复
-- [x] 支持 Claude Opus 4.8 API 和 Max Plan 本地代理双模式
+- [x] 支持 Claude Opus 4.8 API Key 与 Max 订阅 OAuth Token 双认证
 - [x] 实现模板选择（6 种模板）
 - [x] 实现代码生成（单文件已验证）
 - [x] dart analyze 零错误
@@ -638,8 +638,8 @@ Account Pool:
 | 中断恢复 | LangGraph SQLite Checkpoint | 崩溃后从断点恢复，不浪费已完成的 LLM 调用 |
 | 重试策略 | 指数退避（base=2s, max=300s, 3次） | 统一装饰器应用于所有节点，避免散落在各处的重试逻辑 |
 | 人工审核 | LangGraph interrupt_before | 在代码生成和发布前设置中断点，支持人工确认后继续 |
-| LLM | Claude Opus 4.8 | 代码生成质量最高，支持 API 按量付费 或 Max Plan 本地代理（claude-max-api）零额外成本 |
-| LLM 接入 | claude-max-api 本地代理 | OpenAI 兼容接口，通过 Claude Max 订阅调用，zerodev/llm.py 自动适配 Anthropic/OpenAI 两种格式 |
+| LLM | Claude Opus 4.8 | 代码生成质量最高，支持 API Key 按量付费 或 Max 订阅 OAuth Token 零额外成本 |
+| LLM 接入 | 官方 Anthropic SDK | API Key / OAuth Token 双认证，OAuth 模式透明注入身份块，zerodev/llm.py 统一接入 |
 | 数据库 | PostgreSQL | 结构化数据 + JSON 字段灵活 |
 | CI/CD | GitHub Actions + fastlane | 免费额度够用，社区模板多 |
 | 广告 | AdMob | Flutter 官方支持，覆盖三端 |
