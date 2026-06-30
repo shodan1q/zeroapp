@@ -83,6 +83,29 @@ cp .env.example .env
 - `DATABASE_URL`：PostgreSQL 异步连接字符串
 - `PIPELINE_CHECKPOINT_BACKEND`：`sqlite`（推荐）或 `memory`
 
+#### Claude 认证方式
+
+项目通过官方 Anthropic SDK 接入，支持两种认证方式，**OAuth Token 优先于 API Key**：
+
+| 方式 | 适用场景 | 配置项 | 成本 |
+|------|----------|--------|------|
+| OAuth Token（推荐） | Claude Pro/Max 订阅 | `CLAUDE_OAUTH_TOKEN` | 订阅内，无额外按量费用 |
+| API Key | 按量付费 | `CLAUDE_API_KEY` | 按 token 计费 |
+
+**订阅模式（OAuth Token）：**
+
+```bash
+claude setup-token        # 生成 sk-ant-oat-... 形式的订阅 token
+# 将输出填入 .env 的 CLAUDE_OAUTH_TOKEN，CLAUDE_API_KEY 留空
+```
+
+- 客户端自动附加 `anthropic-beta: oauth-2025-04-20` 请求头。
+- 订阅 token 直连 Messages API 要求 `system` 首块为 Claude Code 身份串，`zerodev/llm.py`
+  会在 OAuth 模式下**透明注入**该块（原 system prompt 接其后），业务调用无需改动。
+- 也可在 Dashboard「设置」页直接填写 OAuth Token / API Key。
+
+`CLAUDE_BASE_URL` 留空使用官方端点；仅在使用自建 API 网关时填写。
+
 ### 运行
 
 ```bash
@@ -117,7 +140,7 @@ zeroapp/
 │   ├── tasks/                  # Celery 异步任务
 │   ├── config.py               # 配置（pydantic-settings）
 │   ├── database.py             # 数据库引擎
-│   ├── llm.py                  # Claude 客户端（自动适配 API/本地代理）
+│   ├── llm.py                  # Claude 客户端（官方 SDK，API Key / OAuth Token 双认证）
 │   └── main.py                 # CLI 入口（typer）
 ├── dashboard/                  # Next.js 15 前端
 ├── alembic/                    # 数据库迁移
