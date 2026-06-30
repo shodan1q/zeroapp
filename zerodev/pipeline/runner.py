@@ -192,8 +192,6 @@ def _strip_fences(text: str) -> str:
 
 async def _post_generation_cleanup(app_dir: Path, app_id: str, log_fn) -> None:
     """Fix common issues in generated code after all files are written."""
-    import yaml as yaml_mod
-
     await log_fn("正在执行生成后清理...", "stage_change")
 
     # 1. Strip markdown fences and preamble prose from ALL generated files
@@ -618,10 +616,18 @@ class PipelineRunner:
 
     @property
     def stats(self) -> dict:
+        from zerodev.builder.platforms import get_runtime_platforms
+
+        try:
+            target_platforms = get_runtime_platforms()
+        except Exception:
+            target_platforms = []
+
         return {
             **self._stats,
             "running": self.is_running,
             "current_run_id": self._current_run_id,
+            "target_platforms": target_platforms,
             "logs": self._logs[-200:],
             "stage_timings": self._stage_timings,
         }
@@ -659,6 +665,9 @@ class PipelineRunner:
         self._current_run_id = uuid.uuid4().hex[:12]
         self._stats["cycles"] += 1
         self._stats["started_at"] = datetime.utcnow().isoformat()
+        from zerodev.builder.platforms import get_runtime_platforms
+
+        await self._log(f"目标平台: {', '.join(get_runtime_platforms())}", "stage_change")
         self._task = asyncio.create_task(self._run_custom_wrapper(theme))
         return {"status": "started", "message": f"开始生成自定义 App: {theme[:50]}"}
 

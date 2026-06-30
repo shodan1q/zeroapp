@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 from zerodev.config import get_settings
 from zerodev.pipeline.checkpointer import get_checkpointer
 from zerodev.pipeline.graph import build_demand_graph, build_main_graph
-from zerodev.pipeline.state import DemandState, PipelineState
 
 logger = logging.getLogger(__name__)
 

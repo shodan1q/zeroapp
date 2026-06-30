@@ -152,6 +152,9 @@ export default function SettingsPage() {
   const [googlePlayKeyPath, setGooglePlayKeyPath] = useState("");
   const [appStoreKeyPath, setAppStoreKeyPath] = useState("");
   const [huaweiKeyPath, setHuaweiKeyPath] = useState("");
+  const [huaweiAgcClientId, setHuaweiAgcClientId] = useState("");
+  const [huaweiAgcClientSecret, setHuaweiAgcClientSecret] = useState("");
+  const [huaweiAgcAppId, setHuaweiAgcAppId] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -188,6 +191,9 @@ export default function SettingsPage() {
         if (data.googlePlayKeyPath !== undefined) setGooglePlayKeyPath(String(data.googlePlayKeyPath));
         if (data.appStoreKeyPath !== undefined) setAppStoreKeyPath(String(data.appStoreKeyPath));
         if (data.huaweiKeyPath !== undefined) setHuaweiKeyPath(String(data.huaweiKeyPath));
+        if (data.huaweiAgcClientId !== undefined) setHuaweiAgcClientId(String(data.huaweiAgcClientId));
+        if (data.huaweiAgcClientSecret !== undefined) setHuaweiAgcClientSecret(String(data.huaweiAgcClientSecret));
+        if (data.huaweiAgcAppId !== undefined) setHuaweiAgcAppId(String(data.huaweiAgcAppId));
       } catch (err) {
         console.warn("Failed to load settings:", err);
       } finally {
@@ -221,6 +227,9 @@ export default function SettingsPage() {
         googlePlayKeyPath,
         appStoreKeyPath,
         huaweiKeyPath,
+        huaweiAgcClientId,
+        huaweiAgcClientSecret,
+        huaweiAgcAppId,
       };
       const result = await saveSettings(payload);
       if (result) {
@@ -497,6 +506,28 @@ export default function SettingsPage() {
               placeholder="/path/to/huawei-credentials.json"
             />
           </Field>
+          <Field label={t("settings.agc_client_id")}>
+            <TextInput
+              value={huaweiAgcClientId}
+              onChange={setHuaweiAgcClientId}
+              placeholder="AppGallery Connect client ID"
+            />
+          </Field>
+          <Field label={t("settings.agc_client_secret")}>
+            <TextInput
+              value={huaweiAgcClientSecret}
+              onChange={setHuaweiAgcClientSecret}
+              placeholder="AppGallery Connect client secret"
+              type="password"
+            />
+          </Field>
+          <Field label={t("settings.agc_app_id")}>
+            <TextInput
+              value={huaweiAgcAppId}
+              onChange={setHuaweiAgcAppId}
+              placeholder="HarmonyOS App ID"
+            />
+          </Field>
         </div>
       </Section>
 
@@ -508,6 +539,7 @@ export default function SettingsPage() {
           <MaskedField label="REDDIT_CLIENT_SECRET" value={redditClientSecret} />
           <MaskedField label="GOOGLE_PLAY_KEY" value={googlePlayKeyPath} />
           <MaskedField label="APP_STORE_KEY" value={appStoreKeyPath} />
+          <MaskedField label="HUAWEI_AGC_CLIENT_SECRET" value={huaweiAgcClientSecret} />
         </div>
       </Section>
     </div>
