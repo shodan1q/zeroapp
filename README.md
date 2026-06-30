@@ -184,7 +184,7 @@ zerodev pipeline
 
 支持单独或组合构建三端，平台标识：`android` / `ios` / `ohos`（鸿蒙 HarmonyOS）。
 
-选择优先级：**CLI `--platform` > 配置 `TARGET_PLATFORMS` > 默认 `android`**。三处入口：
+选择优先级：**CLI `--platform` > Dashboard 设置（`data/settings.json`）> 配置 `TARGET_PLATFORMS` > 默认 `android`**。三处入口：
 
 ```bash
 # CLI：仅构建鸿蒙
@@ -196,11 +196,20 @@ zerodev pipeline run --platform android,ohos
 # 配置默认值（.env）
 TARGET_PLATFORMS=ohos
 
-# Dashboard：设置页「构建平台」多选
+# Dashboard：设置页「构建平台」多选（保存后即作为流水线默认平台生效）
 ```
 
 各平台产物：`android` → APK + AAB；`ios` → IPA；`ohos` → HAP。
 请求的多个平台中只要有一个成功即继续，失败平台记录在日志中。
+
+**自动上架**：发布阶段按"已构建产物"自动匹配商店——`aab` → Google Play、`ipa` → App Store、
+`hap` → 华为 AppGallery（HarmonyOS）。鸿蒙上架需配置 AppGallery Connect 凭证：
+
+| 配置项 | 说明 |
+|--------|------|
+| `HUAWEI_AGC_CLIENT_ID` | AppGallery Connect API client ID |
+| `HUAWEI_AGC_CLIENT_SECRET` | AppGallery Connect API client secret |
+| `HUAWEI_AGC_APP_ID` | 该 HarmonyOS 应用在 AGC 的 App ID |
 
 #### 鸿蒙（HarmonyOS）构建前置条件
 

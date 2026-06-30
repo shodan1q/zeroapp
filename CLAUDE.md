@@ -30,11 +30,13 @@ make generate-app         # 运行一次完整流水线
 
 支持三端单独/组合构建，平台标识 `android` / `ios` / `ohos`（鸿蒙）。
 
-- 选择优先级：CLI `--platform` > 配置 `TARGET_PLATFORMS` > 默认 `android`
+- 选择优先级：CLI `--platform` > Dashboard 设置（`data/settings.json`）> `TARGET_PLATFORMS` > 默认 `android`
 - CLI：`zerodev generate --platform ohos`、`zerodev pipeline run --platform android,ohos`
-- 平台解析与校验统一在 `zerodev/builder/platforms.py`（`parse_platforms`）
+- 平台解析在 `zerodev/builder/platforms.py`：`parse_platforms`（纯解析）+ `get_runtime_platforms`（settings.json -> env 回退，运行时默认来源）
 - `node_build` 按 `state["target_platforms"]` 分发：android→APK/AAB、ios→IPA、ohos→HAP
 - 鸿蒙真实构建走 flutter-ohos（`flutter build hap`），需 `FLUTTER_OHOS_PATH` / `DEVECO_SDK_HOME` / `OHOS_SDK_HOME`
+- `node_publish` 按已构建产物匹配商店：aab→Google Play、ipa→App Store、hap→AppGallery（`HarmonyOSPublisher`，需 `HUAWEI_AGC_*`）
+- 注意：Dashboard「自定义生成」走 `PipelineRunner`（runner.py），仅做 Android 编译校验；release 构建与上架走 LangGraph 图（CLI / orchestrator 路径）
 
 ## 测试
 

@@ -83,6 +83,11 @@ class Settings(BaseSettings):
     apple_api_issuer_id: str = Field(default="")
     apple_api_key_path: str = Field(default="")
 
+    # ── HarmonyOS AppGallery (AGC) Publishing ───────────────────
+    huawei_agc_client_id: str = Field(default="", description="AppGallery Connect API client ID")
+    huawei_agc_client_secret: str = Field(default="", description="AppGallery Connect API client secret")
+    huawei_agc_app_id: str = Field(default="", description="AppGallery Connect app ID for the HarmonyOS app")
+
     # ── Output / GitHub ────────────────────────────────────────
     output_dir: str = Field(default="/Users/shodan/project/zerodev", description="Output directory for generated app projects")
     github_org: str = Field(default="shodan1q", description="GitHub user/org that owns the zerogenerate monorepo")

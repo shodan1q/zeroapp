@@ -50,3 +50,28 @@ def parse_platforms(
 
     # Return in canonical order, not input/set order.
     return [p for p in SUPPORTED_PLATFORMS if p in selected]
+
+
+def get_runtime_platforms() -> list[str]:
+    """Resolve the effective default build targets for a pipeline run.
+
+    Priority: Dashboard-saved ``data/settings.json`` (``targetPlatforms``) >
+    env config (``TARGET_PLATFORMS``) > built-in default. Invalid saved values
+    are ignored in favor of the env config. This is the single source of truth
+    used when no explicit ``--platform`` / argument is supplied, so the
+    Dashboard "构建平台" selection actually drives the pipeline.
+    """
+    import json
+
+    from zerodev.config import get_settings
+
+    settings = get_settings()
+    settings_file = settings.base_dir / "data" / "settings.json"
+    if settings_file.exists():
+        try:
+            saved = json.loads(settings_file.read_text(encoding="utf-8")).get("targetPlatforms")
+            if saved:
+                return parse_platforms(saved)
+        except (ValueError, OSError, json.JSONDecodeError):
+            pass
+    return parse_platforms(settings.target_platforms)

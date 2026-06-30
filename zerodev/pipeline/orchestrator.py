@@ -75,10 +75,9 @@ async def run_pipeline(
     -------
     PipelineRunSummary
     """
-    from zerodev.builder.platforms import parse_platforms
+    from zerodev.builder.platforms import get_runtime_platforms
 
-    settings = get_settings()
-    platforms = target_platforms or parse_platforms(settings.target_platforms)
+    platforms = target_platforms or get_runtime_platforms()
 
     if thread_id is None:
         thread_id = f"run-{uuid.uuid4().hex[:12]}"
@@ -202,12 +201,12 @@ async def run_single_demand(
     dict
         The final DemandState dict.
     """
-    from zerodev.builder.platforms import parse_platforms
+    from zerodev.builder.platforms import get_runtime_platforms
 
     if thread_id is None:
         thread_id = f"demand-{uuid.uuid4().hex[:12]}"
 
-    platforms = target_platforms or parse_platforms(get_settings().target_platforms)
+    platforms = target_platforms or get_runtime_platforms()
     demand_id = demand.get("id", uuid.uuid4().hex[:12])
     initial_state: Dict[str, Any] = {
         "demand_id": demand_id,

@@ -296,9 +296,9 @@ async def node_fan_out_approved(state: Dict[str, Any]) -> Dict[str, Any]:
             "stage": "done",
         }
 
-    from zerodev.builder.platforms import parse_platforms
+    from zerodev.builder.platforms import get_runtime_platforms
 
-    target_platforms = state.get("target_platforms") or parse_platforms(settings.target_platforms)
+    target_platforms = state.get("target_platforms") or get_runtime_platforms()
 
     semaphore = asyncio.Semaphore(settings.pipeline_max_concurrent_builds)
     demand_graph = build_demand_graph()
@@ -532,9 +532,9 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
-    from zerodev.builder.platforms import parse_platforms
+    from zerodev.builder.platforms import get_runtime_platforms
 
-    platforms = state.get("target_platforms") or parse_platforms(get_settings().target_platforms)
+    platforms = state.get("target_platforms") or get_runtime_platforms()
     logger.info("[build] Target platforms for %s: %s.", demand_id, platforms)
 
     builder = FlutterBuilder()
@@ -668,17 +668,23 @@ async def node_assets(state: Dict[str, Any]) -> Dict[str, Any]:
 
 @with_retry(node_name="publish")
 async def node_publish(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Publish to configured app stores."""
-    from zerodev.builder.publisher import AppInfo, AppStorePublisher, GooglePlayPublisher
+    """Publish to the app stores matching the platforms that were built."""
+    from zerodev.builder.publisher import (
+        AppInfo,
+        AppStorePublisher,
+        GooglePlayPublisher,
+        HarmonyOSPublisher,
+    )
 
     demand = state.get("demand", {})
     demand_id = state.get("demand_id", "unknown")
     project = state.get("project_path")
+    artifacts = state.get("build_artifacts") or {}
 
     if not project:
         raise RuntimeError("No project_path in state -- cannot publish.")
 
-    logger.info("[publish] Publishing %s.", demand_id)
+    logger.info("[publish] Publishing %s (artifacts=%s).", demand_id, list(artifacts.keys()))
 
     try:
         from zerodev.api.events import emit_stage_change
@@ -699,27 +705,38 @@ async def node_publish(state: Dict[str, Any]) -> Dict[str, Any]:
 
     publish_results: Dict[str, Any] = {}
 
-    gp = GooglePlayPublisher()
-    gp_result = await gp.publish(project, app_info)
-    publish_results["google_play"] = {
-        "success": gp_result.success,
-        "url": gp_result.store_url,
-        "message": gp_result.message,
-    }
-    if gp_result.success:
-        logger.info("[publish] Google Play: %s", gp_result.store_url)
+    # Publish to each store only for the platforms that produced an artifact.
+    if "aab" in artifacts:
+        gp_result = await GooglePlayPublisher().publish(project, app_info)
+        publish_results["google_play"] = {
+            "success": gp_result.success,
+            "url": gp_result.store_url,
+            "message": gp_result.message,
+        }
+        if gp_result.success:
+            logger.info("[publish] Google Play: %s", gp_result.store_url)
 
-    ap = AppStorePublisher()
-    ap_result = await ap.publish(project, app_info)
-    publish_results["app_store"] = {
-        "success": ap_result.success,
-        "url": ap_result.store_url,
-        "message": ap_result.message,
-    }
-    if ap_result.success:
-        logger.info("[publish] App Store: %s", ap_result.store_url)
+    if "ipa" in artifacts:
+        ap_result = await AppStorePublisher().publish(project, app_info)
+        publish_results["app_store"] = {
+            "success": ap_result.success,
+            "url": ap_result.store_url,
+            "message": ap_result.message,
+        }
+        if ap_result.success:
+            logger.info("[publish] App Store: %s", ap_result.store_url)
 
-    logger.info("[publish] Publish complete for %s.", demand_id)
+    if "hap" in artifacts:
+        hm_result = await HarmonyOSPublisher().publish(project, app_info)
+        publish_results["appgallery_harmonyos"] = {
+            "success": hm_result.success,
+            "url": hm_result.store_url,
+            "message": hm_result.message,
+        }
+        if hm_result.success:
+            logger.info("[publish] AppGallery (HarmonyOS): %s", hm_result.store_url)
+
+    logger.info("[publish] Publish complete for %s: %s.", demand_id, list(publish_results.keys()))
 
     try:
         from zerodev.api.events import emit_stage_change

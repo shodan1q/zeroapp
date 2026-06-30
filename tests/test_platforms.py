@@ -141,23 +141,23 @@ async def test_node_build_android_and_ohos(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_node_build_falls_back_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    """With no target_platforms in state, node_build reads the config default."""
+async def test_node_build_falls_back_to_runtime_platforms(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no target_platforms in state, node_build uses get_runtime_platforms()."""
     import zerodev.builder.flutter_builder as fb
+    import zerodev.builder.platforms as platforms
     import zerodev.builder.signer as sg
     import zerodev.pipeline.graph as graph
-    from zerodev.config import Settings
 
     fake = _FakeBuilder()
     monkeypatch.setattr(fb, "FlutterBuilder", lambda *a, **k: fake)
     monkeypatch.setattr(sg, "SigningManager", lambda *a, **k: _FakeSigner())
-    monkeypatch.setattr(graph, "get_settings", lambda: Settings(target_platforms="ohos"))
+    monkeypatch.setattr(platforms, "get_runtime_platforms", lambda: ["ohos"])
 
     state = {
         "demand": {"title": "Demo"},
         "demand_id": "d1",
         "project_path": "/tmp/proj",
-        # no target_platforms -> must fall back to config
+        # no target_platforms -> must fall back to get_runtime_platforms()
     }
     result = await graph.node_build(state)
 

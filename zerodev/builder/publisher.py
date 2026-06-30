@@ -299,3 +299,101 @@ class HuaweiPublisher(BasePublisher):
                 "Publishing API multipart flow."
             ),
         )
+
+
+class HarmonyOSPublisher(BasePublisher):
+    """Publish a HarmonyOS ``.hap`` to Huawei AppGallery (HarmonyOS app type).
+
+    Distinct from :class:`HuaweiPublisher`, which uploads the Android APK to
+    AppGallery. This publisher targets the HarmonyOS app via the AppGallery
+    Connect (AGC) Publishing API and uploads the ``.hap`` produced by
+    ``FlutterBuilder.build_ohos``.
+
+    Working stub: credentials are validated, the access token is obtained, and
+    the ``.hap`` artifact is located. The final multipart upload + submit step
+    requires a registered HarmonyOS app and the AGC Publishing API flow.
+    """
+
+    def __init__(
+        self,
+        client_id: str = "",
+        client_secret: str = "",
+        app_id: str = "",
+    ) -> None:
+        settings = get_settings()
+        self.client_id = client_id or settings.huawei_agc_client_id
+        self.client_secret = client_secret or settings.huawei_agc_client_secret
+        self.app_id = app_id or settings.huawei_agc_app_id
+
+    @staticmethod
+    def _locate_hap(project_path: str) -> Path | None:
+        """Find the built ``.hap``, preferring a signed artifact."""
+        haps = sorted(Path(project_path).rglob("*.hap"))
+        signed = [h for h in haps if "signed" in h.name.lower()]
+        if signed:
+            return signed[0]
+        return haps[0] if haps else None
+
+    async def publish(
+        self, project_path: str, app_info: AppInfo
+    ) -> PublishResult:
+        if not self.client_id or not self.client_secret:
+            return PublishResult(
+                success=False,
+                message=(
+                    "Huawei AGC credentials not configured. Set "
+                    "HUAWEI_AGC_CLIENT_ID and HUAWEI_AGC_CLIENT_SECRET."
+                ),
+            )
+
+        hap_path = self._locate_hap(project_path)
+        if hap_path is None:
+            return PublishResult(
+                success=False,
+                message="No .hap found. Run the OHOS build (build_ohos) first.",
+            )
+
+        # Step 1: Obtain AGC access token.
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                token_resp = await client.post(
+                    "https://connect-api.cloud.huawei.com/api/oauth2/v1/token",
+                    json={
+                        "grant_type": "client_credentials",
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                    },
+                )
+                token_resp.raise_for_status()
+                access_token = token_resp.json().get("access_token")
+
+            if not access_token:
+                return PublishResult(
+                    success=False,
+                    message="Failed to obtain AGC access token.",
+                )
+        except Exception as exc:
+            logger.error("Huawei AGC auth failed: %s", exc)
+            return PublishResult(
+                success=False,
+                message=f"AGC authentication failed: {exc}",
+            )
+
+        # Step 2: Upload .hap (stub -- real impl uses the AGC Publishing API).
+        logger.info(
+            "AppGallery (HarmonyOS) publish: would upload %s for %s (token obtained).",
+            hap_path,
+            app_info.package_name,
+        )
+
+        return PublishResult(
+            success=False,
+            message=(
+                "AppGallery HarmonyOS upload not fully implemented. "
+                "Token obtained and .hap located; final upload requires the "
+                "AGC Publishing API multipart flow and a registered HarmonyOS app."
+            ),
+            raw_output=str(hap_path),
+        )
