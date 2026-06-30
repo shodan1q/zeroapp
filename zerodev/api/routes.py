@@ -662,7 +662,7 @@ def _get_defaults() -> dict[str, Any]:
 
     cfg = get_settings()
     return {
-        "claudeMode": cfg.claude_mode,
+        "claudeOauthToken": cfg.claude_oauth_token,
         "claudeApiKey": cfg.claude_api_key,
         "claudeModel": cfg.claude_model,
         "claudeBaseUrl": cfg.claude_base_url,

@@ -1,181 +1,80 @@
 """Shared Claude client factory.
 
-Supports two modes:
-- "api": Standard Anthropic API with API key
-- "local": Claude Max local proxy via claude-max-api (OpenAI-compatible endpoint)
+Uses the official Anthropic SDK natively. Two user-supplied authentication
+methods are supported:
 
-In "local" mode, we wrap the OpenAI-compatible endpoint at localhost:3456
-to match the Anthropic SDK interface so all calling code works unchanged.
+- API Key (``CLAUDE_API_KEY``): standard Anthropic API, billed per token.
+- OAuth Token (``CLAUDE_OAUTH_TOKEN``): a Claude Pro/Max subscription token
+  (obtained via ``claude setup-token``), sent as a Bearer token directly to
+  the official API at no extra per-token cost.
+
+OAuth Token takes priority when both are configured. An optional
+``CLAUDE_BASE_URL`` may point at a custom gateway; it defaults to the official
+Anthropic endpoint.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from dataclasses import dataclass, field
 from typing import Any
-
-import httpx
 
 from zerodev.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Response shim: makes OpenAI responses look like Anthropic responses
-# ---------------------------------------------------------------------------
+# Beta header required when calling the official API with a Claude Code /
+# subscription OAuth token instead of an API key.
+_OAUTH_BETA_HEADER = "oauth-2025-04-20"
+
+# Default robustness settings applied to every client.
+_DEFAULT_MAX_RETRIES = 3
+_DEFAULT_TIMEOUT = 600.0
 
 
-@dataclass
-class _TextBlock:
-    text: str
-    type: str = "text"
+def _build_client_kwargs() -> dict[str, Any]:
+    """Resolve authentication and shared client options from settings.
 
+    OAuth token is preferred over API key. Raises a clear error when neither
+    credential is configured.
+    """
+    settings = get_settings()
 
-@dataclass
-class _ShimResponse:
-    """Mimics anthropic.types.Message just enough for our call sites."""
-    content: list[_TextBlock] = field(default_factory=list)
-    model: str = ""
-    stop_reason: str = "end_turn"
+    kwargs: dict[str, Any] = {
+        "max_retries": _DEFAULT_MAX_RETRIES,
+        "timeout": _DEFAULT_TIMEOUT,
+    }
 
+    if settings.claude_base_url:
+        kwargs["base_url"] = settings.claude_base_url
 
-# ---------------------------------------------------------------------------
-# Local proxy client (sync) — wraps OpenAI-compatible chat/completions
-# ---------------------------------------------------------------------------
+    oauth_token = settings.claude_oauth_token.strip()
+    api_key = settings.claude_api_key.strip()
 
-
-class _LocalMessages:
-    """Drop-in replacement for ``anthropic.Anthropic().messages``."""
-
-    def __init__(self, base_url: str) -> None:
-        self._url = f"{base_url.rstrip('/')}/v1/chat/completions"
-
-    def create(
-        self,
-        *,
-        model: str,
-        max_tokens: int = 4096,
-        messages: list[dict[str, Any]],
-        system: str | None = None,
-        **kwargs: Any,
-    ) -> _ShimResponse:
-        # Prepend system message in OpenAI format
-        oai_messages: list[dict[str, str]] = []
-        if system:
-            oai_messages.append({"role": "system", "content": system})
-        for m in messages:
-            oai_messages.append({"role": m["role"], "content": m["content"]})
-
-        payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": oai_messages,
-        }
-
-        with httpx.Client(timeout=300.0, proxy=None) as http:
-            resp = http.post(self._url, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-
-        text = data["choices"][0]["message"]["content"]
-        return _ShimResponse(
-            content=[_TextBlock(text=text)],
-            model=data.get("model", model),
+    if oauth_token:
+        logger.info("Using Claude OAuth token authentication")
+        kwargs["auth_token"] = oauth_token
+        kwargs["default_headers"] = {"anthropic-beta": _OAUTH_BETA_HEADER}
+    elif api_key:
+        logger.info("Using Claude API key authentication")
+        kwargs["api_key"] = api_key
+    else:
+        raise RuntimeError(
+            "No Claude credentials configured. Set CLAUDE_OAUTH_TOKEN "
+            "(from `claude setup-token`) or CLAUDE_API_KEY in your environment."
         )
 
-
-class _LocalAsyncMessages:
-    """Async version of the local proxy wrapper."""
-
-    def __init__(self, base_url: str) -> None:
-        self._url = f"{base_url.rstrip('/')}/v1/chat/completions"
-
-    async def create(
-        self,
-        *,
-        model: str,
-        max_tokens: int = 4096,
-        messages: list[dict[str, Any]],
-        system: str | None = None,
-        **kwargs: Any,
-    ) -> _ShimResponse:
-        oai_messages: list[dict[str, str]] = []
-        if system:
-            oai_messages.append({"role": "system", "content": system})
-        for m in messages:
-            oai_messages.append({"role": m["role"], "content": m["content"]})
-
-        payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": oai_messages,
-        }
-
-        max_retries = 3
-        for attempt in range(1, max_retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=600.0, proxy=None) as client:
-                    resp = await client.post(self._url, json=payload)
-                    resp.raise_for_status()
-                    data = resp.json()
-
-                text = data["choices"][0]["message"]["content"]
-                return _ShimResponse(
-                    content=[_TextBlock(text=text)],
-                    model=data.get("model", model),
-                )
-            except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.HTTPStatusError) as e:
-                if attempt == max_retries:
-                    raise
-                wait = 60
-                logger.warning("Claude proxy request failed (attempt %d/%d): %s. Retrying in %ds...", attempt, max_retries, e, wait)
-                await asyncio.sleep(wait)
-        raise RuntimeError("Unreachable")
-
-
-class _LocalClient:
-    """Sync client that mimics ``anthropic.Anthropic`` interface."""
-
-    def __init__(self, base_url: str) -> None:
-        self.messages = _LocalMessages(base_url)
-
-
-class _LocalAsyncClient:
-    """Async client that mimics ``anthropic.AsyncAnthropic`` interface."""
-
-    def __init__(self, base_url: str) -> None:
-        self.messages = _LocalAsyncMessages(base_url)
-
-
-# ---------------------------------------------------------------------------
-# Public factory functions
-# ---------------------------------------------------------------------------
-
-_DEFAULT_LOCAL_URL = "http://127.0.0.1:3456"
+    return kwargs
 
 
 def get_claude_client():
-    """Return a sync client (Anthropic SDK or local proxy shim)."""
-    settings = get_settings()
-
-    if settings.claude_mode == "local":
-        url = settings.claude_base_url or _DEFAULT_LOCAL_URL
-        logger.info("Using Claude Max local proxy (sync) at %s", url)
-        return _LocalClient(url)
-
+    """Return a sync ``anthropic.Anthropic`` client."""
     import anthropic
-    return anthropic.Anthropic(api_key=settings.claude_api_key)
+
+    return anthropic.Anthropic(**_build_client_kwargs())
 
 
 def get_claude_async_client():
-    """Return an async client (Anthropic SDK or local proxy shim)."""
-    settings = get_settings()
-
-    if settings.claude_mode == "local":
-        url = settings.claude_base_url or _DEFAULT_LOCAL_URL
-        logger.info("Using Claude Max local proxy (async) at %s", url)
-        return _LocalAsyncClient(url)
-
+    """Return an async ``anthropic.AsyncAnthropic`` client."""
     import anthropic
-    return anthropic.AsyncAnthropic(api_key=settings.claude_api_key)
+
+    return anthropic.AsyncAnthropic(**_build_client_kwargs())

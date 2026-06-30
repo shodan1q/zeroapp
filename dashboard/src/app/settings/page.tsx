@@ -10,8 +10,6 @@ import {
   Eye,
   EyeOff,
   Save,
-  Server,
-  Monitor,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { fetchSettings, saveSettings } from "@/lib/api";
@@ -120,11 +118,9 @@ function MaskedField({ label, value }: { label: string; value: string }) {
 export default function SettingsPage() {
   const { t } = useI18n();
   // Claude API config
-  const [claudeMode, setClaudeMode] = useState("api");
+  const [claudeOauthToken, setClaudeOauthToken] = useState("");
   const [claudeApiKey, setClaudeApiKey] = useState("");
-  const [claudeBaseUrl, setClaudeBaseUrl] = useState(
-    "https://api.anthropic.com",
-  );
+  const [claudeBaseUrl, setClaudeBaseUrl] = useState("");
   const [claudeModel, setClaudeModel] = useState("claude-sonnet-4-20250514");
 
   // Pipeline config
@@ -168,7 +164,7 @@ export default function SettingsPage() {
           setLoading(false);
           return;
         }
-        if (data.claudeMode !== undefined) setClaudeMode(String(data.claudeMode));
+        if (data.claudeOauthToken !== undefined) setClaudeOauthToken(String(data.claudeOauthToken));
         if (data.claudeApiKey !== undefined) setClaudeApiKey(String(data.claudeApiKey));
         if (data.claudeBaseUrl !== undefined) setClaudeBaseUrl(String(data.claudeBaseUrl));
         if (data.claudeModel !== undefined) setClaudeModel(String(data.claudeModel));
@@ -202,7 +198,7 @@ export default function SettingsPage() {
     setError(null);
     try {
       const payload = {
-        claudeMode,
+        claudeOauthToken,
         claudeApiKey,
         claudeModel,
         claudeBaseUrl,
@@ -275,31 +271,13 @@ export default function SettingsPage() {
       {/* Claude API */}
       <Section title={t("settings.claude_config")} icon={Key}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t("settings.claude_mode")}>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setClaudeMode("api")}
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                  claudeMode === "api"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                    : "border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
-                }`}
-              >
-                <Server className="h-4 w-4" />
-                {t("settings.api_mode")}
-              </button>
-              <button
-                onClick={() => setClaudeMode("local")}
-                className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                  claudeMode === "local"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                    : "border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
-                }`}
-              >
-                <Monitor className="h-4 w-4" />
-                {t("settings.local_mode")}
-              </button>
-            </div>
+          <Field label={t("settings.oauth_token")}>
+            <TextInput
+              value={claudeOauthToken}
+              onChange={setClaudeOauthToken}
+              placeholder="sk-ant-oat..."
+              type="password"
+            />
           </Field>
 
           <Field label={t("settings.model")}>
@@ -488,6 +466,7 @@ export default function SettingsPage() {
       {/* Current env display */}
       <Section title={t("settings.env_vars")} icon={Key}>
         <div className="space-y-3">
+          <MaskedField label="CLAUDE_OAUTH_TOKEN" value={claudeOauthToken} />
           <MaskedField label="CLAUDE_API_KEY" value={claudeApiKey} />
           <MaskedField label="REDDIT_CLIENT_SECRET" value={redditClientSecret} />
           <MaskedField label="GOOGLE_PLAY_KEY" value={googlePlayKeyPath} />

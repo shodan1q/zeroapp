@@ -20,14 +20,15 @@ class Settings(BaseSettings):
     )
 
     # ── Claude API ──────────────────────────────────────────────
-    claude_mode: str = Field(
-        default="api",
-        description="'api' for Anthropic API, 'local' for Claude Max local proxy",
+    # Authentication: OAuth token takes priority over API key when both are set.
+    claude_oauth_token: str = Field(
+        default="",
+        description="Claude Pro/Max OAuth token (from `claude setup-token`); preferred when set",
     )
-    claude_api_key: str = Field(default="", description="Anthropic API key (required for 'api' mode)")
+    claude_api_key: str = Field(default="", description="Anthropic API key (used when no OAuth token)")
     claude_base_url: str = Field(
-        default="http://127.0.0.1:3456",
-        description="claude-max-api proxy URL (used in 'local' mode)",
+        default="",
+        description="Optional custom API gateway base URL; empty uses the official Anthropic endpoint",
     )
     claude_model: str = Field(default="claude-opus-4-6", description="Claude model to use")
 

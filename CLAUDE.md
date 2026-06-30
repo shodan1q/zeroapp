@@ -9,7 +9,7 @@ ZeroDev Agent -- 自动化 Flutter 应用工厂。从互联网挖掘需求，使
 - Python 3.11+ / LangGraph（Agent 编排）/ FastAPI（后端 API）
 - Next.js 15 + TypeScript + Tailwind CSS v4（Dashboard 前端）
 - Flutter 3.7+ / Dart 2.19（移动端代码生成）
-- Claude Opus 4.6 通过 claude-max-api 本地代理（CLAUDE_MODE=local）
+- Claude Opus 4.6 通过官方 Anthropic SDK 接入（认证：CLAUDE_OAUTH_TOKEN 优先，回退 CLAUDE_API_KEY）
 - PostgreSQL + SQLAlchemy（数据库）
 - SQLite（LangGraph checkpoint 持久化）
 
@@ -36,7 +36,6 @@ make generate-app         # 运行一次完整流水线
 
 - 后端 API：9716
 - 前端 Dashboard：9717
-- claude-max-api 代理：3456
 
 ## 代码生成约束
 
