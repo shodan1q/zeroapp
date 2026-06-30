@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Save,
+  Smartphone,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { fetchSettings, saveSettings } from "@/lib/api";
@@ -121,6 +122,9 @@ export default function SettingsPage() {
   const [claudeOauthToken, setClaudeOauthToken] = useState("");
   const [claudeApiKey, setClaudeApiKey] = useState("");
   const [claudeBaseUrl, setClaudeBaseUrl] = useState("");
+
+  // Build targets
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["android"]);
   const [claudeModel, setClaudeModel] = useState("claude-sonnet-4-20250514");
 
   // Pipeline config
@@ -168,6 +172,7 @@ export default function SettingsPage() {
         if (data.claudeApiKey !== undefined) setClaudeApiKey(String(data.claudeApiKey));
         if (data.claudeBaseUrl !== undefined) setClaudeBaseUrl(String(data.claudeBaseUrl));
         if (data.claudeModel !== undefined) setClaudeModel(String(data.claudeModel));
+        if (Array.isArray(data.targetPlatforms)) setTargetPlatforms(data.targetPlatforms.map(String));
         if (data.crawlInterval !== undefined) setCrawlInterval(String(data.crawlInterval));
         if (data.maxConcurrent !== undefined) setMaxConcurrent(String(data.maxConcurrent));
         if (data.autoApproveThreshold !== undefined) setAutoApproveThreshold(String(data.autoApproveThreshold));
@@ -202,6 +207,7 @@ export default function SettingsPage() {
         claudeApiKey,
         claudeModel,
         claudeBaseUrl,
+        targetPlatforms,
         crawlInterval,
         maxConcurrent,
         autoApproveThreshold,
@@ -311,6 +317,37 @@ export default function SettingsPage() {
             />
           </Field>
         </div>
+      </Section>
+
+      {/* Build targets */}
+      <Section title={t("settings.platforms_config")} icon={Smartphone}>
+        <Field label={t("settings.target_platforms")}>
+          <div className="flex flex-wrap gap-3">
+            {(["android", "ios", "ohos"] as const).map((p) => {
+              const active = targetPlatforms.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() =>
+                    setTargetPlatforms((prev) =>
+                      prev.includes(p)
+                        ? prev.filter((x) => x !== p)
+                        : [...prev, p],
+                    )
+                  }
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                      : "border-white/40 dark:border-[#1e2756]/50 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#161d45]"
+                  }`}
+                >
+                  {t(`settings.platform_${p}`)}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
       </Section>
 
       {/* Pipeline config */}

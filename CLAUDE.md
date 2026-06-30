@@ -26,6 +26,16 @@ make format               # 自动格式化
 make generate-app         # 运行一次完整流水线
 ```
 
+## 构建平台
+
+支持三端单独/组合构建，平台标识 `android` / `ios` / `ohos`（鸿蒙）。
+
+- 选择优先级：CLI `--platform` > 配置 `TARGET_PLATFORMS` > 默认 `android`
+- CLI：`zerodev generate --platform ohos`、`zerodev pipeline run --platform android,ohos`
+- 平台解析与校验统一在 `zerodev/builder/platforms.py`（`parse_platforms`）
+- `node_build` 按 `state["target_platforms"]` 分发：android→APK/AAB、ios→IPA、ohos→HAP
+- 鸿蒙真实构建走 flutter-ohos（`flutter build hap`），需 `FLUTTER_OHOS_PATH` / `DEVECO_SDK_HOME` / `OHOS_SDK_HOME`
+
 ## 测试
 
 ```bash

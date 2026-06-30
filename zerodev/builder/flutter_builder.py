@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -72,11 +73,20 @@ class FlutterBuilder:
         cwd: Optional[str] = None,
         timeout: float = _TIMEOUT_SHORT,
         label: str = "",
+        env: Optional[dict[str, str]] = None,
     ) -> BuildResult:
-        """Execute a subprocess and return a :class:`BuildResult`."""
+        """Execute a subprocess and return a :class:`BuildResult`.
+
+        ``env`` entries are overlaid on the current process environment for the
+        child process (used to pass OHOS SDK paths to HarmonyOS builds).
+        """
         cmd_str = " ".join(args)
         label = label or cmd_str
         logger.info("Running: %s (cwd=%s, timeout=%ss)", label, cwd, timeout)
+
+        child_env: Optional[dict[str, str]] = None
+        if env:
+            child_env = {**os.environ, **env}
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -84,6 +94,7 @@ class FlutterBuilder:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                env=child_env,
             )
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout
@@ -285,6 +296,67 @@ class FlutterBuilder:
                 ipas = list(ipa_dir.glob("*.ipa"))
                 if ipas:
                     result.artifact_path = str(ipas[0])
+        return result
+
+    # ------------------------------------------------------------------
+    # HarmonyOS (OHOS)
+    # ------------------------------------------------------------------
+
+    def _ohos_flutter(self) -> str:
+        """Resolve the flutter-ohos binary used to build .hap packages."""
+        ohos_path = get_settings().flutter_ohos_path
+        if ohos_path:
+            candidate = Path(ohos_path) / "bin" / "flutter"
+            if candidate.exists():
+                return str(candidate)
+        return "flutter"
+
+    @staticmethod
+    def _ohos_env() -> dict[str, str]:
+        """Build the env overlay (DevEco / OHOS SDK homes) for OHOS builds."""
+        settings = get_settings()
+        env: dict[str, str] = {}
+        if settings.deveco_sdk_home:
+            env["DEVECO_SDK_HOME"] = settings.deveco_sdk_home
+        if settings.ohos_sdk_home:
+            env["OHOS_SDK_HOME"] = settings.ohos_sdk_home
+        return env
+
+    async def build_ohos(self, project_path: str) -> BuildResult:
+        """Build a release HarmonyOS package (``flutter build hap --release``).
+
+        Uses the flutter-ohos toolchain. The ``ohos`` platform module is added
+        first (idempotent best-effort) so projects generated without it can
+        still build. Requires a working flutter-ohos SDK and OHOS / DevEco SDKs
+        on the host; otherwise the build fails with a descriptive result, the
+        same way IPA builds depend on Xcode.
+        """
+        flutter = self._ohos_flutter()
+        env = self._ohos_env()
+
+        # Best-effort: ensure the project has an ohos/ module. Safe to re-run.
+        await self._run(
+            [flutter, "create", "--platforms", "ohos", "."],
+            cwd=project_path,
+            timeout=_TIMEOUT_CREATE,
+            label="flutter create --platforms ohos",
+            env=env,
+        )
+
+        result = await self._run(
+            [flutter, "build", "hap", "--release"],
+            cwd=project_path,
+            timeout=_TIMEOUT_BUILD,
+            label="flutter build hap",
+            env=env,
+        )
+        if result.success:
+            haps = sorted(Path(project_path).rglob("*.hap"))
+            # Prefer a signed artifact when one is present.
+            signed = [h for h in haps if "signed" in h.name.lower()]
+            chosen = signed[0] if signed else (haps[0] if haps else None)
+            if chosen:
+                result.artifact_path = str(chosen)
         return result
 
     # ------------------------------------------------------------------

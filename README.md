@@ -122,6 +122,42 @@ make generate-app
 zerodev pipeline
 ```
 
+### 按平台构建
+
+支持单独或组合构建三端，平台标识：`android` / `ios` / `ohos`（鸿蒙 HarmonyOS）。
+
+选择优先级：**CLI `--platform` > 配置 `TARGET_PLATFORMS` > 默认 `android`**。三处入口：
+
+```bash
+# CLI：仅构建鸿蒙
+zerodev generate --platform ohos
+
+# CLI：安卓 + 鸿蒙
+zerodev pipeline run --platform android,ohos
+
+# 配置默认值（.env）
+TARGET_PLATFORMS=ohos
+
+# Dashboard：设置页「构建平台」多选
+```
+
+各平台产物：`android` → APK + AAB；`ios` → IPA；`ohos` → HAP。
+请求的多个平台中只要有一个成功即继续，失败平台记录在日志中。
+
+#### 鸿蒙（HarmonyOS）构建前置条件
+
+鸿蒙构建会真实调用 flutter-ohos 工具链产出 `.hap`，需在本机准备：
+
+| 配置项 | 说明 |
+|--------|------|
+| `FLUTTER_OHOS_PATH` | flutter-ohos 分支 SDK 路径（其 `bin/flutter` 负责 `build hap`） |
+| `DEVECO_SDK_HOME` | DevEco Studio SDK 路径 |
+| `OHOS_SDK_HOME` | OpenHarmony SDK 路径 |
+
+构建流程：自动补齐 `ohos/` 模块（`flutter create --platforms ohos`）→ `flutter build hap --release` →
+定位 `.hap` 产物（优先已签名）。release 签名需在 `ohos/` 工程内配置华为开发者证书。
+环境未就绪时该平台会返回明确失败（与 iOS 依赖 Xcode 同理），不影响其它平台。
+
 ## 项目结构
 
 ```

@@ -60,6 +60,20 @@ class Settings(BaseSettings):
     flutter_bin: str = Field(default="flutter", description="Flutter binary name or path")
     dart_bin: str = Field(default="dart", description="Dart binary name or path")
 
+    # ── Build targets ───────────────────────────────────────────
+    target_platforms: str = Field(
+        default="android",
+        description="Comma-separated default build targets: android,ios,ohos",
+    )
+
+    # ── HarmonyOS / OHOS build ──────────────────────────────────
+    flutter_ohos_path: str = Field(
+        default="",
+        description="Path to the flutter-ohos SDK (its bin/flutter builds .hap); empty falls back to 'flutter'",
+    )
+    deveco_sdk_home: str = Field(default="", description="DevEco Studio SDK home, passed to OHOS builds")
+    ohos_sdk_home: str = Field(default="", description="OpenHarmony SDK home, passed to OHOS builds")
+
     # ── Workspace ───────────────────────────────────────────────
     workspace_dir: str = Field(default="workspace", description="Working directory for generated projects")
 

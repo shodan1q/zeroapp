@@ -23,6 +23,26 @@ app.add_typer(pipeline_app, name="pipeline")
 console = Console()
 
 
+def _resolve_platforms(platform: Optional[str]) -> Optional[list[str]]:
+    """Parse a ``--platform`` CLI value into a validated target list.
+
+    Returns ``None`` when no value is supplied (the pipeline then falls back to
+    the configured default). Exits with code 2 on an invalid value.
+    """
+    if not platform:
+        return None
+    from zerodev.builder.platforms import parse_platforms
+
+    try:
+        return parse_platforms(platform)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+
+_PLATFORM_OPTION_HELP = "Build targets, comma-separated: android,ios,ohos (default: from settings)"
+
+
 # ── Legacy top-level commands (kept for backward compatibility) ───────
 
 
@@ -58,24 +78,30 @@ def evaluate() -> None:
 @app.command()
 def generate(
     demand_id: Optional[int] = typer.Option(None, help="Generate code for a specific demand ID"),
+    platform: Optional[str] = typer.Option(None, "--platform", help=_PLATFORM_OPTION_HELP),
 ) -> None:
     """Generate Flutter app code for approved demands."""
-    console.print("[cyan]Generating Flutter app code...[/cyan]")
+    platforms = _resolve_platforms(platform)
+    console.print(
+        f"[cyan]Generating Flutter app code (platforms={platforms or 'default'})...[/cyan]"
+    )
     from zerodev.pipeline.orchestrator import run_pipeline
 
-    asyncio.run(run_pipeline())
+    asyncio.run(run_pipeline(target_platforms=platforms))
     console.print("[green]Code generation complete.[/green]")
 
 
 @app.command()
 def build(
     demand_id: Optional[int] = typer.Option(None, help="Build a specific demand ID"),
+    platform: Optional[str] = typer.Option(None, "--platform", help=_PLATFORM_OPTION_HELP),
 ) -> None:
     """Build Flutter apps for generated code."""
-    console.print("[cyan]Building Flutter apps...[/cyan]")
+    platforms = _resolve_platforms(platform)
+    console.print(f"[cyan]Building Flutter apps (platforms={platforms or 'default'})...[/cyan]")
     from zerodev.pipeline.orchestrator import run_pipeline
 
-    asyncio.run(run_pipeline())
+    asyncio.run(run_pipeline(target_platforms=platforms))
     console.print("[green]Build complete.[/green]")
 
 
@@ -92,12 +118,15 @@ def dashboard() -> None:
 
 
 @pipeline_app.command("run")
-def pipeline_run() -> None:
+def pipeline_run(
+    platform: Optional[str] = typer.Option(None, "--platform", help=_PLATFORM_OPTION_HELP),
+) -> None:
     """Run one complete pipeline cycle: crawl -> evaluate -> generate -> build -> publish."""
+    platforms = _resolve_platforms(platform)
     console.print(Panel("[bold cyan]Running full pipeline[/bold cyan]", title="ZeroDev"))
     from zerodev.pipeline.orchestrator import run_pipeline
 
-    summary = asyncio.run(run_pipeline())
+    summary = asyncio.run(run_pipeline(target_platforms=platforms))
     _print_summary(summary)
 
 

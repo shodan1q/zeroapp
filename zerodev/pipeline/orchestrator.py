@@ -57,6 +57,7 @@ class PipelineRunSummary:
 async def run_pipeline(
     *,
     thread_id: str | None = None,
+    target_platforms: list[str] | None = None,
 ) -> PipelineRunSummary:
     """Execute one full pipeline cycle and return a summary.
 
@@ -66,12 +67,18 @@ async def run_pipeline(
         Identifier for checkpoint persistence.  If omitted a new UUID is
         generated.  Pass an existing ``thread_id`` to resume from the last
         checkpoint.
+    target_platforms : list[str], optional
+        Build targets for this run (subset of android/ios/ohos).  Falls back to
+        ``settings.target_platforms`` when omitted.
 
     Returns
     -------
     PipelineRunSummary
     """
+    from zerodev.builder.platforms import parse_platforms
+
     settings = get_settings()
+    platforms = target_platforms or parse_platforms(settings.target_platforms)
 
     if thread_id is None:
         thread_id = f"run-{uuid.uuid4().hex[:12]}"
@@ -112,6 +119,7 @@ async def run_pipeline(
                     "demands_approved": [],
                     "demands_rejected": [],
                     "demand_results": [],
+                    "target_platforms": platforms,
                     "stage": "init",
                     "errors": [],
                     "retry_count": 0,
@@ -175,6 +183,7 @@ async def run_single_demand(
     demand: Dict[str, Any],
     *,
     thread_id: str | None = None,
+    target_platforms: list[str] | None = None,
 ) -> Dict[str, Any]:
     """Process a single demand through generate -> build -> assets -> publish.
 
@@ -184,20 +193,27 @@ async def run_single_demand(
         The structured demand dict.
     thread_id : str, optional
         For checkpoint persistence.
+    target_platforms : list[str], optional
+        Build targets for this demand (subset of android/ios/ohos).  Falls back
+        to ``settings.target_platforms`` when omitted.
 
     Returns
     -------
     dict
         The final DemandState dict.
     """
+    from zerodev.builder.platforms import parse_platforms
+
     if thread_id is None:
         thread_id = f"demand-{uuid.uuid4().hex[:12]}"
 
+    platforms = target_platforms or parse_platforms(get_settings().target_platforms)
     demand_id = demand.get("id", uuid.uuid4().hex[:12])
     initial_state: Dict[str, Any] = {
         "demand_id": demand_id,
         "demand": demand,
         "project_path": None,
+        "target_platforms": platforms,
         "build_artifacts": {},
         "assets": {},
         "publish_results": {},

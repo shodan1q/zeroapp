@@ -296,6 +296,10 @@ async def node_fan_out_approved(state: Dict[str, Any]) -> Dict[str, Any]:
             "stage": "done",
         }
 
+    from zerodev.builder.platforms import parse_platforms
+
+    target_platforms = state.get("target_platforms") or parse_platforms(settings.target_platforms)
+
     semaphore = asyncio.Semaphore(settings.pipeline_max_concurrent_builds)
     demand_graph = build_demand_graph()
 
@@ -306,6 +310,7 @@ async def node_fan_out_approved(state: Dict[str, Any]) -> Dict[str, Any]:
                 "demand_id": demand_id,
                 "demand": demand,
                 "project_path": None,
+                "target_platforms": target_platforms,
                 "build_artifacts": {},
                 "assets": {},
                 "publish_results": {},
@@ -527,6 +532,11 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
+    from zerodev.builder.platforms import parse_platforms
+
+    platforms = state.get("target_platforms") or parse_platforms(get_settings().target_platforms)
+    logger.info("[build] Target platforms for %s: %s.", demand_id, platforms)
+
     builder = FlutterBuilder()
 
     result = await builder.pub_get(project)
@@ -537,27 +547,50 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
     if not result.success:
         logger.warning("[build] Analyze issues for %s: %s", demand_id, result.errors[:5])
 
-    signer = SigningManager()
-    try:
-        await signer.generate_keystore(project, demand.get("title", "app"))
-        signer.configure_gradle_signing(project)
-    except Exception as exc:
-        logger.warning("[build] Signing setup failed: %s (continuing).", exc)
-
     artifacts: Dict[str, str] = {}
+    build_errors: Dict[str, Any] = {}
 
-    apk_result = await builder.build_apk(project)
-    if apk_result.success and apk_result.artifact_path:
-        artifacts["apk"] = apk_result.artifact_path
+    if "android" in platforms:
+        signer = SigningManager()
+        try:
+            await signer.generate_keystore(project, demand.get("title", "app"))
+            signer.configure_gradle_signing(project)
+        except Exception as exc:
+            logger.warning("[build] Signing setup failed: %s (continuing).", exc)
 
-    aab_result = await builder.build_appbundle(project)
-    if aab_result.success and aab_result.artifact_path:
-        artifacts["aab"] = aab_result.artifact_path
+        apk_result = await builder.build_apk(project)
+        if apk_result.success and apk_result.artifact_path:
+            artifacts["apk"] = apk_result.artifact_path
+        else:
+            build_errors["apk"] = apk_result.errors
+
+        aab_result = await builder.build_appbundle(project)
+        if aab_result.success and aab_result.artifact_path:
+            artifacts["aab"] = aab_result.artifact_path
+        else:
+            build_errors["aab"] = aab_result.errors
+
+    if "ios" in platforms:
+        ipa_result = await builder.build_ipa(project)
+        if ipa_result.success and ipa_result.artifact_path:
+            artifacts["ipa"] = ipa_result.artifact_path
+        else:
+            build_errors["ipa"] = ipa_result.errors
+
+    if "ohos" in platforms:
+        hap_result = await builder.build_ohos(project)
+        if hap_result.success and hap_result.artifact_path:
+            artifacts["hap"] = hap_result.artifact_path
+        else:
+            build_errors["hap"] = hap_result.errors
 
     if not artifacts:
         raise RuntimeError(
-            f"No build artifacts. APK: {apk_result.errors}, AAB: {aab_result.errors}"
+            f"No build artifacts for platforms {platforms}. Errors: {build_errors}"
         )
+
+    if build_errors:
+        logger.warning("[build] Partial build for %s; failed targets: %s.", demand_id, list(build_errors.keys()))
 
     logger.info("[build] Artifacts for %s: %s.", demand_id, list(artifacts.keys()))
 

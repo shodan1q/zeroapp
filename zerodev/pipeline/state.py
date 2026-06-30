@@ -29,6 +29,9 @@ class PipelineState(TypedDict, total=False):
     # Per-demand processing results (list of DemandState dicts)
     demand_results: List[Dict[str, Any]]
 
+    # Build targets selected for this run (android / ios / ohos)
+    target_platforms: List[str]
+
     # Metadata
     stage: str
     errors: List[str]
@@ -57,6 +60,7 @@ class DemandState(TypedDict, total=False):
     project_path: Optional[str]
 
     # Build
+    target_platforms: List[str]
     build_artifacts: Dict[str, str]
 
     # Assets

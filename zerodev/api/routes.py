@@ -656,6 +656,16 @@ def _is_sensitive(field_name: str) -> bool:
     return any(kw in lower for kw in _SENSITIVE_KEYWORDS)
 
 
+def _parse_platforms_safe(raw: str) -> list[str]:
+    """Parse the configured target platforms, tolerating invalid values."""
+    from zerodev.builder.platforms import DEFAULT_PLATFORMS, parse_platforms
+
+    try:
+        return parse_platforms(raw)
+    except ValueError:
+        return list(DEFAULT_PLATFORMS)
+
+
 def _get_defaults() -> dict[str, Any]:
     """Build default settings dict from config.py Settings class."""
     from zerodev.config import get_settings
@@ -666,6 +676,7 @@ def _get_defaults() -> dict[str, Any]:
         "claudeApiKey": cfg.claude_api_key,
         "claudeModel": cfg.claude_model,
         "claudeBaseUrl": cfg.claude_base_url,
+        "targetPlatforms": _parse_platforms_safe(cfg.target_platforms),
         "crawlInterval": str(cfg.pipeline_crawl_interval_hours),
         "maxConcurrent": str(cfg.pipeline_max_concurrent_builds),
         "autoApproveThreshold": str(cfg.pipeline_auto_approve_threshold),
