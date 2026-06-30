@@ -1,12 +1,25 @@
 # 湍流ZeroDev
 
-自动化 Flutter 应用工厂 -- 从互联网挖掘需求，AI 自动生成 Flutter 代码，三端构建（Android / iOS / HarmonyOS），自动上架应用商店。
+> **鸿蒙优先的自动化应用工厂。** 从互联网挖掘需求，AI 自动生成 Flutter 代码，**面向鸿蒙 HarmonyOS 7 自动产出原生 `.hap` 应用包**，同时覆盖 Android / iOS 三端，并自动上架应用商店。
+
+ZeroDev 的核心定位是 **鸿蒙生态的应用规模化生产**：在国产操作系统加速发展的背景下，鸿蒙应用供给是关键缺口。本项目把"需求发现 → AI 生成 → 鸿蒙构建 → 上架"全链路自动化，让鸿蒙应用可以批量、低成本地生产。
 
 生成的应用发布在: [shodan1q/zerogenerate](https://github.com/shodan1q/zerogenerate)
 
 ![登录页](docs/images/login.png)
 
 ![仪表盘](docs/images/dashboard.png)
+
+## 鸿蒙优先 (HarmonyOS First)
+
+ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
+
+- **适配鸿蒙 7（HarmonyOS 7）**：生成的应用面向 HarmonyOS 7 / OHOS，通过 flutter-ohos 工具链真实产出 `.hap` 安装包。
+- **鸿蒙兼容的代码生成约束**：强制 Dart 2.19 / Flutter 3.7+、Material Design 2，禁用 Dart 3.x 语法（super 参数、records、patterns、sealed classes）与 `ColorScheme.fromSeed()`，从源头保证 OHOS 兼容性。
+- **可单独生产鸿蒙应用**：`zerodev generate --platform ohos` 即可只产出鸿蒙包，无需构建其它端（详见 [按平台构建](#按平台构建)）。
+- **全自动鸿蒙流水线**：需求采集 → 评估 → 代码生成 → `flutter build hap --release` → 资源生成 → 上架，端到端无人工介入。
+
+> 适配鸿蒙 7 的构建依赖本机的 flutter-ohos + DevEco / OpenHarmony SDK，配置方式见 [鸿蒙构建前置条件](#鸿蒙harmonyos构建前置条件)。
 
 ## 架构概览
 
@@ -38,7 +51,7 @@
 | 后端 API | FastAPI + Uvicorn |
 | 实时通信 | WebSocket（自动重连，指数退避） |
 | 前端 Dashboard | Next.js 15 + TypeScript + Tailwind CSS v4 |
-| 移动端 | Flutter 3.7+ / Dart 2.19（兼容 HarmonyOS OHOS） |
+| 移动端 | Flutter 3.7+ / Dart 2.19，**首要目标：鸿蒙 HarmonyOS 7 / OHOS（flutter-ohos 产出 .hap）**，兼顾 Android / iOS |
 | 状态管理 | Riverpod 2.x |
 | 数据库 | PostgreSQL + SQLAlchemy（异步） |
 | 定时调度 | Celery Beat（可选） |
@@ -146,7 +159,7 @@ TARGET_PLATFORMS=ohos
 
 #### 鸿蒙（HarmonyOS）构建前置条件
 
-鸿蒙构建会真实调用 flutter-ohos 工具链产出 `.hap`，需在本机准备：
+目标系统为 **HarmonyOS 7（OHOS）**。鸿蒙构建会真实调用 flutter-ohos 工具链产出 `.hap`，需在本机准备对应 HarmonyOS 7 的 SDK：
 
 | 配置项 | 说明 |
 |--------|------|
