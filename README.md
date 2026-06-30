@@ -83,6 +83,15 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 主图：crawl -> process -> evaluate -> decide -> [人工审核] -> fan_out
 子图：generate -> build -> assets -> [人工审核] -> publish
 
+**两条执行路径**（贡献者须知）：
+
+| 路径 | 入口 | 职责 |
+|------|------|------|
+| LangGraph 图 | CLI / `orchestrator.run_pipeline` | 全自动流水线，含 release 构建（`node_build` 按平台分发）与上架（`node_publish` 按产物匹配商店） |
+| `PipelineRunner` | Dashboard（自定义生成 / 持续运行） | 需求生成 + Android 编译校验 + 推送到 [zerogenerate](https://github.com/shodan1q/zerogenerate) monorepo |
+
+> 两条路径共享底层模块（`zerodev/llm.py` 统一 Claude 接入、`zerodev/builder/` 构建与发布、`zerodev/generator/` 代码生成）。release 多端构建与商店上架目前走图路径。
+
 ---
 
 ## 技术栈
@@ -233,6 +242,9 @@ zeroapp/
 │   ├── api/                    # FastAPI 后端（路由、WebSocket、事件）
 │   ├── assets/                 # 资源生成（图标、截图、商店文案）
 │   ├── builder/                # Flutter 构建与发布
+│   │   ├── flutter_builder.py  # 三端构建（apk/aab/ipa/hap）
+│   │   ├── publisher.py        # 商店上架（Google Play / App Store / AppGallery）
+│   │   └── platforms.py        # 平台解析与运行时平台来源
 │   ├── crawler/                # 需求采集爬虫
 │   ├── evaluator/              # 需求评估与决策
 │   ├── generator/              # 代码生成（PRD、模板、逐文件生成）
@@ -243,7 +255,7 @@ zeroapp/
 │   ├── tasks/                  # Celery 异步任务
 │   ├── config.py               # 配置（pydantic-settings）
 │   ├── database.py             # 数据库引擎
-│   ├── llm.py                  # Claude 客户端（官方 SDK，API Key / OAuth Token 双认证）
+│   ├── llm.py                  # Claude 接入（双认证 + OAuth 注入 + complete/acomplete 助手）
 │   └── main.py                 # CLI 入口（typer）
 ├── dashboard/                  # Next.js 15 前端
 ├── alembic/                    # 数据库迁移

@@ -161,3 +161,67 @@ def get_claude_async_client():
     if _is_oauth_mode():
         return _OAuthClient(client, is_async=True)
     return client
+
+
+def _build_messages_kwargs(
+    prompt: str | None,
+    messages: list[dict[str, Any]] | None,
+    system: str | None,
+    max_tokens: int,
+    model: str | None,
+) -> dict[str, Any]:
+    """Assemble kwargs for ``messages.create`` shared by sync/async helpers."""
+    if messages is None:
+        if prompt is None:
+            raise ValueError("complete() requires either `prompt` or `messages`.")
+        messages = [{"role": "user", "content": prompt}]
+
+    kwargs: dict[str, Any] = {
+        "model": model or get_settings().claude_model,
+        "max_tokens": max_tokens,
+        "messages": messages,
+    }
+    if system is not None:
+        kwargs["system"] = system
+    return kwargs
+
+
+async def acomplete(
+    prompt: str | None = None,
+    *,
+    system: str | None = None,
+    messages: list[dict[str, Any]] | None = None,
+    max_tokens: int = 4096,
+    model: str | None = None,
+    client: Any = None,
+) -> str:
+    """Run one async Claude completion and return the response text.
+
+    Centralizes the ``messages.create(...) -> content[0].text`` pattern used
+    across the codebase. Pass ``prompt`` for a single user turn or ``messages``
+    for a full list; ``model`` defaults to ``settings.claude_model``.
+    """
+    if client is None:
+        client = get_claude_async_client()
+    resp = await client.messages.create(
+        **_build_messages_kwargs(prompt, messages, system, max_tokens, model)
+    )
+    return resp.content[0].text
+
+
+def complete(
+    prompt: str | None = None,
+    *,
+    system: str | None = None,
+    messages: list[dict[str, Any]] | None = None,
+    max_tokens: int = 4096,
+    model: str | None = None,
+    client: Any = None,
+) -> str:
+    """Synchronous counterpart of :func:`acomplete`."""
+    if client is None:
+        client = get_claude_client()
+    resp = client.messages.create(
+        **_build_messages_kwargs(prompt, messages, system, max_tokens, model)
+    )
+    return resp.content[0].text

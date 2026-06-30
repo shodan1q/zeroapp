@@ -108,3 +108,72 @@ def test_api_key_client_not_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_settings(monkeypatch, claude_api_key="sk-ant-456")
 
     assert llm.get_claude_client() is sentinel
+
+
+# ── complete() / acomplete() helpers ────────────────────────────────
+
+
+class _FakeBlock:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeResp:
+    def __init__(self, text):
+        self.content = [_FakeBlock(text)]
+
+
+class _FakeMessages:
+    def __init__(self, captured):
+        self._captured = captured
+
+    def create(self, **kwargs):
+        self._captured.update(kwargs)
+        return _FakeResp("hello")
+
+
+class _FakeAsyncMessages:
+    def __init__(self, captured):
+        self._captured = captured
+
+    async def create(self, **kwargs):
+        self._captured.update(kwargs)
+        return _FakeResp("hi")
+
+
+class _FakeClient:
+    def __init__(self, captured, is_async):
+        self.messages = (
+            _FakeAsyncMessages(captured) if is_async else _FakeMessages(captured)
+        )
+
+
+def test_complete_builds_single_user_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, claude_api_key="sk-ant-1", claude_model="m-default")
+    cap: dict = {}
+    out = llm.complete("hi there", max_tokens=123, client=_FakeClient(cap, is_async=False))
+
+    assert out == "hello"
+    assert cap["model"] == "m-default"
+    assert cap["max_tokens"] == 123
+    assert cap["messages"] == [{"role": "user", "content": "hi there"}]
+    assert "system" not in cap  # omitted when None
+
+
+@pytest.mark.asyncio
+async def test_acomplete_passes_system_and_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, claude_api_key="sk-ant-1", claude_model="m-default")
+    cap: dict = {}
+    out = await llm.acomplete(
+        "q", system="be brief", model="m-override", client=_FakeClient(cap, is_async=True)
+    )
+
+    assert out == "hi"
+    assert cap["model"] == "m-override"
+    assert cap["system"] == "be brief"
+
+
+def test_complete_requires_prompt_or_messages(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, claude_api_key="sk-ant-1")
+    with pytest.raises(ValueError, match="prompt.*messages"):
+        llm.complete(client=_FakeClient({}, is_async=False))

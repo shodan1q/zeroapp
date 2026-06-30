@@ -28,6 +28,15 @@ from zerodev.pipeline.state import DemandState, PipelineState, RetryPolicy
 logger = logging.getLogger(__name__)
 
 
+async def _emit(stage: str, **kwargs: Any) -> None:
+    """Best-effort WebSocket stage event; never fails the pipeline."""
+    try:
+        from zerodev.api.events import emit_stage_change
+        await emit_stage_change(stage, **kwargs)
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -57,11 +66,7 @@ async def node_crawl(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[crawl] Starting demand crawl.")
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("crawl", status="started")
-    except Exception:
-        pass
+    await _emit("crawl", status="started")
 
     crawlers = [RedditCrawler(), ProductHuntCrawler()]
     all_demands: List[Dict[str, Any]] = []
@@ -81,11 +86,7 @@ async def node_crawl(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[crawl] Total raw demands: %d.", len(all_demands))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("crawl", status="completed", detail={"count": len(all_demands)})
-    except Exception:
-        pass
+    await _emit("crawl", status="completed", detail={"count": len(all_demands)})
 
     return {
         "demands_raw": all_demands,
@@ -102,11 +103,7 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
     raw_demands: List[Dict[str, Any]] = state.get("demands_raw", [])
     logger.info("[process] Processing %d raw demands.", len(raw_demands))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("process", status="started")
-    except Exception:
-        pass
+    await _emit("process", status="started")
 
     try:
         from zerodev.crawler.processor import DemandProcessor
@@ -126,11 +123,7 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
                 )
         logger.info("[process] Structured %d demands.", len(structured))
 
-        try:
-            from zerodev.api.events import emit_stage_change
-            await emit_stage_change("process", status="completed", detail={"count": len(structured)})
-        except Exception:
-            pass
+        await _emit("process", status="completed", detail={"count": len(structured)})
 
         return {"demands_structured": structured, "stage": "process"}
 
@@ -144,11 +137,7 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
             d.setdefault("description", d.get("raw_text", ""))
             d.setdefault("core_features", "")
 
-        try:
-            from zerodev.api.events import emit_stage_change
-            await emit_stage_change("process", status="completed", detail={"count": len(raw_demands)})
-        except Exception:
-            pass
+        await _emit("process", status="completed", detail={"count": len(raw_demands)})
 
         return {"demands_structured": raw_demands, "stage": "process"}
 
@@ -164,11 +153,7 @@ async def node_evaluate_batch(state: Dict[str, Any]) -> Dict[str, Any]:
     structured: List[Dict[str, Any]] = state.get("demands_structured", [])
     logger.info("[evaluate] Evaluating %d demands.", len(structured))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("evaluate_batch", status="started")
-    except Exception:
-        pass
+    await _emit("evaluate_batch", status="started")
 
     evaluated: List[Dict[str, Any]] = []
     errors: list[str] = list(state.get("errors") or [])
@@ -192,11 +177,7 @@ async def node_evaluate_batch(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[evaluate] Evaluated %d / %d demands.", len(evaluated), len(structured))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("evaluate_batch", status="completed", detail={"evaluated": len(evaluated), "total": len(structured)})
-    except Exception:
-        pass
+    await _emit("evaluate_batch", status="completed", detail={"evaluated": len(evaluated), "total": len(structured)})
 
     return {
         "demands_evaluated": evaluated,
@@ -213,11 +194,7 @@ async def node_decide_batch(state: Dict[str, Any]) -> Dict[str, Any]:
     evaluated: List[Dict[str, Any]] = state.get("demands_evaluated", [])
     logger.info("[decide] Deciding on %d demands.", len(evaluated))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("decide_batch", status="started")
-    except Exception:
-        pass
+    await _emit("decide_batch", status="started")
 
     approved: List[Dict[str, Any]] = []
     rejected: List[Dict[str, Any]] = []
@@ -263,11 +240,7 @@ async def node_decide_batch(state: Dict[str, Any]) -> Dict[str, Any]:
         len(rejected),
     )
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("decide_batch", status="completed", detail={"approved": len(approved), "rejected": len(rejected)})
-    except Exception:
-        pass
+    await _emit("decide_batch", status="completed", detail={"approved": len(approved), "rejected": len(rejected)})
 
     return {
         "demands_approved": approved,
@@ -444,11 +417,7 @@ async def node_generate(state: Dict[str, Any]) -> Dict[str, Any]:
     demand_id = state.get("demand_id", "unknown")
     logger.info("[generate] Starting code generation for %s.", demand_id)
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("generate", demand_id=demand_id, status="started")
-    except Exception:
-        pass
+    await _emit("generate", demand_id=demand_id, status="started")
 
     try:
         from zerodev.generator import (
@@ -478,11 +447,7 @@ async def node_generate(state: Dict[str, Any]) -> Dict[str, Any]:
                 fix_result.errors[:3],
             )
 
-        try:
-            from zerodev.api.events import emit_stage_change
-            await emit_stage_change("generate", demand_id=demand_id, status="completed")
-        except Exception:
-            pass
+        await _emit("generate", demand_id=demand_id, status="completed")
 
         return {"project_path": project.path, "stage": "generate"}
 
@@ -499,11 +464,7 @@ async def node_generate(state: Dict[str, Any]) -> Dict[str, Any]:
             demand.get("title", "app"),
         )
         if result.success:
-            try:
-                from zerodev.api.events import emit_stage_change
-                await emit_stage_change("generate", demand_id=demand_id, status="completed")
-            except Exception:
-                pass
+            await _emit("generate", demand_id=demand_id, status="completed")
             return {"project_path": result.artifact_path, "stage": "generate"}
         raise RuntimeError(f"flutter create failed: {result.errors}")
 
@@ -525,11 +486,7 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[build] Building %s at %s.", demand_id, project)
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("build", demand_id=demand_id, status="started")
-    except Exception:
-        pass
+    await _emit("build", demand_id=demand_id, status="started")
 
     from zerodev.builder.platforms import get_runtime_platforms
 
@@ -593,11 +550,7 @@ async def node_build(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[build] Artifacts for %s: %s.", demand_id, list(artifacts.keys()))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("build", demand_id=demand_id, status="completed", detail={"artifacts": list(artifacts.keys())})
-    except Exception:
-        pass
+    await _emit("build", demand_id=demand_id, status="completed", detail={"artifacts": list(artifacts.keys())})
 
     return {"build_artifacts": artifacts, "stage": "build"}
 
@@ -619,11 +572,7 @@ async def node_assets(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[assets] Generating assets for %s.", demand_id)
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("assets", demand_id=demand_id, status="started")
-    except Exception:
-        pass
+    await _emit("assets", demand_id=demand_id, status="started")
     assets: Dict[str, Any] = {}
 
     try:
@@ -654,11 +603,7 @@ async def node_assets(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[assets] Generated assets for %s: %s.", demand_id, list(assets.keys()))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("assets", demand_id=demand_id, status="completed", detail={"assets": list(assets.keys())})
-    except Exception:
-        pass
+    await _emit("assets", demand_id=demand_id, status="completed", detail={"assets": list(assets.keys())})
 
     return {"assets": assets, "stage": "assets"}
 
@@ -685,11 +630,7 @@ async def node_publish(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[publish] Publishing %s (artifacts=%s).", demand_id, list(artifacts.keys()))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("publish", demand_id=demand_id, status="started")
-    except Exception:
-        pass
+    await _emit("publish", demand_id=demand_id, status="started")
 
     listing = (state.get("assets") or {}).get("listing", {})
     en = listing.get("en", {})
@@ -737,11 +678,7 @@ async def node_publish(state: Dict[str, Any]) -> Dict[str, Any]:
 
     logger.info("[publish] Publish complete for %s: %s.", demand_id, list(publish_results.keys()))
 
-    try:
-        from zerodev.api.events import emit_stage_change
-        await emit_stage_change("publish", demand_id=demand_id, status="completed")
-    except Exception:
-        pass
+    await _emit("publish", demand_id=demand_id, status="completed")
 
     return {"publish_results": publish_results, "stage": "publish"}
 

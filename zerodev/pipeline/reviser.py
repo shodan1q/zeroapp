@@ -4,10 +4,7 @@ import asyncio
 import logging
 import os
 import re
-from datetime import datetime
 from pathlib import Path
-
-from zerodev.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +24,6 @@ class AppReviser:
         Returns:
             dict with status, changes_made, errors
         """
-        settings = get_settings()
         app_path = Path(app_dir)
 
         if not app_path.exists():
@@ -55,9 +51,7 @@ class AppReviser:
             files_context += f"\n--- {path} ---\n{content}\n"
 
         # Step 3: Call Claude for revision
-        from zerodev.llm import get_claude_async_client
-
-        client = get_claude_async_client()
+        from zerodev.llm import acomplete
 
         system_prompt = (
             "You are a Flutter code modifier. You are given existing Flutter project files and a modification request. "
@@ -84,14 +78,9 @@ class AppReviser:
 
         os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 
-        resp = await client.messages.create(
-            model=settings.claude_model,
-            max_tokens=16384,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-
-        response_text = resp.content[0].text.strip()
+        response_text = (
+            await acomplete(user_prompt, system=system_prompt, max_tokens=16384)
+        ).strip()
 
         # Step 4: Parse response and write files
         file_pattern = r"===FILE:\s*(.+?)===\n(.*?)===END==="
