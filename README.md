@@ -1,14 +1,55 @@
-# 湍流ZeroDev
+<h1 align="center">湍流 ZeroDev</h1>
 
-> **鸿蒙优先的自动化应用工厂。** 从互联网挖掘需求，AI 自动生成 Flutter 代码，**面向鸿蒙 HarmonyOS 7 自动产出原生 `.hap` 应用包**，同时覆盖 Android / iOS 三端，并自动上架应用商店。
+<p align="center"><b>鸿蒙优先的 AI 自动化应用工厂</b> &middot; 从需求发现到上架，全链路无人值守</p>
 
-ZeroDev 的核心定位是 **鸿蒙生态的应用规模化生产**：在国产操作系统加速发展的背景下，鸿蒙应用供给是关键缺口。本项目把"需求发现 → AI 生成 → 鸿蒙构建 → 上架"全链路自动化，让鸿蒙应用可以批量、低成本地生产。
+<p align="center">
+  <img src="https://img.shields.io/badge/HarmonyOS-7%20Ready-FF3A2D" alt="HarmonyOS 7" />
+  <img src="https://img.shields.io/badge/Flutter-3.7%2B-02569B" alt="Flutter" />
+  <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB" alt="Python" />
+  <img src="https://img.shields.io/badge/Orchestration-LangGraph-1C7C54" alt="LangGraph" />
+  <img src="https://img.shields.io/badge/LLM-Claude%20Opus-7C3AED" alt="Claude" />
+  <img src="https://img.shields.io/badge/Targets-Android%20%7C%20iOS%20%7C%20HarmonyOS-555" alt="Platforms" />
+</p>
+
+> 从互联网挖掘需求 -> AI 自动生成 Flutter 代码 -> **面向鸿蒙 HarmonyOS 7 产出原生 `.hap`** -> 自动上架；同时覆盖 Android / iOS 三端。
 
 生成的应用发布在: [shodan1q/zerogenerate](https://github.com/shodan1q/zerogenerate)
 
 ![登录页](docs/images/login.png)
 
 ![仪表盘](docs/images/dashboard.png)
+
+**快速导航**：[愿景](#愿景-vision) &middot; [鸿蒙优先](#鸿蒙优先-harmonyos-first) &middot; [核心能力](#核心能力) &middot; [快速开始](#快速开始) &middot; [按平台构建](#按平台构建) &middot; [项目结构](#项目结构) &middot; [开发指南](#开发指南)
+
+---
+
+## 愿景 (Vision)
+
+> **让每一个想法，都能在鸿蒙上自动长成一款应用。**
+
+国产操作系统正在重塑移动生态，而鸿蒙当前最大的瓶颈不是技术，而是**应用供给的规模**。ZeroDev 的使命，是把"一个人 + 一套 Agent"变成一条**全自动的鸿蒙应用生产线**：
+
+- **从稀缺到丰沛** —— 把应用生产的边际成本压到接近于零，让长尾、垂直、小而美的鸿蒙应用批量涌现。
+- **从手工到流水线** —— 需求发现、产品设计、编码、构建、上架，每一环都由 Agent 自主完成，人只做关键审核。
+- **从单端到原生三端** —— 以鸿蒙为第一公民，一份需求同时产出 HarmonyOS / Android / iOS 原生包。
+- **从工具到基础设施** —— 不止生成代码，而是成为"软件由 AI 持续生产与运营"的底座。
+
+我们相信：**软件的生产方式正在被重写**。ZeroDev 想成为这场变革中，鸿蒙生态的那条主干流水线。
+
+---
+
+## 核心能力
+
+| 能力 | 说明 |
+|------|------|
+| **鸿蒙优先** | 面向 HarmonyOS 7，flutter-ohos 真实产出 `.hap`；`--platform ohos` 单命令只产鸿蒙 |
+| **自主编排** | LangGraph 五层有向图流水线，SQLite checkpoint 持久化 + 指数退避重试 + 中断恢复 |
+| **AI 代码生成** | 蓝图 + 逐文件两阶段生成，生成后 12 项自动修复保障编译通过 |
+| **三端按需构建** | `--platform` 单选/多选 Android / iOS / 鸿蒙，平台间互不阻塞 |
+| **实时 Dashboard** | Next.js 15 前端，WebSocket 实时日志，需求 / 应用 / 构建全程可视 |
+| **灵活 LLM 接入** | 官方 Anthropic SDK，API Key 或 Max 订阅 OAuth Token（订阅零额外成本） |
+
+---
 
 ## 鸿蒙优先 (HarmonyOS First)
 
@@ -42,6 +83,8 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 主图：crawl -> process -> evaluate -> decide -> [人工审核] -> fan_out
 子图：generate -> build -> assets -> [人工审核] -> publish
 
+---
+
 ## 技术栈
 
 | 层级 | 技术 |
@@ -56,6 +99,8 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 | 数据库 | PostgreSQL + SQLAlchemy（异步） |
 | 定时调度 | Celery Beat（可选） |
 | 图标生成 | DALL-E 3 API |
+
+---
 
 ## 快速开始
 
@@ -201,6 +246,8 @@ zeroapp/
 └── flutter_agent_requirements.md  # 完整需求清单
 ```
 
+---
+
 ## CLI 命令
 
 ```bash
@@ -209,7 +256,11 @@ zerodev crawl            # 仅运行需求采集
 zerodev evaluate         # 评估待处理需求
 zerodev generate         # 为已通过需求生成代码
 zerodev build            # 构建已通过的应用
-zerodev pipeline         # 运行一次完整流水线
+zerodev pipeline run     # 运行一次完整流水线
+
+# 按平台构建（android / ios / ohos，可多选）
+zerodev generate --platform ohos            # 仅鸿蒙
+zerodev pipeline run --platform android,ohos # 安卓 + 鸿蒙
 ```
 
 ## API 端点
@@ -338,7 +389,9 @@ make build-ohos
 
 ### LLM 容错机制
 
-Claude API 调用内置重试机制：
-- 超时（ReadTimeout）、连接超时、服务器 500 错误自动重试
-- 每次重试等待 60 秒
-- 最多 3 次重试
+Claude 调用基于官方 Anthropic SDK 的内置容错：
+- 超时、连接错误、429 / 5xx 自动重试（指数退避），最多 3 次
+- 单次请求超时 600 秒
+- OAuth 订阅模式下自动注入 Claude Code 身份块与 beta 头（见 [Claude 认证方式](#claude-认证方式)）
+
+代码生成阶段在 SDK 重试之上，另有最多 3 轮 `dart analyze` 错误的 Claude 自动修复。
