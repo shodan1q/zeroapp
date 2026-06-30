@@ -125,7 +125,7 @@ export default function SettingsPage() {
 
   // Build targets
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["android"]);
-  const [claudeModel, setClaudeModel] = useState("claude-sonnet-4-20250514");
+  const [claudeModel, setClaudeModel] = useState("claude-opus-4-8");
 
   // Pipeline config
   const [crawlInterval, setCrawlInterval] = useState("60");
@@ -292,10 +292,10 @@ export default function SettingsPage() {
               onChange={(e) => setClaudeModel(e.target.value)}
               className="w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-              <option value="claude-opus-4-20250514">Claude Opus 4</option>
-              <option value="claude-3-5-haiku-20241022">
-                Claude 3.5 Haiku
+              <option value="claude-opus-4-8">Claude Opus 4.8</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-haiku-4-5-20251001">
+                Claude Haiku 4.5
               </option>
             </select>
           </Field>

@@ -324,7 +324,7 @@ export default function LoginPage() {
             >
               <span>LangGraph</span>
               <span className="w-0.5 h-0.5 rounded-full bg-gray-700" />
-              <span>Claude Opus 4.6</span>
+              <span>Claude Opus 4.8</span>
               <span className="w-0.5 h-0.5 rounded-full bg-gray-700" />
               <span>Flutter 3.7+</span>
             </div>

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
         default="",
         description="Optional custom API gateway base URL; empty uses the official Anthropic endpoint",
     )
-    claude_model: str = Field(default="claude-opus-4-6", description="Claude model to use")
+    claude_model: str = Field(default="claude-opus-4-8", description="Claude model to use")
 
     # ── Reddit API ──────────────────────────────────────────────
     reddit_client_id: str = Field(default="", description="Reddit OAuth client ID")

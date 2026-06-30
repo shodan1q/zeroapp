@@ -90,7 +90,7 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 | 层级 | 技术 |
 |------|------|
 | Agent 编排 | Python 3.11+ / LangGraph / SQLite Checkpoint |
-| LLM | Claude Opus 4.6（官方 Anthropic SDK，支持 API Key 或 Max Plan OAuth Token） |
+| LLM | Claude Opus 4.8（官方 Anthropic SDK，支持 API Key 或 Max Plan OAuth Token） |
 | 后端 API | FastAPI + Uvicorn |
 | 实时通信 | WebSocket（自动重连，指数退避） |
 | 前端 Dashboard | Next.js 15 + TypeScript + Tailwind CSS v4 |
@@ -137,7 +137,7 @@ cp .env.example .env
 - `CLAUDE_OAUTH_TOKEN`：Claude Pro/Max 订阅 OAuth Token，运行 `claude setup-token` 获取（优先级最高）
 - `CLAUDE_API_KEY`：Anthropic 官方 API Key（未设置 OAuth Token 时使用）
 - `CLAUDE_BASE_URL`：可选自建 API 网关地址，留空使用官方端点
-- `CLAUDE_MODEL`：默认 `claude-opus-4-6`
+- `CLAUDE_MODEL`：默认 `claude-opus-4-8`
 - `DATABASE_URL`：PostgreSQL 异步连接字符串
 - `PIPELINE_CHECKPOINT_BACKEND`：`sqlite`（推荐）或 `memory`
 
