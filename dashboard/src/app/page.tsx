@@ -51,9 +51,14 @@ import { useI18n } from "@/lib/i18n";
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-white/30 dark:border-[#1e2756]/50 backdrop-blur-xl bg-white/60 dark:bg-[#111738]/60 p-5 shadow-sm">
-      <div className="mb-3 h-4 w-24 rounded bg-gray-200 dark:bg-[#161d45]" />
-      <div className="h-8 w-16 rounded bg-gray-200 dark:bg-[#161d45]" />
+    <div className="glass animate-pulse p-5">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 shrink-0 rounded-xl bg-gray-200 dark:bg-[#161d45]" />
+        <div className="flex-1">
+          <div className="mb-2 h-6 w-12 rounded bg-gray-200 dark:bg-[#161d45]" />
+          <div className="h-3 w-16 rounded bg-gray-200 dark:bg-[#161d45]" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -75,17 +80,20 @@ function SkeletonRow() {
 /* ------------------------------------------------------------------ */
 
 function StatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
+  const neutral =
+    "inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:border-[#1e2756] dark:bg-[#161d45] dark:text-slate-300";
   const map: Record<string, string> = {
-    pending: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300",
-    evaluating: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-    approved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    rejected: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    in_progress: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-    done: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    running: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    failed: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    cancelled: "bg-gray-100 text-gray-500 dark:bg-[#161d45] dark:text-slate-400",
+    pending: neutral,
+    evaluating: "badge-warning",
+    approved: "badge-success",
+    rejected: "badge-error",
+    in_progress:
+      "inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:border-purple-500/35 dark:bg-purple-900/30 dark:text-purple-300",
+    done: "badge-info",
+    running: "badge-info",
+    success: "badge-success",
+    failed: "badge-error",
+    cancelled: neutral,
   };
   const labelKey: Record<string, string> = {
     pending: "status.pending",
@@ -100,9 +108,7 @@ function StatusBadge({ status, t }: { status: string; t: (key: string) => string
     cancelled: "status.cancelled",
   };
   return (
-    <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-300"}`}
-    >
+    <span className={map[status] ?? neutral}>
       {labelKey[status] ? t(labelKey[status]) : status}
     </span>
   );
@@ -146,23 +152,23 @@ function stageStatusStyle(
   const stageIdx = stageOrder.indexOf(stageKey);
 
   if (currentStage === "error") {
-    return { dot: "bg-red-500", card: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" };
+    return { dot: "bg-red-500", card: "border-red-200 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400" };
   }
   if (stageKey === "error") {
-    return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738]", text: "text-gray-400" };
+    return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-[#1e2756] bg-white/60 dark:bg-[#111738]/60", text: "text-gray-400" };
   }
   if (stageKey === currentStage) {
-    return { dot: "bg-blue-500 animate-pulse", card: "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" };
+    return { dot: "bg-blue-500 animate-pulse", card: "border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/20", text: "text-blue-700 dark:text-blue-400" };
   }
   if (stageIdx < currentIdx && currentIdx >= 0) {
-    return { dot: "bg-emerald-500", card: "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" };
+    return { dot: "bg-emerald-500", card: "border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-900/20", text: "text-emerald-700 dark:text-emerald-400" };
   }
-  return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738]", text: "text-gray-400" };
+  return { dot: "bg-gray-200 dark:bg-gray-600", card: "border-gray-200 dark:border-[#1e2756] bg-white/60 dark:bg-[#111738]/60", text: "text-gray-400" };
 }
 
 function SkeletonStageCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] p-4">
+    <div className="animate-pulse rounded-xl border border-gray-200 dark:border-[#1e2756] bg-white/60 dark:bg-[#111738]/60 p-4">
       <div className="mb-3 h-5 w-20 rounded bg-gray-200 dark:bg-[#161d45]" />
       <div className="space-y-2">
         <div className="h-3 w-full rounded bg-gray-200 dark:bg-[#161d45]" />
@@ -462,48 +468,39 @@ export default function OverviewPage() {
       labelKey: "overview.total_apps",
       value: summary?.total_apps ?? 0,
       icon: Layers,
-      color: "text-blue-500",
-      bg: "bg-blue-50 dark:bg-blue-900/30",
+      chip: "icon-chip-blue",
     },
     {
       labelKey: "overview.live_apps",
       value: summary?.live_apps ?? 0,
       icon: Rocket,
-      color: "text-emerald-500",
-      bg: "bg-emerald-50 dark:bg-emerald-900/30",
+      chip: "icon-chip-green",
     },
     {
       labelKey: "overview.developing",
       value: summary?.developing_apps ?? 0,
       icon: Code2,
-      color: "text-purple-500",
-      bg: "bg-purple-50 dark:bg-purple-900/30",
+      chip: "icon-chip-purple",
     },
     {
       labelKey: "overview.total_demands",
       value: summary?.total_demands ?? 0,
       icon: Lightbulb,
-      color: "text-amber-500",
-      bg: "bg-amber-50 dark:bg-amber-900/30",
+      chip: "icon-chip-amber",
     },
     {
       labelKey: "overview.today_builds",
       value: summary?.builds_today ?? 0,
       icon: Hammer,
-      color: "text-indigo-500",
-      bg: "bg-indigo-50 dark:bg-indigo-900/30",
+      chip: "icon-chip-rose",
     },
     {
       labelKey: "overview.pending",
       value: summary?.pending_demands ?? 0,
       icon: Clock,
-      color: "text-gray-500",
-      bg: "bg-gray-100 dark:bg-[#161d45]",
+      chip: "icon-chip-slate",
     },
   ];
-
-  /* ---------- Glass card style --------------------------------- */
-  const glass = "backdrop-blur-xl bg-white/70 dark:bg-[#111738]/60 border-white/40 dark:border-[#1e2756]/50";
 
   /* ---------- Render -------------------------------------------- */
 
@@ -511,47 +508,44 @@ export default function OverviewPage() {
     <div className="relative space-y-6">
       <div className="relative z-10 space-y-6">
       {/* Page title */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200 drop-shadow-sm">{t("overview.title")}</h1>
-        <button
-          onClick={loadData}
-          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-gray-600 dark:text-slate-300 shadow-sm transition-colors hover:bg-white/80 dark:hover:bg-[#161d45]/80 ${glass}`}
-        >
-          <RefreshCw className="h-4 w-4" />
+      <div className="fade-in-up flex items-start justify-between gap-4">
+        <div>
+          <h1 className="page-title">{t("overview.title")}</h1>
+          <p className="page-subtitle">{t("login.subtitle")}</p>
+        </div>
+        <button onClick={loadData} className="btn btn-secondary btn-sm shrink-0">
+          <RefreshCw className="h-3.5 w-3.5" />
           {t("overview.refresh")}
         </button>
       </div>
 
       {/* Backend not connected warning */}
       {!loading && !apiConnected && (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+        <div className="fade-in-up flex items-center gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
           <span>{t("overview.backend_warning")}</span>
         </div>
       )}
 
       {/* A) Stats cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="fade-in-up grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
           : statsCards.map((card) => {
               const Icon = card.icon;
               return (
-                <div
-                  key={card.labelKey}
-                  className={`rounded-lg border p-5 shadow-sm ${glass}`}
-                >
+                <div key={card.labelKey} className="glass glass-hover p-5">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.bg}`}
-                    >
-                      <Icon className={`h-5 w-5 ${card.color}`} />
+                    <div className={`icon-chip ${card.chip}`}>
+                      <Icon className="h-5 w-5" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-semibold text-gray-900 dark:text-slate-200">
+                    <div className="min-w-0">
+                      <p className="text-2xl font-bold tabular-nums text-gray-900 dark:text-slate-100">
                         {card.value}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">{t(card.labelKey)}</p>
+                      <p className="truncate text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
+                        {t(card.labelKey)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -560,13 +554,13 @@ export default function OverviewPage() {
       </div>
 
       {/* B) Compact pipeline status indicator */}
-      <div className={`rounded-lg border px-5 py-3 shadow-sm ${glass}`}>
+      <div className="glass fade-in-up px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             {runnerStatus.running ? (
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <span className="relative inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
               </span>
             ) : (
               <span className="inline-flex h-2.5 w-2.5 rounded-full bg-gray-300 dark:bg-gray-600" />
@@ -579,21 +573,25 @@ export default function OverviewPage() {
           <span className="truncate text-sm text-gray-500 dark:text-slate-400">
             {t("overview.current_task")}: {runnerStatus.current_run_id ?? pipelineTask}
           </span>
-          <span className="ml-auto shrink-0 text-xs text-gray-400 dark:text-slate-500">
+          <span className="ml-auto shrink-0 text-xs tabular-nums text-gray-400 dark:text-slate-500">
             {t("overview.cycles")} {runnerStatus.cycles} / {t("overview.generated")} {runnerStatus.apps_generated} / {t("overview.pushed")} {runnerStatus.apps_pushed}
           </span>
         </div>
       </div>
 
       {/* C) Custom generation card */}
-      <div className={`rounded-lg border p-6 shadow-sm ${glass}`}>
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="h-5 w-5 text-indigo-500" />
-          <h2 className="text-base font-semibold text-gray-900 dark:text-slate-200">{t("overview.custom_gen")}</h2>
+      <div className="glass fade-in-up p-5 ring-1 ring-indigo-500/20 dark:ring-indigo-400/20">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="icon-chip icon-chip-purple">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="section-title">{t("overview.custom_gen")}</h2>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-slate-400">
+              {t("overview.custom_gen_desc")}
+            </p>
+          </div>
         </div>
-        <p className="mb-4 text-sm text-gray-500 dark:text-slate-400">
-          {t("overview.custom_gen_desc")}
-        </p>
         <div className="flex gap-3">
           <input
             type="text"
@@ -602,12 +600,12 @@ export default function OverviewPage() {
             onKeyDown={(e) => e.key === "Enter" && handleCustomGenerate()}
             disabled={runnerStatus.running || customLoading}
             placeholder={t("overview.custom_gen_placeholder")}
-            className="flex-1 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-4 py-2.5 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-400"
+            className="input flex-1 disabled:cursor-not-allowed disabled:opacity-60"
           />
           <button
             onClick={handleCustomGenerate}
             disabled={!customTheme.trim() || runnerStatus.running || customLoading}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            className="btn btn-primary shrink-0"
           >
             <Send className="h-4 w-4" />
             {customLoading ? t("overview.submitting") : t("overview.start_gen")}
@@ -628,21 +626,19 @@ export default function OverviewPage() {
       </div>
 
       {/* D) Pipeline control panel (merged from pipeline page) */}
-      <div className={`rounded-lg border p-6 shadow-sm ${glass}`}>
-        <div className="flex items-center justify-between">
+      <div className="glass fade-in-up p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               {runnerStatus.running ? (
                 <span className="relative flex h-3 w-3">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                  <span className="relative inline-flex h-3 w-3 animate-pulse rounded-full bg-emerald-500" />
                 </span>
               ) : (
                 <span className="inline-flex h-3 w-3 rounded-full bg-gray-300 dark:bg-gray-600" />
               )}
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-200">
-                {t("overview.pipeline_control")}
-              </h2>
+              <h2 className="section-title">{t("overview.pipeline_control")}</h2>
             </div>
             {runnerStatus.started_at && (
               <span className="text-sm text-gray-500 dark:text-slate-400">
@@ -654,7 +650,7 @@ export default function OverviewPage() {
             <button
               onClick={handleTrigger}
               disabled={triggering}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
+              className="btn btn-secondary"
             >
               {triggering ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -667,7 +663,7 @@ export default function OverviewPage() {
               <button
                 onClick={handleStopPipeline}
                 disabled={runnerLoading}
-                className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+                className="btn btn-danger"
               >
                 <Square className="h-4 w-4" />
                 {runnerLoading ? t("overview.processing") : t("overview.stop_pipeline")}
@@ -676,7 +672,7 @@ export default function OverviewPage() {
               <button
                 onClick={handleStartPipeline}
                 disabled={runnerLoading}
-                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                className="btn btn-primary"
               >
                 <Play className="h-4 w-4" />
                 {runnerLoading ? t("overview.processing") : t("overview.start_pipeline")}
@@ -686,26 +682,26 @@ export default function OverviewPage() {
         </div>
         <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-[#1e2756] pt-4 sm:grid-cols-5">
           <div>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.cycles")}</p>
-            <p className="text-xl font-semibold text-gray-900 dark:text-slate-200">{runnerStatus.cycles}</p>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">{t("overview.cycles")}</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-gray-900 dark:text-slate-100">{runnerStatus.cycles}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.generated_apps")}</p>
-            <p className="text-xl font-semibold text-gray-900 dark:text-slate-200">{runnerStatus.apps_generated}</p>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">{t("overview.generated_apps")}</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-gray-900 dark:text-slate-100">{runnerStatus.apps_generated}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.pushed_github")}</p>
-            <p className="text-xl font-semibold text-gray-900 dark:text-slate-200">{runnerStatus.apps_pushed}</p>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">{t("overview.pushed_github")}</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-gray-900 dark:text-slate-100">{runnerStatus.apps_pushed}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.error_count")}</p>
-            <p className={`text-xl font-semibold ${runnerStatus.errors > 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-slate-200"}`}>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">{t("overview.error_count")}</p>
+            <p className={`mt-1 text-xl font-bold tabular-nums ${runnerStatus.errors > 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-slate-100"}`}>
               {runnerStatus.errors}
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{t("overview.current_task")}</p>
-            <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">{t("overview.current_task")}</p>
+            <p className="mt-1 truncate text-sm font-medium text-gray-700 dark:text-slate-300">
               {runnerStatus.current_run_id ?? "--"}
             </p>
           </div>
@@ -713,26 +709,24 @@ export default function OverviewPage() {
       </div>
 
       {/* E) Thread search */}
-      <div className={`rounded-lg border p-5 shadow-sm ${glass}`}>
-        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-          {t("overview.query_pipeline")}
-        </label>
+      <div className="glass fade-in-up p-5">
+        <label className="field-label">{t("overview.query_pipeline")}</label>
         <div className="flex gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder={t("overview.query_placeholder")}
               value={searchId}
               onChange={(e) => setSearchId(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] py-2 pl-9 pr-3 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="input pl-9"
             />
           </div>
           <button
             onClick={handleSearch}
             disabled={searchLoading}
-            className="rounded-lg border border-gray-200 dark:border-[#1e2756] bg-white dark:bg-[#111738] px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 shadow-sm transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45] disabled:opacity-50"
+            className="btn btn-secondary shrink-0"
           >
             {searchLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -745,15 +739,18 @@ export default function OverviewPage() {
       </div>
 
       {/* F) Pipeline stage visualization */}
-      <div className={`rounded-lg border p-6 shadow-sm ${glass}`}>
-        <h2 className="mb-5 text-sm font-semibold text-gray-700 dark:text-slate-300">
-          {t("overview.pipeline_stages")}
+      <div className="glass fade-in-up p-5">
+        <div className="mb-5 flex items-baseline gap-3">
+          <h2 className="section-title">
+            <GitBranch className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+            {t("overview.pipeline_stages")}
+          </h2>
           {pipelineStatus && (
-            <span className="ml-3 text-xs font-normal text-gray-400 dark:text-slate-500">
+            <span className="text-xs font-normal text-gray-400 dark:text-slate-500">
               Thread: {pipelineStatus.thread_id}
             </span>
           )}
-        </h2>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {searchLoading
@@ -768,7 +765,7 @@ export default function OverviewPage() {
                   return (
                     <div
                       key={stage.key}
-                      className={`rounded-lg border p-4 shadow-sm transition-all ${style.card}`}
+                      className={`rounded-xl border p-4 shadow-sm transition-all ${style.card}`}
                     >
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -802,7 +799,7 @@ export default function OverviewPage() {
                           const secs = tk && runnerStatus.stage_timings?.[tk];
                           if (secs && secs > 0) {
                             return (
-                              <p className="text-[10px] font-mono text-gray-400 dark:text-slate-500">
+                              <p className="text-[10px] font-mono tabular-nums text-gray-400 dark:text-slate-500">
                                 {secs >= 60 ? `${(secs / 60).toFixed(1)}min` : `${secs.toFixed(1)}s`}
                               </p>
                             );
@@ -831,14 +828,13 @@ export default function OverviewPage() {
       </div>
 
       {/* G) Pipeline logs */}
-      <div className={`rounded-lg border shadow-sm ${glass}`}>
+      <div className="glass fade-in-up">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
-          <Activity className="h-4 w-4 text-gray-400" />
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.pipeline_logs")}</h2>
-          <button
-            onClick={loadLogs}
-            className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
-          >
+          <h2 className="section-title">
+            <Activity className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+            {t("overview.pipeline_logs")}
+          </h2>
+          <button onClick={loadLogs} className="btn btn-ghost btn-sm ml-auto">
             <RefreshCw className="h-3.5 w-3.5" />
             {t("overview.refresh")}
           </button>
@@ -849,57 +845,59 @@ export default function OverviewPage() {
             </span>
           )}
         </div>
-        <div
-          ref={logRef}
-          className="max-h-72 overflow-y-auto px-5 py-3 font-mono text-xs leading-relaxed text-gray-600 dark:text-slate-300"
-        >
-          {pipelineLogs.length === 0 ? (
-            <p className="py-6 text-center text-gray-400 dark:text-slate-500">
-              {t("overview.no_logs")}
-            </p>
-          ) : (
-            pipelineLogs.map((entry, i) => {
-              const badgeColor: Record<string, string> = {
-                stage_change: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
-                error: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
-                pipeline_update: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
-                build_update: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
-                info: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400",
-              };
-              const badge = entry.type
-                ? badgeColor[entry.type] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400"
-                : "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400";
-              return (
-                <div key={i} className="py-0.5 flex items-start gap-1.5">
-                  <span className="text-gray-400 dark:text-slate-500 shrink-0">{entry.time}</span>
-                  <span
-                    className={`inline-block rounded px-1 py-0 text-[10px] font-medium shrink-0 ${badge}`}
-                  >
-                    {entry.type}
-                  </span>
-                  <span className={entry.type === "error" ? "text-red-600 dark:text-red-400" : ""}>{entry.message}</span>
-                </div>
-              );
-            })
-          )}
+        <div className="p-3">
+          <div
+            ref={logRef}
+            className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 dark:border-[#1e2756]/60 bg-gray-50/80 dark:bg-[#0a0e27]/60 px-4 py-3 font-mono text-xs leading-relaxed text-gray-600 dark:text-slate-300"
+          >
+            {pipelineLogs.length === 0 ? (
+              <p className="py-6 text-center text-gray-400 dark:text-slate-500">
+                {t("overview.no_logs")}
+              </p>
+            ) : (
+              pipelineLogs.map((entry, i) => {
+                const badgeColor: Record<string, string> = {
+                  stage_change: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
+                  error: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+                  pipeline_update: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+                  build_update: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+                  info: "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400",
+                };
+                const badge = entry.type
+                  ? badgeColor[entry.type] ?? "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400"
+                  : "bg-gray-100 text-gray-600 dark:bg-[#161d45] dark:text-slate-400";
+                return (
+                  <div key={i} className="py-0.5 flex items-start gap-1.5">
+                    <span className="text-gray-400 dark:text-slate-500 shrink-0 tabular-nums">{entry.time}</span>
+                    <span
+                      className={`inline-block rounded px-1 py-0 text-[10px] font-medium shrink-0 ${badge}`}
+                    >
+                      {entry.type}
+                    </span>
+                    <span className={entry.type === "error" ? "text-red-600 dark:text-red-400" : ""}>{entry.message}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
       {/* H) Two-column tables */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="fade-in-up grid gap-6 lg:grid-cols-2">
         {/* Recent demands */}
-        <div className={`rounded-lg border shadow-sm ${glass}`}>
+        <div className="glass">
           <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.recent_demands")}</h2>
+            <h2 className="section-title">{t("overview.recent_demands")}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-[#1e2756] text-left text-xs text-gray-500 dark:text-slate-400">
-                  <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
-                  <th className="px-4 py-3 font-medium">{t("demands.name")}</th>
-                  <th className="px-4 py-3 font-medium">{t("demands.status")}</th>
-                  <th className="px-4 py-3 font-medium">{t("demands.time")}</th>
+              <thead className="table-head">
+                <tr>
+                  <th>{t("demands.id")}</th>
+                  <th>{t("demands.name")}</th>
+                  <th>{t("demands.status")}</th>
+                  <th>{t("demands.time")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -918,18 +916,15 @@ export default function OverviewPage() {
                   </tr>
                 ) : (
                   demands.map((d) => (
-                    <tr
-                      key={d.demand_id}
-                      className="border-b border-gray-50 dark:border-[#1e2756]/50 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
-                    >
-                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">#{d.demand_id}</td>
-                      <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-slate-200">
+                    <tr key={d.demand_id} className="table-row">
+                      <td className="text-gray-500 dark:text-slate-400">#{d.demand_id}</td>
+                      <td className="max-w-[200px] truncate font-medium text-gray-900 dark:text-slate-200">
                         {d.title}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <StatusBadge status={d.status} t={t} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                      <td className="text-gray-500 dark:text-slate-400">
                         {new Date(d.created_at).toLocaleDateString("zh-CN")}
                       </td>
                     </tr>
@@ -941,18 +936,18 @@ export default function OverviewPage() {
         </div>
 
         {/* Recent builds */}
-        <div className={`rounded-lg border shadow-sm ${glass}`}>
+        <div className="glass">
           <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("overview.recent_builds")}</h2>
+            <h2 className="section-title">{t("overview.recent_builds")}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-[#1e2756] text-left text-xs text-gray-500 dark:text-slate-400">
-                  <th className="px-4 py-3 font-medium">{t("demands.id")}</th>
-                  <th className="px-4 py-3 font-medium">{t("builds.step")}</th>
-                  <th className="px-4 py-3 font-medium">{t("demands.status")}</th>
-                  <th className="px-4 py-3 font-medium">{t("demands.time")}</th>
+              <thead className="table-head">
+                <tr>
+                  <th>{t("demands.id")}</th>
+                  <th>{t("builds.step")}</th>
+                  <th>{t("demands.status")}</th>
+                  <th>{t("demands.time")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -971,18 +966,15 @@ export default function OverviewPage() {
                   </tr>
                 ) : (
                   builds.map((b) => (
-                    <tr
-                      key={b.build_id}
-                      className="border-b border-gray-50 dark:border-[#1e2756]/50 transition-colors hover:bg-gray-50 dark:hover:bg-[#161d45]"
-                    >
-                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">#{b.build_id}</td>
-                      <td className="max-w-[200px] truncate px-4 py-3 font-medium text-gray-900 dark:text-slate-200">
+                    <tr key={b.build_id} className="table-row">
+                      <td className="text-gray-500 dark:text-slate-400">#{b.build_id}</td>
+                      <td className="max-w-[200px] truncate font-medium text-gray-900 dark:text-slate-200">
                         {b.step}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <StatusBadge status={b.status} t={t} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                      <td className="text-gray-500 dark:text-slate-400">
                         {new Date(b.created_at).toLocaleDateString("zh-CN")}
                       </td>
                     </tr>

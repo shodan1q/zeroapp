@@ -25,31 +25,35 @@ function formatElapsed(seconds: number): string {
 
 const statusConfig = {
   pending: {
-    circle: 'bg-gray-200 text-gray-400',
+    circle:
+      'bg-gray-100 text-gray-400 ring-1 ring-gray-200 dark:bg-[#161d45] dark:text-slate-500 dark:ring-[#1e2756]',
     icon: Circle,
   },
   active: {
-    circle: 'bg-blue-500 text-white animate-pulse',
+    circle:
+      'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/40',
     icon: Loader2,
   },
   completed: {
-    circle: 'bg-emerald-500 text-white',
+    circle:
+      'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30',
     icon: Check,
   },
   failed: {
-    circle: 'bg-red-500 text-white',
+    circle:
+      'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30',
     icon: X,
   },
 };
 
 function lineColor(left: PipelineStage['status'], right: PipelineStage['status']): string {
   if (left === 'completed' && (right === 'completed' || right === 'active')) {
-    return 'bg-emerald-400';
+    return 'bg-gradient-to-r from-emerald-400 to-emerald-500';
   }
   if (left === 'failed' || right === 'failed') {
-    return 'bg-red-300';
+    return 'bg-red-300 dark:bg-red-500/40';
   }
-  return 'bg-gray-200';
+  return 'bg-gray-200 dark:bg-[#1e2756]';
 }
 
 export default function PipelineView({
@@ -60,41 +64,55 @@ export default function PipelineView({
   maxRetries,
 }: PipelineViewProps) {
   return (
-    <div className="bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl border border-white/40 dark:border-[#1e2756]/50 rounded-xl shadow-sm p-6">
+    <div className="glass p-6">
       {/* Pipeline stages */}
       <div className="flex items-start overflow-x-auto pb-2">
         {stages.map((stage, i) => {
           const config = statusConfig[stage.status];
           const Icon = config.icon;
           return (
-            <div key={i} className="flex items-start flex-1 min-w-0">
-              <div className="flex flex-col items-center min-w-[72px]">
-                <div
+            <div key={i} className="flex min-w-0 flex-1 items-start">
+              <div className="flex min-w-[72px] flex-col items-center">
+                <div className="relative flex-shrink-0">
+                  {stage.status === 'active' && (
+                    <span className="absolute inset-0 animate-ping rounded-full bg-blue-500 opacity-30" />
+                  )}
+                  <div
+                    className={clsx(
+                      'relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300',
+                      config.circle
+                    )}
+                  >
+                    <Icon
+                      className={clsx('h-4 w-4', {
+                        'animate-spin': stage.status === 'active',
+                      })}
+                    />
+                  </div>
+                </div>
+                <span
                   className={clsx(
-                    'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0',
-                    config.circle
+                    'mt-2 text-center text-xs leading-tight transition-colors',
+                    stage.status === 'active'
+                      ? 'font-medium text-blue-700 dark:text-blue-300'
+                      : stage.status === 'pending'
+                        ? 'text-gray-400 dark:text-slate-500'
+                        : 'text-gray-600 dark:text-slate-300'
                   )}
                 >
-                  <Icon
-                    className={clsx('w-4 h-4', {
-                      'animate-spin': stage.status === 'active',
-                    })}
-                  />
-                </div>
-                <span className="text-xs text-gray-600 mt-2 text-center leading-tight">
                   {stage.name}
                 </span>
                 {stage.detail && (
-                  <span className="text-[10px] text-gray-400 mt-0.5 text-center">
+                  <span className="mt-0.5 text-center text-[10px] text-gray-400 dark:text-slate-500">
                     {stage.detail}
                   </span>
                 )}
               </div>
               {i < stages.length - 1 && (
-                <div className="flex-1 flex items-center pt-4 px-1 min-w-[24px]">
+                <div className="flex min-w-[24px] flex-1 items-center px-1 pt-4">
                   <div
                     className={clsx(
-                      'h-0.5 w-full rounded-full',
+                      'h-0.5 w-full rounded-full transition-colors duration-300',
                       lineColor(stage.status, stages[i + 1].status)
                     )}
                   />
@@ -107,21 +125,22 @@ export default function PipelineView({
 
       {/* Info bar */}
       {(currentDemand || elapsed !== undefined || retryCount !== undefined) && (
-        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-4 text-sm text-gray-600">
+        <div className="mt-4 flex items-center gap-4 border-t border-gray-100 dark:border-[#1e2756]/70 pt-4 text-sm text-gray-600 dark:text-slate-400">
           {currentDemand && (
-            <span className="truncate flex-1">
-              当前需求：<span className="font-medium text-gray-800">{currentDemand}</span>
+            <span className="flex-1 truncate">
+              当前需求：
+              <span className="font-medium text-gray-800 dark:text-slate-200">{currentDemand}</span>
             </span>
           )}
           {elapsed !== undefined && (
-            <span className="flex items-center gap-1 flex-shrink-0">
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
+            <span className="flex flex-shrink-0 items-center gap-1 tabular-nums">
+              <Clock className="h-3.5 w-3.5 text-gray-400 dark:text-slate-500" />
               {formatElapsed(elapsed)}
             </span>
           )}
           {retryCount !== undefined && maxRetries !== undefined && (
-            <span className="flex items-center gap-1 flex-shrink-0 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-xs font-medium">
-              <RotateCcw className="w-3 h-3" />
+            <span className="badge-warning flex-shrink-0 tabular-nums">
+              <RotateCcw className="h-3 w-3" />
               重试 {retryCount}/{maxRetries}
             </span>
           )}

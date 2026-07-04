@@ -824,8 +824,8 @@ class PipelineRunner:
         run_id = self._current_run_id
         env = {**os.environ, "NO_PROXY": "127.0.0.1,localhost"}
 
-        from zerodev.llm import get_claude_async_client
-        client = get_claude_async_client()
+        from zerodev.llm import get_llm_async_client
+        client = get_llm_async_client()
 
         # ── Stage: crawl -- 生成 App 创意 ─────────────────────────────
         await emit_stage_change("crawl", run_id, "active", {"message": "正在生成 App 创意..."})
@@ -1739,8 +1739,8 @@ class PipelineRunner:
         run_id = self._current_run_id
         env = {**os.environ, "NO_PROXY": "127.0.0.1,localhost"}
 
-        from zerodev.llm import get_claude_async_client
-        client = get_claude_async_client()
+        from zerodev.llm import get_llm_async_client
+        client = get_llm_async_client()
 
         # ── Stage: crawl -- 根据用户主题生成 App 规格 ─────────────────
         await emit_stage_change("crawl", run_id, "active", {"message": f"正在根据主题生成 App 规格: {theme[:50]}..."})

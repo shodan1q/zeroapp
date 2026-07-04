@@ -38,15 +38,14 @@ export default function DataTable<T extends Record<string, any>>({
     : 0;
 
   return (
-    <div className="bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl border border-white/40 dark:border-[#1e2756]/50 rounded-xl shadow-sm overflow-hidden">
+    <div className="glass overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50/50 dark:bg-[#0a0e27]/40">
+          <thead className="table-head">
+            <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   style={col.width ? { width: col.width } : undefined}
                 >
                   {col.title}
@@ -57,9 +56,9 @@ export default function DataTable<T extends Record<string, any>>({
           <tbody>
             {loading &&
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`skeleton-${i}`} className="border-b border-gray-100">
+                <tr key={`skeleton-${i}`} className="table-row">
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3">
+                    <td key={col.key}>
                       <SkeletonRow />
                     </td>
                   ))}
@@ -69,9 +68,11 @@ export default function DataTable<T extends Record<string, any>>({
             {!loading && data.length === 0 && (
               <tr>
                 <td colSpan={columns.length} className="py-16">
-                  <div className="flex flex-col items-center justify-center text-gray-400">
-                    <Inbox className="w-10 h-10 text-gray-300 mb-2" />
-                    <span className="text-sm">{emptyText}</span>
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100/80 dark:bg-[#161d45]/80">
+                      <Inbox className="h-6 w-6 text-gray-400 dark:text-slate-500" />
+                    </span>
+                    <span className="text-sm text-gray-400 dark:text-slate-500">{emptyText}</span>
                   </div>
                 </td>
               </tr>
@@ -82,13 +83,13 @@ export default function DataTable<T extends Record<string, any>>({
                 <tr
                   key={rowIdx}
                   className={clsx(
-                    'border-b border-gray-100 transition-colors',
-                    onRowClick && 'cursor-pointer hover:bg-gray-50'
+                    'table-row text-gray-700 dark:text-slate-300',
+                    onRowClick && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(row)}
                 >
                   {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 text-sm text-gray-700">
+                    <td key={col.key}>
                       {col.render ? col.render(row[col.key], row) : row[col.key]}
                     </td>
                   ))}
@@ -100,22 +101,17 @@ export default function DataTable<T extends Record<string, any>>({
 
       {/* Pagination */}
       {pagination && totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-white/40 dark:border-[#1e2756]/50">
-          <span className="text-sm text-gray-500">
+        <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#1e2756]/70 px-4 py-3">
+          <span className="text-xs text-gray-500 dark:text-slate-400 tabular-nums">
             共 {pagination.total} 条
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => pagination.onChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className={clsx(
-                'p-1.5 rounded-md border border-white/40 dark:border-[#1e2756]/50 transition-colors',
-                pagination.page <= 1
-                  ? 'text-gray-300 cursor-not-allowed'
-                  : 'text-gray-600 hover:bg-gray-50'
-              )}
+              className="btn btn-secondary btn-sm px-2"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter((p) => {
@@ -132,7 +128,10 @@ export default function DataTable<T extends Record<string, any>>({
               }, [])
               .map((item, idx) =>
                 item === 'ellipsis' ? (
-                  <span key={`e-${idx}`} className="px-2 text-gray-400 text-sm">
+                  <span
+                    key={`e-${idx}`}
+                    className="px-1.5 text-sm text-gray-400 dark:text-slate-500"
+                  >
                     ...
                   </span>
                 ) : (
@@ -140,10 +139,8 @@ export default function DataTable<T extends Record<string, any>>({
                     key={item}
                     onClick={() => pagination.onChange(item as number)}
                     className={clsx(
-                      'w-8 h-8 text-sm rounded-md border transition-colors',
-                      item === pagination.page
-                        ? 'bg-gray-900 text-white border-gray-900'
-                        : 'border-white/40 dark:border-[#1e2756]/50 text-gray-600 hover:bg-gray-50'
+                      'btn btn-sm h-8 w-8 px-0 tabular-nums',
+                      item === pagination.page ? 'btn-primary' : 'btn-secondary'
                     )}
                   >
                     {item}
@@ -153,14 +150,9 @@ export default function DataTable<T extends Record<string, any>>({
             <button
               onClick={() => pagination.onChange(pagination.page + 1)}
               disabled={pagination.page >= totalPages}
-              className={clsx(
-                'p-1.5 rounded-md border border-white/40 dark:border-[#1e2756]/50 transition-colors',
-                pagination.page >= totalPages
-                  ? 'text-gray-300 cursor-not-allowed'
-                  : 'text-gray-600 hover:bg-gray-50'
-              )}
+              className="btn btn-secondary btn-sm px-2"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>

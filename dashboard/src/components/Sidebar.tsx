@@ -58,17 +58,19 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   return (
     <aside
       className={clsx(
-        "flex h-full flex-col border-r border-blue-300/40 dark:border-[#1e2756]/50 bg-blue-100/90 dark:bg-[#111738]/70 backdrop-blur-xl transition-all duration-300 ease-in-out",
+        "flex h-full flex-col border-r border-white/50 dark:border-[#1e2756]/60 bg-white/70 dark:bg-[#0c1130]/80 backdrop-blur-xl transition-all duration-300 ease-in-out",
         collapsed ? "w-16" : "w-64",
       )}
     >
       {/* Logo + collapse toggle */}
-      <div className="flex h-16 items-center border-b border-gray-200 dark:border-[#1e2756] px-3">
+      <div className="flex h-16 items-center border-b border-gray-200/70 dark:border-[#1e2756]/70 px-3">
         <div className={clsx("flex items-center gap-2.5", collapsed ? "justify-center w-full" : "flex-1 px-2")}>
-          <Bot className="h-7 w-7 flex-shrink-0 text-blue-600" />
+          <span className="icon-chip icon-chip-blue h-8 w-8 rounded-lg">
+            <Bot className="h-5 w-5" />
+          </span>
           <span
             className={clsx(
-              "text-lg font-semibold text-gray-900 dark:text-slate-200 whitespace-nowrap transition-opacity duration-300",
+              "text-lg font-semibold tracking-tight text-gray-900 dark:text-slate-100 whitespace-nowrap transition-opacity duration-300",
               collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
             )}
           >
@@ -78,7 +80,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         <button
           onClick={onToggleCollapse}
           className={clsx(
-            "flex-shrink-0 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-[#161d45] hover:text-gray-600 dark:hover:text-gray-300",
+            "flex-shrink-0 rounded-lg p-1.5 text-gray-400 dark:text-slate-500 transition-colors hover:bg-blue-600/8 dark:hover:bg-blue-400/10 hover:text-blue-600 dark:hover:text-blue-300",
             collapsed && "hidden md:flex",
           )}
         >
@@ -91,7 +93,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-2 py-4">
+      <nav className="flex-1 space-y-1.5 px-2.5 py-5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -101,17 +103,27 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
               href={item.href}
               title={collapsed ? t(item.labelKey) : undefined}
               className={clsx(
-                "flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                "group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 collapsed ? "justify-center" : "gap-3",
                 active
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-[#161d45] hover:text-gray-900 dark:hover:text-gray-100",
+                  ? "bg-gradient-to-r from-blue-600/12 to-indigo-600/8 text-blue-700 dark:from-blue-500/15 dark:to-indigo-500/10 dark:text-blue-300"
+                  : "text-gray-600 dark:text-slate-400 hover:bg-blue-600/5 dark:hover:bg-blue-400/8 hover:text-gray-900 dark:hover:text-slate-100",
               )}
             >
+              {active && (
+                <span
+                  className={clsx(
+                    "absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-gradient-to-b from-blue-500 to-indigo-500",
+                    collapsed && "h-4",
+                  )}
+                />
+              )}
               <Icon
                 className={clsx(
-                  "h-5 w-5 flex-shrink-0",
-                  active ? "text-white" : "text-gray-400 dark:text-slate-500",
+                  "h-5 w-5 flex-shrink-0 transition-colors duration-200",
+                  active
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300",
                 )}
               />
               <span
@@ -127,13 +139,18 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         })}
       </nav>
 
-      {/* Theme toggle */}
-      <div className={clsx("border-t border-gray-200 dark:border-[#1e2756] px-3 py-2", collapsed && "px-2")}>
+      {/* Footer actions: theme / language / logout */}
+      <div
+        className={clsx(
+          "space-y-0.5 border-t border-gray-200/70 dark:border-[#1e2756]/70 px-2.5 py-2.5",
+          collapsed && "px-2",
+        )}
+      >
         <button
           onClick={toggleTheme}
           title={t("common.toggle_theme")}
           className={clsx(
-            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-100 dark:hover:bg-[#161d45] hover:text-gray-700 dark:hover:text-gray-300",
+            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-slate-400 transition-colors hover:bg-blue-600/8 dark:hover:bg-blue-400/10 hover:text-blue-600 dark:hover:text-blue-300",
             collapsed ? "justify-center" : "gap-2",
           )}
         >
@@ -151,15 +168,12 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             {theme === "light" ? t("common.dark_mode") : t("common.light_mode")}
           </span>
         </button>
-      </div>
 
-      {/* Language toggle */}
-      <div className={clsx("border-t border-gray-200 dark:border-[#1e2756] px-3 py-2", collapsed && "px-2")}>
         <button
           onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
           title={t("common.language")}
           className={clsx(
-            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-slate-400 transition-colors hover:bg-gray-100 dark:hover:bg-[#161d45] hover:text-gray-700 dark:hover:text-gray-300",
+            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-slate-400 transition-colors hover:bg-blue-600/8 dark:hover:bg-blue-400/10 hover:text-blue-600 dark:hover:text-blue-300",
             collapsed ? "justify-center" : "gap-2",
           )}
         >
@@ -173,10 +187,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             {locale === "zh" ? "English" : "中文"}
           </span>
         </button>
-      </div>
 
-      {/* Logout */}
-      <div className={clsx("border-t border-gray-200 dark:border-[#1e2756] px-3 py-2", collapsed && "px-2")}>
         <button
           onClick={() => {
             localStorage.removeItem("auth");
@@ -184,7 +195,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           }}
           title={t("nav.logout")}
           className={clsx(
-            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-slate-400 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600",
+            "flex w-full items-center rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-slate-400 transition-colors hover:bg-red-500/8 dark:hover:bg-red-500/12 hover:text-red-600 dark:hover:text-red-400",
             collapsed ? "justify-center" : "gap-2",
           )}
         >
@@ -201,11 +212,27 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       </div>
 
       {/* Connection status */}
-      <div className={clsx("border-t border-gray-200 dark:border-[#1e2756] px-3 py-3", collapsed && "px-2")}>
-        <div className={clsx("flex items-center text-xs", collapsed ? "justify-center" : "gap-2")}>
+      <div className={clsx("border-t border-gray-200/70 dark:border-[#1e2756]/70 px-3 py-3", collapsed && "px-2")}>
+        <div className={clsx("flex items-center text-xs", collapsed ? "justify-center" : "gap-2 px-2")}>
+          <span className="relative flex h-2 w-2 flex-shrink-0 items-center justify-center">
+            {connected && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            )}
+            <span
+              className={clsx(
+                "relative inline-flex h-2 w-2 rounded-full",
+                connected ? "bg-emerald-500" : "bg-red-500",
+              )}
+            />
+          </span>
           {connected ? (
             <>
-              <Wifi className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+              <Wifi
+                className={clsx(
+                  "h-3.5 w-3.5 flex-shrink-0 text-emerald-500 transition-opacity duration-300",
+                  collapsed && "hidden",
+                )}
+              />
               <span
                 className={clsx(
                   "text-gray-500 dark:text-slate-400 whitespace-nowrap transition-opacity duration-300",
@@ -217,7 +244,12 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             </>
           ) : (
             <>
-              <WifiOff className="h-3.5 w-3.5 flex-shrink-0 text-red-500" />
+              <WifiOff
+                className={clsx(
+                  "h-3.5 w-3.5 flex-shrink-0 text-red-500 transition-opacity duration-300",
+                  collapsed && "hidden",
+                )}
+              />
               <span
                 className={clsx(
                   "text-gray-500 dark:text-slate-400 whitespace-nowrap transition-opacity duration-300",

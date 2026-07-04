@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Flutter-3.7%2B-02569B" alt="Flutter" />
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB" alt="Python" />
   <img src="https://img.shields.io/badge/Orchestration-LangGraph-1C7C54" alt="LangGraph" />
-  <img src="https://img.shields.io/badge/LLM-Claude%20Opus-7C3AED" alt="Claude" />
+  <img src="https://img.shields.io/badge/LLM-Claude%20%2B%207%20Providers-7C3AED" alt="Multi-LLM" />
   <img src="https://img.shields.io/badge/Targets-Android%20%7C%20iOS%20%7C%20HarmonyOS-555" alt="Platforms" />
 </p>
 
@@ -18,6 +18,8 @@
 ![登录页](docs/images/login.png)
 
 ![仪表盘](docs/images/dashboard.png)
+
+![AI 模型接入](docs/images/settings-ai.png)
 
 **快速导航**：[愿景](#愿景-vision) &middot; [鸿蒙优先](#鸿蒙优先-harmonyos-first) &middot; [核心能力](#核心能力) &middot; [快速开始](#快速开始) &middot; [按平台构建](#按平台构建) &middot; [项目结构](#项目结构) &middot; [开发指南](#开发指南)
 
@@ -46,8 +48,8 @@
 | **自主编排** | LangGraph 五层有向图流水线，SQLite checkpoint 持久化 + 指数退避重试 + 中断恢复 |
 | **AI 代码生成** | 蓝图 + 逐文件两阶段生成，生成后 12 项自动修复保障编译通过 |
 | **三端按需构建** | `--platform` 单选/多选 Android / iOS / 鸿蒙，平台间互不阻塞 |
-| **实时 Dashboard** | Next.js 15 前端，WebSocket 实时日志，需求 / 应用 / 构建全程可视 |
-| **灵活 LLM 接入** | 官方 Anthropic SDK，API Key 或 Max 订阅 OAuth Token（订阅零额外成本） |
+| **实时 Dashboard** | Next.js 15 前端，统一设计体系（玻璃拟态 + 渐变按钮 + 明暗双主题），WebSocket 实时日志，需求 / 应用 / 构建全程可视 |
+| **多 AI 提供商** | Claude（官方 SDK，API Key / Max 订阅 OAuth）+ OpenAI / Gemini / DeepSeek / 通义千问 / 智谱 GLM / Kimi / Ollama 本地，Dashboard 一键切换 |
 
 ---
 
@@ -90,7 +92,7 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 | LangGraph 图 | CLI / `orchestrator.run_pipeline` | 全自动流水线，含 release 构建（`node_build` 按平台分发）与上架（`node_publish` 按产物匹配商店） |
 | `PipelineRunner` | Dashboard（自定义生成 / 持续运行） | 需求生成 + Android 编译校验 + 推送到 [zerogenerate](https://github.com/shodan1q/zerogenerate) monorepo |
 
-> 两条路径共享底层模块（`zerodev/llm.py` 统一 Claude 接入、`zerodev/builder/` 构建与发布、`zerodev/generator/` 代码生成）。release 多端构建与商店上架目前走图路径。
+> 两条路径共享底层模块（`zerodev/llm.py` 统一 LLM 接入（多提供商）、`zerodev/builder/` 构建与发布、`zerodev/generator/` 代码生成）。release 多端构建与商店上架目前走图路径。
 
 ---
 
@@ -99,7 +101,7 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 | 层级 | 技术 |
 |------|------|
 | Agent 编排 | Python 3.11+ / LangGraph / SQLite Checkpoint |
-| LLM | Claude Opus 4.8（官方 Anthropic SDK，支持 API Key 或 Max Plan OAuth Token） |
+| LLM | 多提供商：Claude Opus 4.8（默认，官方 Anthropic SDK）/ OpenAI / Gemini / DeepSeek / 通义千问 / 智谱 GLM / Kimi / Ollama |
 | 后端 API | FastAPI + Uvicorn |
 | 实时通信 | WebSocket（自动重连，指数退避） |
 | 前端 Dashboard | Next.js 15 + TypeScript + Tailwind CSS v4 |
@@ -143,6 +145,7 @@ cp .env.example .env
 
 编辑 `.env` 文件，核心配置项：
 
+- `LLM_PROVIDER`：AI 提供商，默认 `claude`（见下方 [AI 提供商接入](#ai-提供商接入)）
 - `CLAUDE_OAUTH_TOKEN`：Claude Pro/Max 订阅 OAuth Token，运行 `claude setup-token` 获取（优先级最高）
 - `CLAUDE_API_KEY`：Anthropic 官方 API Key（未设置 OAuth Token 时使用）
 - `CLAUDE_BASE_URL`：可选自建 API 网关地址，留空使用官方端点
@@ -150,9 +153,31 @@ cp .env.example .env
 - `DATABASE_URL`：PostgreSQL 异步连接字符串
 - `PIPELINE_CHECKPOINT_BACKEND`：`sqlite`（推荐）或 `memory`
 
+### AI 提供商接入
+
+代码生成由可插拔的 LLM 层驱动（`zerodev/llm.py` + `zerodev/providers.py`），支持 8 家提供商。
+Claude 走官方 Anthropic SDK；其余提供商统一走各家**官方 OpenAI 兼容端点**，零额外依赖：
+
+| 提供商 | `LLM_PROVIDER` | 密钥配置 | 默认模型 |
+|--------|----------------|----------|----------|
+| Claude（默认） | `claude` | `CLAUDE_OAUTH_TOKEN` / `CLAUDE_API_KEY` | `claude-opus-4-8` |
+| OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-5.1` |
+| Google Gemini | `gemini` | `GEMINI_API_KEY` | `gemini-2.5-pro` |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-chat` |
+| 通义千问 Qwen | `qwen` | `QWEN_API_KEY`（百炼 DashScope） | `qwen-max` |
+| 智谱 GLM | `zhipu` | `ZHIPU_API_KEY` | `glm-4.6` |
+| 月之暗面 Kimi | `moonshot` | `MOONSHOT_API_KEY` | `kimi-k2-turbo-preview` |
+| Ollama 本地 | `ollama` | 无需密钥 | `llama3.1` |
+
+- 每家提供商还支持 `{PROVIDER}_MODEL` / `{PROVIDER}_BASE_URL` 覆盖模型与端点。
+- **推荐直接在 Dashboard「设置 → AI 模型接入」中切换提供商并填写密钥**：
+  保存到 `data/settings.json` 后立即生效（优先级：Dashboard 设置 > 环境变量 > 内置默认）。
+- 所有业务调用统一通过 `get_llm_client()` / `get_llm_async_client()` 获得
+  Anthropic Messages 形状的客户端，切换提供商无需改动任何业务代码。
+
 #### Claude 认证方式
 
-项目通过官方 Anthropic SDK 接入，支持两种认证方式，**OAuth Token 优先于 API Key**：
+Claude 通过官方 Anthropic SDK 接入，支持两种认证方式，**OAuth Token 优先于 API Key**：
 
 | 方式 | 适用场景 | 配置项 | 成本 |
 |------|----------|--------|------|
@@ -255,7 +280,8 @@ zeroapp/
 │   ├── tasks/                  # Celery 异步任务
 │   ├── config.py               # 配置（pydantic-settings）
 │   ├── database.py             # 数据库引擎
-│   ├── llm.py                  # Claude 接入（双认证 + OAuth 注入 + complete/acomplete 助手）
+│   ├── llm.py                  # 统一 LLM 接入（多提供商 + OAuth 注入 + complete/acomplete 助手）
+│   ├── providers.py            # AI 提供商注册表（8 家：Claude/OpenAI/Gemini/DeepSeek/Qwen/GLM/Kimi/Ollama）
 │   └── main.py                 # CLI 入口（typer）
 ├── dashboard/                  # Next.js 15 前端
 ├── alembic/                    # 数据库迁移
@@ -303,6 +329,7 @@ zerodev pipeline run --platform android,ohos # 安卓 + 鸿蒙
 | `/api/generated-apps/revise` | POST | AI 修改现有应用 |
 | `/api/settings` | GET | 获取系统设置 |
 | `/api/settings` | POST | 保存系统设置 |
+| `/api/llm/providers` | GET | AI 提供商注册表（供设置页动态渲染） |
 | `/api/pipeline/status/{thread_id}` | GET | 流水线状态 |
 | `/api/pipeline/trigger` | POST | 触发单次流水线 |
 | `/api/pipeline/start` | POST | 启动持续流水线 |
@@ -325,7 +352,17 @@ Dashboard 是独立的 Next.js 15 前端应用，通过 API 连接 FastAPI 后�
 - **应用管理** -- 应用列表、搜索、设备运行（Android/iOS/HarmonyOS）、重构建
 - **修改完善** -- 选择已生成应用、输入修改指令、AI 自动修改代码并提交
 - **构建日志** -- 构建记录、状态筛选、展开输出/错误详情
-- **设置** -- Claude API 配置、流水线参数、数据源开关、发布密钥管理
+- **设置** -- AI 模型接入（8 家提供商一键切换）、构建平台、流水线参数、数据源开关、发布密钥管理
+
+界面预览：
+
+| 需求管理 | 应用管理 |
+|---|---|
+| ![需求管理](docs/images/demands.png) | ![应用管理](docs/images/apps.png) |
+
+| 构建日志 | AI 模型接入 |
+|---|---|
+| ![构建日志](docs/images/builds.png) | ![AI 模型接入](docs/images/settings-ai.png) |
 
 启动方式：
 ```bash
@@ -410,9 +447,9 @@ make build-ohos
 
 ### LLM 容错机制
 
-Claude 调用基于官方 Anthropic SDK 的内置容错：
-- 超时、连接错误、429 / 5xx 自动重试（指数退避），最多 3 次
-- 单次请求超时 600 秒
-- OAuth 订阅模式下自动注入 Claude Code 身份块与 beta 头（见 [Claude 认证方式](#claude-认证方式)）
+所有提供商共享同一套容错策略：
+- **Claude**：官方 Anthropic SDK 内置容错——超时、连接错误、429 / 5xx 自动重试（指数退避），最多 3 次；OAuth 订阅模式下自动注入 Claude Code 身份块与 beta 头（见 [Claude 认证方式](#claude-认证方式)）
+- **其他提供商**（OpenAI 兼容端点）：httpx 客户端实现同等策略——429 / 5xx / 网络错误指数退避重试最多 3 次，4xx 立即报错并附带响应详情
+- 单次请求超时统一 600 秒
 
-代码生成阶段在 SDK 重试之上，另有最多 3 轮 `dart analyze` 错误的 Claude 自动修复。
+代码生成阶段在重试之上，另有最多 3 轮 `dart analyze` 错误的 AI 自动修复。

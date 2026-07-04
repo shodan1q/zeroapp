@@ -78,9 +78,9 @@ class AutoFixer:
     """Iteratively fix Dart analysis and build errors using Claude."""
 
     def __init__(self) -> None:
-        from zerodev.llm import get_claude_client
+        from zerodev.llm import get_llm_client
         settings = get_settings()
-        self._client = get_claude_client()
+        self._client = get_llm_client()
         self._model = settings.claude_model
         self._dart_bin = settings.dart_bin
         self._flutter_bin = settings.flutter_bin

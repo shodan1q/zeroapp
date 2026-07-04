@@ -12,7 +12,7 @@ import logging
 import re
 from typing import Any
 
-from zerodev.llm import get_claude_client
+from zerodev.llm import get_llm_client
 from pydantic import BaseModel, Field
 
 from zerodev.config import get_settings
@@ -203,7 +203,7 @@ class PRDGenerator:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = get_claude_client()
+        self._client = get_llm_client()
         self._model = settings.claude_model
 
     async def generate(

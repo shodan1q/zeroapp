@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wrench, Loader2, CheckCircle, XCircle, FileCode } from "lucide-react";
+import { Wrench, Loader2, CheckCircle, XCircle, FileCode, History } from "lucide-react";
 import { listGeneratedApps, reviseApp } from "@/lib/api";
 import type { GeneratedApp, RevisionResult } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
@@ -64,24 +64,26 @@ export default function RevisePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Wrench className="h-6 w-6 text-gray-500 dark:text-slate-400" />
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">{t("revise.title")}</h1>
+      <div className="fade-in-up flex items-center gap-3">
+        <span className="icon-chip icon-chip-purple">
+          <Wrench className="h-5 w-5" />
+        </span>
+        <h1 className="page-title">{t("revise.title")}</h1>
       </div>
 
       {/* Main form card */}
-      <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl shadow-sm">
-        <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("revise.submit_request")}</h2>
+      <div className="glass fade-in-up">
+        <div className="border-b border-gray-100 px-5 py-4 dark:border-[#1e2756]">
+          <h2 className="section-title">{t("revise.submit_request")}</h2>
         </div>
         <div className="space-y-4 p-5">
           {/* App selector */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-300">
+            <label className="field-label">
               {t("revise.select_app")}
             </label>
             {loadingApps ? (
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("common.loading")}
               </div>
@@ -91,7 +93,7 @@ export default function RevisePage() {
               <select
                 value={selectedApp}
                 onChange={(e) => setSelectedApp(e.target.value)}
-                className="w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="input"
               >
                 {apps.map((app) => (
                   <option key={app.id} value={app.path}>
@@ -105,10 +107,10 @@ export default function RevisePage() {
           {/* Selected app path */}
           {selectedAppInfo && (
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-300">
+              <label className="field-label">
                 {t("revise.project_path")}
               </label>
-              <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-gray-50/70 dark:bg-[#0a0e27]/60 backdrop-blur-xl px-3 py-2 font-mono text-sm text-gray-500 dark:text-slate-400">
+              <div className="input font-mono text-gray-500 dark:text-slate-400">
                 {selectedAppInfo.path}
               </div>
             </div>
@@ -116,7 +118,7 @@ export default function RevisePage() {
 
           {/* Instruction textarea */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-slate-300">
+            <label className="field-label">
               {t("revise.instruction")}
             </label>
             <textarea
@@ -124,7 +126,7 @@ export default function RevisePage() {
               onChange={(e) => setInstruction(e.target.value)}
               placeholder={t("revise.instruction_placeholder")}
               rows={4}
-              className="w-full rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl px-3 py-2 text-sm text-gray-700 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="input min-h-28 resize-y"
             />
           </div>
 
@@ -133,7 +135,7 @@ export default function RevisePage() {
             <button
               onClick={handleSubmit}
               disabled={loading || !selectedApp || !instruction.trim()}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary"
             >
               {loading ? (
                 <>
@@ -153,45 +155,51 @@ export default function RevisePage() {
 
       {/* Revision history */}
       {history.length > 0 && (
-        <div className="rounded-lg border border-white/40 dark:border-[#1e2756]/50 bg-white/70 dark:bg-[#111738]/60 backdrop-blur-xl shadow-sm">
-          <div className="border-b border-gray-100 dark:border-[#1e2756] px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t("revise.history")}</h2>
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="fade-in-up space-y-4">
+          <h2 className="section-title">
+            <span className="icon-chip icon-chip-slate h-7 w-7 rounded-lg">
+              <History className="h-4 w-4" />
+            </span>
+            {t("revise.history")}
+            <span className="text-xs font-normal tabular-nums text-gray-400 dark:text-slate-500">
+              ({history.length})
+            </span>
+          </h2>
+          <div className="space-y-4">
             {history.map((entry) => (
-              <div key={entry.id} className="px-5 py-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+              <div key={entry.id} className="glass p-5">
+                <div className="mb-3 flex items-center justify-between gap-4">
+                  <span className={entry.result.status === "success" ? "badge-success" : "badge-error"}>
                     {entry.result.status === "success" ? (
-                      <CheckCircle className="h-4 w-4 text-emerald-500" />
+                      <CheckCircle className="h-3.5 w-3.5" />
                     ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
+                      <XCircle className="h-3.5 w-3.5" />
                     )}
-                    <span className="text-sm font-medium text-gray-800 dark:text-slate-200">
-                      {entry.result.status === "success" ? t("revise.success") : t("revise.failed")}
-                    </span>
-                  </div>
-                  <span className="text-xs text-gray-400 dark:text-slate-500">{entry.timestamp}</span>
+                    {entry.result.status === "success" ? t("revise.success") : t("revise.failed")}
+                  </span>
+                  <span className="font-mono text-xs tabular-nums text-gray-400 dark:text-slate-500">
+                    {entry.timestamp}
+                  </span>
                 </div>
 
-                <p className="mb-2 text-sm text-gray-600 dark:text-slate-400">{entry.instruction}</p>
+                <p className="mb-2 text-sm text-gray-700 dark:text-slate-300">{entry.instruction}</p>
 
                 {entry.result.status === "success" && entry.result.changes_made.length > 0 && (
-                  <div className="mt-2">
-                    <p className="mb-1 text-xs font-medium text-gray-500 dark:text-slate-400">
+                  <div className="mt-3 rounded-lg border border-gray-200/70 bg-gray-50/70 p-3 dark:border-[#1e2756] dark:bg-[#0a0e27]/50">
+                    <p className="mb-2 text-xs font-medium text-gray-500 dark:text-slate-400">
                       {t("revise.files_changed")}:
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <ul className="space-y-1">
                       {entry.result.changes_made.map((f) => (
-                        <span
+                        <li
                           key={f}
-                          className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-[#161d45] px-2 py-0.5 text-xs font-mono text-gray-600 dark:text-slate-300"
+                          className="flex items-center gap-1.5 font-mono text-xs text-gray-600 dark:text-slate-300"
                         >
-                          <FileCode className="h-3 w-3" />
+                          <FileCode className="h-3 w-3 shrink-0 text-gray-400 dark:text-slate-500" />
                           {f}
-                        </span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 )}
 
@@ -204,7 +212,7 @@ export default function RevisePage() {
                 )}
 
                 {entry.result.status === "error" && entry.result.message && (
-                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{entry.result.message}</p>
+                  <p className="mt-2 text-xs text-red-500 dark:text-red-400">{entry.result.message}</p>
                 )}
               </div>
             ))}

@@ -177,3 +177,101 @@ def test_complete_requires_prompt_or_messages(monkeypatch: pytest.MonkeyPatch) -
     _patch_settings(monkeypatch, claude_api_key="sk-ant-1")
     with pytest.raises(ValueError, match="prompt.*messages"):
         llm.complete(client=_FakeClient({}, is_async=False))
+
+
+# ── Multi-provider support ──────────────────────────────────────────
+
+
+def test_resolve_defaults_to_claude(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, claude_api_key="sk-ant-1", claude_model="m-x")
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {})
+    cfg = llm.resolve_llm_config()
+
+    assert cfg.provider == "claude"
+    assert cfg.model == "m-x"
+    assert cfg.api_key == "sk-ant-1"
+
+
+def test_resolve_provider_from_dashboard_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch)
+    monkeypatch.setattr(
+        llm,
+        "_load_dashboard_settings",
+        lambda: {"llmProvider": "deepseek", "deepseekApiKey": "sk-ds-1"},
+    )
+    cfg = llm.resolve_llm_config()
+
+    assert cfg.provider == "deepseek"
+    assert cfg.api_key == "sk-ds-1"
+    assert cfg.model == "deepseek-chat"  # registry default
+    assert cfg.base_url == "https://api.deepseek.com/v1"
+
+
+def test_resolve_env_fallback_for_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, llm_provider="openai", openai_api_key="sk-oa-1", openai_model="gpt-x")
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {})
+    cfg = llm.resolve_llm_config()
+
+    assert cfg.provider == "openai"
+    assert cfg.api_key == "sk-oa-1"
+    assert cfg.model == "gpt-x"
+
+
+def test_resolve_unknown_provider_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, llm_provider="nonsense", claude_api_key="sk-ant-1")
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {})
+    assert llm.resolve_llm_config().provider == "claude"
+
+
+def test_masked_dashboard_secret_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch, claude_api_key="sk-env-real")
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {"claudeApiKey": "****abcd"})
+    assert llm.resolve_llm_config().api_key == "sk-env-real"
+
+
+def test_compat_payload_translates_anthropic_kwargs() -> None:
+    from zerodev.providers import PROVIDERS
+
+    payload = llm._build_chat_payload(
+        PROVIDERS["deepseek"],
+        model="deepseek-chat",
+        max_tokens=256,
+        system="be terse",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+
+    assert payload["messages"][0] == {"role": "system", "content": "be terse"}
+    assert payload["messages"][1] == {"role": "user", "content": "hi"}
+    assert payload["max_tokens"] == 256
+
+
+def test_compat_payload_uses_openai_token_param() -> None:
+    from zerodev.providers import PROVIDERS
+
+    payload = llm._build_chat_payload(
+        PROVIDERS["openai"], model="gpt-5.1", max_tokens=128, messages=[{"role": "user", "content": "q"}]
+    )
+    assert payload["max_completion_tokens"] == 128
+    assert "max_tokens" not in payload
+
+
+def test_compat_client_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch)
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {"llmProvider": "openai"})
+    with pytest.raises(RuntimeError, match="No API key configured"):
+        llm.get_llm_client()
+
+
+def test_ollama_needs_no_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch)
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {"llmProvider": "ollama"})
+    client = llm.get_llm_client()
+
+    assert isinstance(client, llm._CompatClient)
+    assert client._cfg.base_url == "http://localhost:11434/v1"
+
+
+def test_compat_response_shape() -> None:
+    data = {"model": "m", "choices": [{"message": {"role": "assistant", "content": "out"}}]}
+    resp = llm._parse_chat_response(data, "X")
+    assert resp.content[0].text == "out"

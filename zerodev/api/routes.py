@@ -669,13 +669,30 @@ def _parse_platforms_safe(raw: str) -> list[str]:
 def _get_defaults() -> dict[str, Any]:
     """Build default settings dict from config.py Settings class."""
     from zerodev.config import get_settings
+    from zerodev.providers import PROVIDERS
 
     cfg = get_settings()
-    return {
+    defaults: dict[str, Any] = {
+        "llmProvider": cfg.llm_provider,
         "claudeOauthToken": cfg.claude_oauth_token,
         "claudeApiKey": cfg.claude_api_key,
         "claudeModel": cfg.claude_model,
         "claudeBaseUrl": cfg.claude_base_url,
+    }
+    # Per-provider credentials/model/base URL for every non-Claude provider.
+    for pid, spec in PROVIDERS.items():
+        if pid == "claude":
+            continue
+        defaults[f"{pid}ApiKey"] = getattr(cfg, f"{pid}_api_key", "")
+        defaults[f"{pid}Model"] = getattr(cfg, f"{pid}_model", "") or spec.default_model
+        defaults[f"{pid}BaseUrl"] = getattr(cfg, f"{pid}_base_url", "") or spec.default_base_url
+    defaults.update(_get_pipeline_defaults(cfg))
+    return defaults
+
+
+def _get_pipeline_defaults(cfg: Any) -> dict[str, Any]:
+    """Non-LLM settings defaults (platforms, pipeline, sources, publishing)."""
+    return {
         "targetPlatforms": _parse_platforms_safe(cfg.target_platforms),
         "crawlInterval": str(cfg.pipeline_crawl_interval_hours),
         "maxConcurrent": str(cfg.pipeline_max_concurrent_builds),
@@ -715,6 +732,30 @@ def _save_settings_file(data: dict[str, Any]) -> None:
     """Write settings dict to the JSON file."""
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     SETTINGS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+@router.get("/llm/providers")
+async def list_llm_providers() -> dict[str, Any]:
+    """Return the AI provider registry for the Dashboard settings UI."""
+    from zerodev.providers import DEFAULT_PROVIDER, PROVIDERS
+
+    return {
+        "default": DEFAULT_PROVIDER,
+        "providers": [
+            {
+                "id": spec.id,
+                "label": spec.label,
+                "description": spec.description,
+                "kind": spec.kind,
+                "defaultModel": spec.default_model,
+                "suggestedModels": list(spec.suggested_models),
+                "defaultBaseUrl": spec.default_base_url,
+                "requiresApiKey": spec.requires_api_key,
+                "keyHint": spec.key_hint,
+            }
+            for spec in PROVIDERS.values()
+        ],
+    }
 
 
 @router.get("/settings")

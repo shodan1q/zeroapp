@@ -9,7 +9,8 @@ ZeroDev Agent -- 自动化 Flutter 应用工厂。从互联网挖掘需求，使
 - Python 3.11+ / LangGraph（Agent 编排）/ FastAPI（后端 API）
 - Next.js 15 + TypeScript + Tailwind CSS v4（Dashboard 前端）
 - Flutter 3.7+ / Dart 2.19（移动端代码生成）
-- Claude Opus 4.8 通过官方 Anthropic SDK 接入（认证：CLAUDE_OAUTH_TOKEN 优先，回退 CLAUDE_API_KEY）
+- 多 AI 提供商接入（`zerodev/llm.py` + `zerodev/providers.py`）：默认 Claude Opus 4.8 走官方 Anthropic SDK（CLAUDE_OAUTH_TOKEN 优先，回退 CLAUDE_API_KEY）；另支持 OpenAI / Gemini / DeepSeek / 通义千问 / 智谱 GLM / Kimi / Ollama，统一走各家 OpenAI 兼容端点（httpx 实现）
+- 提供商选择优先级：Dashboard 设置（`data/settings.json` → `llmProvider`）> 环境变量 `LLM_PROVIDER` > 默认 `claude`；所有调用点通过 `get_llm_client()` / `get_llm_async_client()` 获取统一的 `messages.create()` 接口
 - PostgreSQL + SQLAlchemy（数据库）
 - SQLite（LangGraph checkpoint 持久化）
 

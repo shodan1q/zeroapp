@@ -19,6 +19,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # ── LLM provider ────────────────────────────────────────────
+    # Which AI provider drives code generation. The Dashboard settings page
+    # (data/settings.json -> llmProvider) overrides this env default.
+    llm_provider: str = Field(
+        default="claude",
+        description="AI provider: claude / openai / gemini / deepseek / qwen / zhipu / moonshot / ollama",
+    )
+
     # ── Claude API ──────────────────────────────────────────────
     # Authentication: OAuth token takes priority over API key when both are set.
     claude_oauth_token: str = Field(
@@ -31,6 +39,36 @@ class Settings(BaseSettings):
         description="Optional custom API gateway base URL; empty uses the official Anthropic endpoint",
     )
     claude_model: str = Field(default="claude-opus-4-8", description="Claude model to use")
+
+    # ── Other AI providers (OpenAI-compatible endpoints) ────────
+    # Model / base URL left empty fall back to the registry defaults in
+    # zerodev/providers.py; all values can also be set on the Dashboard.
+    openai_api_key: str = Field(default="", description="OpenAI API key")
+    openai_model: str = Field(default="", description="OpenAI model override")
+    openai_base_url: str = Field(default="", description="OpenAI base URL override")
+
+    gemini_api_key: str = Field(default="", description="Google Gemini API key (AI Studio)")
+    gemini_model: str = Field(default="", description="Gemini model override")
+    gemini_base_url: str = Field(default="", description="Gemini base URL override")
+
+    deepseek_api_key: str = Field(default="", description="DeepSeek API key")
+    deepseek_model: str = Field(default="", description="DeepSeek model override")
+    deepseek_base_url: str = Field(default="", description="DeepSeek base URL override")
+
+    qwen_api_key: str = Field(default="", description="Aliyun DashScope API key (Qwen)")
+    qwen_model: str = Field(default="", description="Qwen model override")
+    qwen_base_url: str = Field(default="", description="Qwen base URL override")
+
+    zhipu_api_key: str = Field(default="", description="Zhipu GLM API key")
+    zhipu_model: str = Field(default="", description="Zhipu model override")
+    zhipu_base_url: str = Field(default="", description="Zhipu base URL override")
+
+    moonshot_api_key: str = Field(default="", description="Moonshot Kimi API key")
+    moonshot_model: str = Field(default="", description="Moonshot model override")
+    moonshot_base_url: str = Field(default="", description="Moonshot base URL override")
+
+    ollama_model: str = Field(default="", description="Ollama model override")
+    ollama_base_url: str = Field(default="", description="Ollama base URL (default http://localhost:11434/v1)")
 
     # ── Reddit API ──────────────────────────────────────────────
     reddit_client_id: str = Field(default="", description="Reddit OAuth client ID")

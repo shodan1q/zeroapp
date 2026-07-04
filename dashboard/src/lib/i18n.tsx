@@ -111,6 +111,13 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Settings
     "settings.title": "设置",
+    "settings.ai_config": "AI 模型接入",
+    "settings.ai_provider_desc": "选择驱动代码生成的 AI 服务商，凭证仅保存在本机 data/settings.json",
+    "settings.provider_api_key": "API 密钥",
+    "settings.provider_model": "模型（可手动输入）",
+    "settings.provider_base_url": "接口地址 (Base URL)",
+    "settings.no_key_required": "本地服务，无需 API 密钥",
+    "settings.current_provider": "当前使用",
     "settings.claude_config": "Claude API 配置",
     "settings.oauth_token": "OAuth Token (Max 订阅，优先)",
     "settings.api_key": "API 密钥",
@@ -357,6 +364,13 @@ const translations: Record<Locale, Record<string, string>> = {
     "builds.empty": "No build logs yet. Start the pipeline from the Overview page.",
 
     "settings.title": "Settings",
+    "settings.ai_config": "AI Providers",
+    "settings.ai_provider_desc": "Choose the AI service that powers code generation. Credentials stay on this machine (data/settings.json).",
+    "settings.provider_api_key": "API Key",
+    "settings.provider_model": "Model (editable)",
+    "settings.provider_base_url": "Base URL",
+    "settings.no_key_required": "Local service, no API key required",
+    "settings.current_provider": "Active",
     "settings.claude_config": "Claude API Configuration",
     "settings.oauth_token": "OAuth Token (Max plan, preferred)",
     "settings.api_key": "API Key",

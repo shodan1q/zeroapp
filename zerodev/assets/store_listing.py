@@ -174,8 +174,8 @@ class StoreListingGenerator:
         max_tokens: int = 4096,
     ) -> str:
         """Send a single message to Claude and return the text response."""
-        from zerodev.llm import get_claude_async_client
-        client = get_claude_async_client()
+        from zerodev.llm import get_llm_async_client
+        client = get_llm_async_client()
         message = await client.messages.create(
             model=self._model,
             max_tokens=max_tokens,

@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from zerodev.llm import get_claude_client
+from zerodev.llm import get_llm_client
 
 from zerodev.config import get_settings
 
@@ -101,7 +101,7 @@ class TemplateSelector:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = get_claude_client()
+        self._client = get_llm_client()
         self._model = settings.claude_model
 
     # ------------------------------------------------------------------

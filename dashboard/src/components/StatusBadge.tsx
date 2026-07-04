@@ -5,39 +5,40 @@ interface StatusBadgeProps {
   size?: 'sm' | 'md';
 }
 
-const statusColorMap: Record<string, string> = {
-  pending: 'bg-gray-50 text-gray-700 border-gray-200',
-  '待评估': 'bg-gray-50 text-gray-700 border-gray-200',
-  evaluating: 'bg-blue-50 text-blue-700 border-blue-200',
-  '评估中': 'bg-blue-50 text-blue-700 border-blue-200',
-  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  '已通过': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-red-50 text-red-700 border-red-200',
-  '已拒绝': 'bg-red-50 text-red-700 border-red-200',
-  developing: 'bg-purple-50 text-purple-700 border-purple-200',
-  '开发中': 'bg-purple-50 text-purple-700 border-purple-200',
-  building: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  '构建中': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  live: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  '已上架': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  failed: 'bg-red-50 text-red-700 border-red-200',
-  '失败': 'bg-red-50 text-red-700 border-red-200',
-  running: 'bg-blue-50 text-blue-700 border-blue-200',
+const statusBadgeMap: Record<string, string> = {
+  pending: 'badge-info',
+  '待评估': 'badge-info',
+  evaluating: 'badge-info',
+  '评估中': 'badge-info',
+  approved: 'badge-success',
+  '已通过': 'badge-success',
+  rejected: 'badge-error',
+  '已拒绝': 'badge-error',
+  developing: 'badge-warning',
+  '开发中': 'badge-warning',
+  building: 'badge-warning',
+  '构建中': 'badge-warning',
+  live: 'badge-success',
+  '已上架': 'badge-success',
+  failed: 'badge-error',
+  '失败': 'badge-error',
+  running: 'badge-info',
 };
 
-const defaultColor = 'bg-gray-50 text-gray-700 border-gray-200';
+const neutralBadge =
+  'inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 font-medium text-gray-600 dark:border-[#1e2756] dark:bg-[#161d45]/60 dark:text-slate-400';
 
 export default function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
-  const colorClasses = statusColorMap[status] || defaultColor;
+  const badgeClass = statusBadgeMap[status];
 
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-full border font-medium',
-        colorClasses,
+        badgeClass || neutralBadge,
         size === 'sm' ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-sm'
       )}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {status}
     </span>
   );

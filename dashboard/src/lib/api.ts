@@ -255,3 +255,28 @@ export async function saveSettings(settings: Record<string, unknown>): Promise<M
     body: JSON.stringify(settings),
   });
 }
+
+/* ------------------------------------------------------------------ */
+/*  LLM providers                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface LlmProviderSpec {
+  id: string;
+  label: string;
+  description: string;
+  kind: "anthropic" | "openai_compat";
+  defaultModel: string;
+  suggestedModels: string[];
+  defaultBaseUrl: string;
+  requiresApiKey: boolean;
+  keyHint: string;
+}
+
+export async function fetchLlmProviders(): Promise<{ default: string; providers: LlmProviderSpec[] }> {
+  return (
+    (await request<{ default: string; providers: LlmProviderSpec[] }>("/llm/providers")) ?? {
+      default: "claude",
+      providers: [],
+    }
+  );
+}
