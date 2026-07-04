@@ -49,7 +49,7 @@ async def _collect_pipeline_metrics() -> Dict[str, Any]:
     try:
         from zerodev.database import get_async_session
 
-        async with get_async_session() as session:
+        async with get_async_session():
             # TODO: Query actual counts from ORM.
             metrics["demands"] = {
                 "total": 0,

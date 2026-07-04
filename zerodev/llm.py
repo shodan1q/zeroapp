@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -173,11 +174,6 @@ def _build_client_kwargs(resolved: ResolvedLLM | None = None) -> dict[str, Any]:
     return kwargs
 
 
-def _is_oauth_mode() -> bool:
-    """Return True when OAuth token authentication is active."""
-    return bool(get_settings().claude_oauth_token.strip())
-
-
 def _inject_system(system: Any) -> list[dict[str, str]]:
     """Prepend the Claude Code identity block to a ``system`` argument.
 
@@ -247,6 +243,15 @@ def _claude_client(resolved: ResolvedLLM | None, *, is_async: bool) -> Any:
 # ---------------------------------------------------------------------------
 
 
+class LLMError(RuntimeError):
+    """Raised for provider request failures on the OpenAI-compatible path.
+
+    Subclasses ``RuntimeError`` for backwards compatibility. Call sites that
+    implement per-item resilience should catch ``(anthropic.APIError, LLMError)``
+    so both the Claude path and the compat path degrade the same way.
+    """
+
+
 class _CompatTextBlock:
     """Mimics an Anthropic text content block (``.text``)."""
 
@@ -292,9 +297,13 @@ def _build_chat_payload(
     max_tokens: int,
     messages: list[dict[str, Any]],
     system: Any = None,
-    **_ignored: Any,
+    **ignored: Any,
 ) -> dict[str, Any]:
     """Translate Anthropic-style kwargs into a Chat Completions payload."""
+    if ignored:
+        # Anthropic-only kwargs have no compat equivalent; surface the drop so
+        # a future call site doesn't silently lose behavior on other providers.
+        logger.warning("Dropping unsupported kwargs for %s: %s", spec.label, sorted(ignored))
     chat_messages: list[dict[str, Any]] = []
     system_text = _system_to_text(system)
     if system_text:
@@ -308,12 +317,56 @@ def _build_chat_payload(
     }
 
 
+def _extract_prefill(messages: list[dict[str, Any]]) -> str:
+    """Return the assistant-prefill text when the last message is a prefill.
+
+    Anthropic's prefill contract: a trailing assistant message is *continued*
+    by the model and excluded from the response. Chat Completions endpoints
+    have no such contract -- the model usually restarts from scratch. We keep
+    sending the message as context and reconcile in :func:`_apply_prefill`.
+    """
+    if messages and messages[-1].get("role") == "assistant":
+        content = messages[-1].get("content")
+        if isinstance(content, str):
+            return content
+    return ""
+
+
+def _apply_prefill(prefill: str, text: str) -> str:
+    """Normalize a compat response to Anthropic prefill semantics.
+
+    Callers reconstruct ``full = prefill + response_text``. If the model
+    re-emitted the prefill at the start of its reply, strip it so the
+    reconstruction doesn't duplicate it (``importimport ...``).
+    """
+    if prefill and text.startswith(prefill):
+        return text[len(prefill):]
+    return text
+
+
+_THINK_BLOCK_RE = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL)
+
+
 def _parse_chat_response(data: dict[str, Any], provider_label: str) -> _CompatResponse:
     try:
         choice = data["choices"][0]
         text = choice["message"]["content"] or ""
     except (KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError(f"{provider_label} returned an unexpected response shape: {data}") from exc
+        raise LLMError(f"{provider_label} returned an unexpected response shape: {data}") from exc
+
+    # Reasoning models (deepseek-r1 via Ollama, etc.) may inline a leading
+    # <think>...</think> block; downstream JSON/code parsers must never see it.
+    text = _THINK_BLOCK_RE.sub("", text, count=1)
+
+    if not text.strip():
+        finish = choice.get("finish_reason", "unknown")
+        refusal = (choice.get("message") or {}).get("refusal")
+        raise LLMError(
+            f"{provider_label} returned empty content (finish_reason={finish!r}"
+            + (f", refusal={refusal!r}" if refusal else "")
+            + "). If finish_reason is 'length', raise max_tokens -- reasoning "
+            "models spend part of the budget on hidden reasoning tokens."
+        )
     return _CompatResponse(text, data.get("model", ""), data)
 
 
@@ -333,6 +386,7 @@ class _CompatMessages:
 
     def create(self, **kwargs: Any) -> _CompatResponse:
         cfg = self._cfg
+        prefill = _extract_prefill(kwargs.get("messages") or [])
         payload = _build_chat_payload(cfg.spec, **kwargs)
         url = f"{cfg.base_url.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
@@ -347,19 +401,28 @@ class _CompatMessages:
                 last_error = exc
             else:
                 if resp.status_code < 400:
-                    return _parse_chat_response(resp.json(), cfg.spec.label)
-                if not _should_retry(resp.status_code):
-                    raise RuntimeError(
+                    try:
+                        data = resp.json()
+                    except json.JSONDecodeError as exc:
+                        # e.g. a proxy returning HTML with 200 -- retryable.
+                        last_error = LLMError(f"{cfg.spec.label} returned non-JSON body: {exc}")
+                    else:
+                        result = _parse_chat_response(data, cfg.spec.label)
+                        result.content[0].text = _apply_prefill(prefill, result.content[0].text)
+                        return result
+                elif not _should_retry(resp.status_code):
+                    raise LLMError(
                         f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:500]}"
                     )
-                last_error = RuntimeError(
-                    f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:200]}"
-                )
+                else:
+                    last_error = LLMError(
+                        f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:200]}"
+                    )
             if attempt < _DEFAULT_MAX_RETRIES:
                 delay = _retry_delay(attempt)
                 logger.warning("%s call failed (%s); retry %d in %.1fs", cfg.spec.label, last_error, attempt + 1, delay)
                 time.sleep(delay)
-        raise RuntimeError(f"{cfg.spec.label} request failed after retries") from last_error
+        raise LLMError(f"{cfg.spec.label} request failed after retries") from last_error
 
 
 class _CompatAsyncMessages:
@@ -372,6 +435,7 @@ class _CompatAsyncMessages:
         import asyncio
 
         cfg = self._cfg
+        prefill = _extract_prefill(kwargs.get("messages") or [])
         payload = _build_chat_payload(cfg.spec, **kwargs)
         url = f"{cfg.base_url.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
@@ -387,19 +451,27 @@ class _CompatAsyncMessages:
                 last_error = exc
             else:
                 if resp.status_code < 400:
-                    return _parse_chat_response(resp.json(), cfg.spec.label)
-                if not _should_retry(resp.status_code):
-                    raise RuntimeError(
+                    try:
+                        data = resp.json()
+                    except json.JSONDecodeError as exc:
+                        last_error = LLMError(f"{cfg.spec.label} returned non-JSON body: {exc}")
+                    else:
+                        result = _parse_chat_response(data, cfg.spec.label)
+                        result.content[0].text = _apply_prefill(prefill, result.content[0].text)
+                        return result
+                elif not _should_retry(resp.status_code):
+                    raise LLMError(
                         f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:500]}"
                     )
-                last_error = RuntimeError(
-                    f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:200]}"
-                )
+                else:
+                    last_error = LLMError(
+                        f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:200]}"
+                    )
             if attempt < _DEFAULT_MAX_RETRIES:
                 delay = _retry_delay(attempt)
                 logger.warning("%s call failed (%s); retry %d in %.1fs", cfg.spec.label, last_error, attempt + 1, delay)
                 await asyncio.sleep(delay)
-        raise RuntimeError(f"{cfg.spec.label} request failed after retries") from last_error
+        raise LLMError(f"{cfg.spec.label} request failed after retries") from last_error
 
 
 class _CompatClient:
@@ -436,6 +508,16 @@ def get_llm_async_client():
         return _claude_client(cfg, is_async=True)
     logger.info("Using LLM provider %s (model %s)", cfg.spec.label, cfg.model)
     return _CompatClient(cfg, is_async=True)
+
+
+def get_llm_model() -> str:
+    """Return the effective model name for the configured provider.
+
+    Call sites must use this instead of ``settings.claude_model`` so the
+    model always matches the active provider (a DeepSeek client must not be
+    asked for a Claude model, and vice versa).
+    """
+    return resolve_llm_config().model
 
 
 # Backwards-compatible aliases -- existing call sites keep working unchanged.

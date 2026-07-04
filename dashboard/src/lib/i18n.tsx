@@ -94,6 +94,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "demands.competition": "竞争度",
     "demands.feasibility": "可行性",
     "demands.source_link": "需求来源",
+    "demands.source_manual": "手动添加",
 
     // Apps
     "apps.title": "应用管理",
@@ -108,6 +109,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Builds
     "builds.title": "构建日志",
     "builds.empty": "暂无构建日志。流水线运行后将在此显示。请先在概览页启动流水线。",
+    "builds.empty_filtered": "当前筛选条件下暂无构建记录",
 
     // Settings
     "settings.title": "设置",
@@ -350,6 +352,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "demands.competition": "Competition",
     "demands.feasibility": "Feasibility",
     "demands.source_link": "Source",
+    "demands.source_manual": "Manual",
 
     "apps.title": "App Management",
     "apps.search": "Search apps...",
@@ -362,6 +365,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     "builds.title": "Build Logs",
     "builds.empty": "No build logs yet. Start the pipeline from the Overview page.",
+    "builds.empty_filtered": "No builds match the current filter",
 
     "settings.title": "Settings",
     "settings.ai_config": "AI Providers",

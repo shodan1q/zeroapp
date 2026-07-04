@@ -15,6 +15,7 @@ a *partial* update dict.  LangGraph merges the update into the running state.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import uuid
 from typing import Any, Dict, List
@@ -58,28 +59,64 @@ def _retry_policy() -> RetryPolicy:
 
 # -- Node: crawl -----------------------------------------------------------
 
+def _build_crawlers() -> List[Any]:
+    """Instantiate the crawlers enabled by Dashboard settings (env fallback)."""
+    from zerodev.crawler.producthunt import ProductHuntCrawler
+    from zerodev.crawler.reddit import RedditCrawler
+    from zerodev.settings_store import effective_setting, effective_sources
+
+    settings = get_settings()
+    sources = effective_sources()
+    crawlers: List[Any] = []
+
+    if sources.get("reddit"):
+        client_id = effective_setting("redditClientId", settings.reddit_client_id)
+        client_secret = effective_setting("redditClientSecret", settings.reddit_client_secret)
+        user_agent = settings.reddit_user_agent or "zerodev-agent/0.1"
+        if client_id and client_secret:
+            crawlers.append(RedditCrawler(client_id, client_secret, user_agent))
+        else:
+            logger.warning(
+                "[crawl] Reddit source enabled but credentials are missing "
+                "(redditClientId / redditClientSecret); skipping RedditCrawler."
+            )
+    else:
+        logger.debug("[crawl] Reddit source disabled in settings; skipping.")
+
+    if sources.get("producthunt"):
+        # Still a stub (crawl() raises NotImplementedError); the per-crawler
+        # loop below skips it quietly, so including it is safe.
+        crawlers.append(ProductHuntCrawler())
+    else:
+        logger.debug("[crawl] ProductHunt source disabled in settings; skipping.")
+
+    return crawlers
+
+
 @with_retry(node_name="crawl")
 async def node_crawl(state: Dict[str, Any]) -> Dict[str, Any]:
     """Crawl demands from all configured sources."""
-    from zerodev.crawler.producthunt import ProductHuntCrawler
-    from zerodev.crawler.reddit import RedditCrawler
-
     logger.info("[crawl] Starting demand crawl.")
 
     await _emit("crawl", status="started")
 
-    crawlers = [RedditCrawler(), ProductHuntCrawler()]
+    crawlers = _build_crawlers()
     all_demands: List[Dict[str, Any]] = []
 
     for crawler in crawlers:
         try:
             demands = await crawler.crawl()
             for d in demands:
-                all_demands.append(d.model_dump())
+                all_demands.append(dataclasses.asdict(d))
             logger.info(
                 "[crawl] %s returned %d demands.",
                 type(crawler).__name__,
                 len(demands),
+            )
+        except NotImplementedError:
+            logger.debug(
+                "[crawl] %s is not implemented yet; skipping.",
+                type(crawler).__name__,
             )
         except Exception:
             logger.exception("[crawl] %s failed.", type(crawler).__name__)
@@ -106,20 +143,29 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
     await _emit("process", status="started")
 
     try:
+        from zerodev.crawler.base import RawDemand
         from zerodev.crawler.processor import DemandProcessor
 
+        raw_fields = {f.name for f in dataclasses.fields(RawDemand)}
         processor = DemandProcessor()
         structured: List[Dict[str, Any]] = []
         for raw in raw_demands:
             try:
-                result = await processor.process(raw)
-                structured.append(
-                    result.model_dump() if hasattr(result, "model_dump") else result
-                )
-            except Exception:
-                logger.exception(
-                    "[process] Failed to process demand: %s",
+                raw_demand = RawDemand(**{k: v for k, v in raw.items() if k in raw_fields})
+                result = await processor.extract(raw_demand)
+                if result is None:
+                    logger.debug(
+                        "[process] Skipped (not an app idea): %s",
+                        raw.get("title", "?"),
+                    )
+                    continue
+                result.setdefault("id", uuid.uuid4().hex[:12])
+                structured.append(result)
+            except Exception as exc:
+                logger.warning(
+                    "[process] Failed to process demand %r: %s",
                     raw.get("title", "?"),
+                    exc,
                 )
         logger.info("[process] Structured %d demands.", len(structured))
 
@@ -134,7 +180,7 @@ async def node_process(state: Dict[str, Any]) -> Dict[str, Any]:
         for d in raw_demands:
             d.setdefault("id", uuid.uuid4().hex[:12])
             d.setdefault("title", d.get("title", "Untitled"))
-            d.setdefault("description", d.get("raw_text", ""))
+            d.setdefault("description", d.get("body", ""))
             d.setdefault("core_features", "")
 
         await _emit("process", status="completed", detail={"count": len(raw_demands)})
@@ -166,8 +212,8 @@ async def node_evaluate_batch(state: Dict[str, Any]) -> Dict[str, Any]:
             evaluated.append({
                 **demand,
                 "evaluation": {
-                    "feasibility": feasibility.model_dump(),
-                    "competition": competition.model_dump(),
+                    "feasibility": dataclasses.asdict(feasibility),
+                    "competition": dataclasses.asdict(competition),
                 },
             })
         except Exception as exc:
@@ -190,9 +236,22 @@ async def node_evaluate_batch(state: Dict[str, Any]) -> Dict[str, Any]:
 
 async def node_decide_batch(state: Dict[str, Any]) -> Dict[str, Any]:
     """Apply decision rules to evaluated demands."""
+    from zerodev.settings_store import effective_float
+
     settings = get_settings()
+    # Dashboard-saved threshold wins over env; the Dashboard has no field for
+    # the auto-reject threshold, so that one stays env-only.
+    approve_threshold = effective_float(
+        "autoApproveThreshold", settings.pipeline_auto_approve_threshold
+    )
+    reject_threshold = settings.pipeline_auto_reject_threshold
     evaluated: List[Dict[str, Any]] = state.get("demands_evaluated", [])
-    logger.info("[decide] Deciding on %d demands.", len(evaluated))
+    logger.info(
+        "[decide] Deciding on %d demands (approve>=%.2f, reject<=%.2f).",
+        len(evaluated),
+        approve_threshold,
+        reject_threshold,
+    )
 
     await _emit("decide_batch", status="started")
 
@@ -223,10 +282,10 @@ async def node_decide_batch(state: Dict[str, Any]) -> Dict[str, Any]:
         complexity_bonus = complexity_map.get(feas.get("complexity", "high"), 0.0)
         final_score = min(1.0, max(0.0, opportunity * 0.7 + complexity_bonus))
 
-        if final_score >= settings.pipeline_auto_approve_threshold:
+        if final_score >= approve_threshold:
             approved.append(demand)
             logger.info("[decide] %s approved (score=%.3f).", demand_id, final_score)
-        elif final_score <= settings.pipeline_auto_reject_threshold:
+        elif final_score <= reject_threshold:
             rejected.append(demand)
             logger.info("[decide] %s rejected (score=%.3f).", demand_id, final_score)
         else:

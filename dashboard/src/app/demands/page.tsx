@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   Search,
   Filter,
@@ -33,12 +33,12 @@ import { useI18n } from "@/lib/i18n";
 
 const STATUS_OPTIONS = [
   { value: "", labelKey: "demands.all_status" },
-  { value: "pending", labelKey: "pending" },
-  { value: "evaluating", labelKey: "evaluating" },
-  { value: "approved", labelKey: "approved" },
-  { value: "rejected", labelKey: "rejected" },
-  { value: "in_progress", labelKey: "in_progress" },
-  { value: "done", labelKey: "done" },
+  { value: "pending", labelKey: "status.pending" },
+  { value: "evaluating", labelKey: "status.evaluating" },
+  { value: "approved", labelKey: "status.approved" },
+  { value: "rejected", labelKey: "status.rejected" },
+  { value: "in_progress", labelKey: "status.in_progress" },
+  { value: "done", labelKey: "status.done" },
 ] as const;
 
 const SOURCE_OPTIONS = [
@@ -46,7 +46,7 @@ const SOURCE_OPTIONS = [
   { value: "reddit", labelKey: "Reddit" },
   { value: "producthunt", labelKey: "Product Hunt" },
   { value: "twitter", labelKey: "Twitter" },
-  { value: "manual", labelKey: "manual" },
+  { value: "manual", labelKey: "demands.source_manual" },
 ] as const;
 
 function statusBadge(status: string) {
@@ -107,6 +107,8 @@ export default function DemandsPage() {
   const [detail, setDetail] = useState<DemandDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
+  const expandedIdRef = useRef<number | null>(null);
 
   const { lastEvent } = useWebSocket();
 
@@ -120,6 +122,13 @@ export default function DemandsPage() {
         source: sourceFilter || undefined,
       });
       setData(res);
+      // Clamp current page when the result shrinks (e.g. after filtering)
+      const total = Math.ceil(res.total / res.page_size);
+      if (res.total > 0 && page > total) {
+        setPage(total);
+      } else if (res.items.length === 0 && page > 1) {
+        setPage(page - 1);
+      }
     } catch (err) {
       console.error("Failed to load demands", err);
     } finally {
@@ -141,28 +150,42 @@ export default function DemandsPage() {
   const handleExpand = async (id: number) => {
     if (expandedId === id) {
       setExpandedId(null);
+      expandedIdRef.current = null;
       setDetail(null);
       return;
     }
     setExpandedId(id);
+    expandedIdRef.current = id;
+    setDetail(null);
     setDetailLoading(true);
     try {
       const d = await fetchDemandDetail(id);
-      setDetail(d);
+      // Ignore late responses for rows that are no longer expanded
+      if (expandedIdRef.current === id) setDetail(d);
     } catch {
-      setDetail(null);
+      if (expandedIdRef.current === id) setDetail(null);
     } finally {
-      setDetailLoading(false);
+      if (expandedIdRef.current === id) setDetailLoading(false);
     }
+  };
+
+  const showActionError = () => {
+    setActionError("操作失败，请检查后端连接");
+    setTimeout(() => setActionError(""), 5000);
   };
 
   const handleApprove = async (id: number) => {
     setActionLoading(id);
     try {
-      await approveDemand(id);
-      loadData();
+      const res = await approveDemand(id);
+      if (res) {
+        loadData();
+      } else {
+        showActionError();
+      }
     } catch (err) {
       console.error("Approve failed", err);
+      showActionError();
     } finally {
       setActionLoading(null);
     }
@@ -171,10 +194,15 @@ export default function DemandsPage() {
   const handleReject = async (id: number) => {
     setActionLoading(id);
     try {
-      await rejectDemand(id);
-      loadData();
+      const res = await rejectDemand(id);
+      if (res) {
+        loadData();
+      } else {
+        showActionError();
+      }
     } catch (err) {
       console.error("Reject failed", err);
+      showActionError();
     } finally {
       setActionLoading(null);
     }
@@ -227,6 +255,13 @@ export default function DemandsPage() {
           </select>
         </div>
       </div>
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="fade-in-up rounded-xl border border-red-200 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          {actionError}
+        </div>
+      )}
 
       {/* Table */}
       <div className="glass fade-in-up overflow-hidden">
@@ -443,7 +478,8 @@ export default function DemandsPage() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
               {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
-                const pageNum = i + 1;
+                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                const pageNum = start + i;
                 return (
                   <button
                     key={pageNum}

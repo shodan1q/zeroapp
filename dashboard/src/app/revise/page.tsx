@@ -57,7 +57,10 @@ export default function RevisePage() {
     };
     setHistory((prev) => [entry, ...prev]);
     setNextId((n) => n + 1);
-    setInstruction("");
+    // Keep the instruction in the textarea on failure so the user can retry
+    if (result.status === "success") {
+      setInstruction("");
+    }
     setLoading(false);
   };
 

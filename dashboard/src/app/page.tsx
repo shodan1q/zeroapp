@@ -221,8 +221,10 @@ export default function OverviewPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [pipelineError, setPipelineError] = useState("");
 
   const logRef = useRef<HTMLDivElement>(null);
+  const processedEventRef = useRef<unknown>(null);
   const { connected, lastEvent } = useWebSocket();
 
   /* ---------- Fetch data ---------------------------------------- */
@@ -234,15 +236,14 @@ export default function OverviewPage() {
         fetchDemands({ page: 1, page_size: 5 }),
         fetchBuilds({ limit: 5 }),
       ]);
-      setSummary(dash);
+      if (dash) {
+        setSummary(dash);
+        setApiConnected(true);
+      } else {
+        setApiConnected(false);
+      }
       setDemands(demandsRes.items);
       setBuilds(buildsRes.items);
-      const isDefault =
-        dash.total_apps === 0 &&
-        dash.total_demands === 0 &&
-        demandsRes.items.length === 0 &&
-        buildsRes.items.length === 0;
-      setApiConnected(!isDefault || dash.total_apps !== undefined);
     } catch (err) {
       console.error("Failed to load dashboard data", err);
       setApiConnected(false);
@@ -298,6 +299,8 @@ export default function OverviewPage() {
 
   useEffect(() => {
     if (!lastEvent) return;
+    if (processedEventRef.current === lastEvent) return;
+    processedEventRef.current = lastEvent;
 
     if (lastEvent.type === "stage_change") {
       const d = lastEvent.data as {
@@ -402,14 +405,22 @@ export default function OverviewPage() {
 
   const handleStartPipeline = async () => {
     setRunnerLoading(true);
-    await startPipeline();
+    setPipelineError("");
+    const res = await startPipeline();
+    if (res.status === "error") {
+      setPipelineError("操作失败，请检查后端连接");
+    }
     await loadRunnerStatus();
     setRunnerLoading(false);
   };
 
   const handleStopPipeline = async () => {
     setRunnerLoading(true);
-    await stopPipeline();
+    setPipelineError("");
+    const res = await stopPipeline();
+    if (res.status === "error") {
+      setPipelineError("操作失败，请检查后端连接");
+    }
     await loadRunnerStatus();
     setRunnerLoading(false);
   };
@@ -417,6 +428,7 @@ export default function OverviewPage() {
   const handleTrigger = async () => {
     setTriggering(true);
     setSearchError("");
+    setPipelineError("");
     try {
       const res = await triggerPipeline();
       if (res) {
@@ -428,9 +440,11 @@ export default function OverviewPage() {
         });
         setThreadId(String(res.run_id));
         setSearchId(String(res.run_id));
+      } else {
+        setPipelineError("操作失败，请检查后端连接");
       }
     } catch {
-      setSearchError("Trigger failed");
+      setPipelineError("操作失败，请检查后端连接");
     } finally {
       setTriggering(false);
     }
@@ -680,6 +694,9 @@ export default function OverviewPage() {
             )}
           </div>
         </div>
+        {pipelineError && (
+          <p className="mt-2 text-sm text-red-600 dark:text-red-400">{pipelineError}</p>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-[#1e2756] pt-4 sm:grid-cols-5">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">{t("overview.cycles")}</p>

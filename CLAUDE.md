@@ -10,7 +10,10 @@ ZeroDev Agent -- 自动化 Flutter 应用工厂。从互联网挖掘需求，使
 - Next.js 15 + TypeScript + Tailwind CSS v4（Dashboard 前端）
 - Flutter 3.7+ / Dart 2.19（移动端代码生成）
 - 多 AI 提供商接入（`zerodev/llm.py` + `zerodev/providers.py`）：默认 Claude Opus 4.8 走官方 Anthropic SDK（CLAUDE_OAUTH_TOKEN 优先，回退 CLAUDE_API_KEY）；另支持 OpenAI / Gemini / DeepSeek / 通义千问 / 智谱 GLM / Kimi / Ollama，统一走各家 OpenAI 兼容端点（httpx 实现）
-- 提供商选择优先级：Dashboard 设置（`data/settings.json` → `llmProvider`）> 环境变量 `LLM_PROVIDER` > 默认 `claude`；所有调用点通过 `get_llm_client()` / `get_llm_async_client()` 获取统一的 `messages.create()` 接口
+- 提供商选择优先级：Dashboard 设置（`data/settings.json` → `llmProvider`）> 环境变量 `LLM_PROVIDER` > 默认 `claude`；所有调用点通过 `get_llm_client()` / `get_llm_async_client()` / `get_llm_model()` 获取统一接口（禁止直接引用 `settings.claude_model`）
+- 非 Claude 提供商失败抛 `zerodev.llm.LLMError`（RuntimeError 子类）；需要按文件降级的调用点统一 `except (anthropic.APIError, LLMError)`
+- Dashboard 设置的运行时读取统一走 `zerodev/settings_store.py`（发布凭证、数据源开关、审批阈值、爬取间隔均已接入，优先级同上）
+- LangGraph 主图审核门默认自动续跑；`run_pipeline(human_review=True)` 才会在 fan_out 前暂停等人工 resume
 - PostgreSQL + SQLAlchemy（数据库）
 - SQLite（LangGraph checkpoint 持久化）
 

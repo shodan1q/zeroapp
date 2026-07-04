@@ -200,6 +200,11 @@ function TextInput({
       type={type}
       value={value}
       onChange={(e) => onChange?.(e.target.value)}
+      onFocus={() => {
+        // Backend masks stored secrets as "****xxxx"; clear the mask on focus
+        // so typing a new secret never appends to the masked placeholder.
+        if (type === "password" && value.startsWith("*")) onChange?.("");
+      }}
       placeholder={placeholder}
       readOnly={readOnly}
       list={list}
@@ -212,7 +217,9 @@ function MaskedField({ label, value }: { label: string; value: string }) {
   const [visible, setVisible] = useState(false);
   const { t } = useI18n();
   const masked = value
-    ? value.slice(0, 4) + "****" + value.slice(-4)
+    ? value.startsWith("*")
+      ? value // already masked by the backend ("****xxxx"), show as-is
+      : value.slice(0, 4) + "****" + value.slice(-4)
     : t("settings.not_configured");
   return (
     <Field label={label}>
@@ -287,6 +294,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load settings + provider registry from backend on mount
@@ -298,9 +306,14 @@ export default function SettingsPage() {
         if (cancelled) return;
         if (registry.providers.length > 0) setProviders(registry.providers);
         if (!data || Object.keys(data).length === 0) {
+          // Backend unreachable (fetchSettings returns {} on failure). Block
+          // saving so we never overwrite data/settings.json with empty values.
+          setLoadFailed(true);
+          setError("无法加载设置，请确认后端已启动后刷新重试");
           setLoading(false);
           return;
         }
+        setLoadFailed(false);
         if (data.llmProvider !== undefined) setLlmProvider(String(data.llmProvider));
         // Collect flat per-provider keys (openaiApiKey, qwenModel, ...)
         const cfg: Record<string, string> = {};
@@ -340,6 +353,10 @@ export default function SettingsPage() {
         if (data.huaweiAgcAppId !== undefined) setHuaweiAgcAppId(String(data.huaweiAgcAppId));
       } catch (err) {
         console.warn("Failed to load settings:", err);
+        if (!cancelled) {
+          setLoadFailed(true);
+          setError("无法加载设置，请确认后端已启动后刷新重试");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -426,7 +443,7 @@ export default function SettingsPage() {
           {error && (
             <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
           )}
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
+          <button onClick={handleSave} disabled={saving || loadFailed} className="btn btn-primary">
             <Save className="h-4 w-4" />
             {saving ? t("settings.saving") : saved ? t("settings.saved") : t("settings.save")}
           </button>

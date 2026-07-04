@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 
 from zerodev.pipeline.validator import parse_multi_file_output
 

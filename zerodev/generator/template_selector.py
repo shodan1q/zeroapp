@@ -12,9 +12,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from zerodev.llm import get_llm_client
+import anthropic
 
-from zerodev.config import get_settings
+from zerodev.llm import LLMError, get_llm_client, get_llm_model
+
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +101,8 @@ class TemplateSelector:
     """
 
     def __init__(self) -> None:
-        settings = get_settings()
         self._client = get_llm_client()
-        self._model = settings.claude_model
+        self._model = get_llm_model()
 
     # ------------------------------------------------------------------
     # Synchronous fallback (keyword-based)
@@ -175,8 +175,8 @@ class TemplateSelector:
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}],
             )
-        except anthropic.APIError:
-            logger.exception("Claude API call failed during template selection")
+        except (anthropic.APIError, LLMError):
+            logger.exception("LLM API call failed during template selection")
             raise
 
         raw_text = response.content[0].text.strip()

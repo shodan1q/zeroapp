@@ -82,8 +82,11 @@ ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
    └───────┘ └───────┘ └────────┘ └────────┘ └────────┘
 ```
 
-主图：crawl -> process -> evaluate -> decide -> [人工审核] -> fan_out
-子图：generate -> build -> assets -> [人工审核] -> publish
+主图：crawl -> process -> evaluate -> decide -> [审核门·默认自动续跑] -> fan_out
+子图：generate -> build -> assets -> [审核门] -> publish
+
+> 审核门默认自动通过（决策层已按评分自动批准/拒绝）；需要人工把关时调用
+> `run_pipeline(human_review=True)`，流水线会在 fan_out 前暂停，用 CLI `resume <thread_id>` 继续。
 
 **两条执行路径**（贡献者须知）：
 

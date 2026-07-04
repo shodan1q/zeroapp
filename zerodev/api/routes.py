@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,6 +47,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
+# Keep strong references to dispatched background tasks so they are not
+# garbage-collected mid-flight (asyncio.create_task holds only a weak ref).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> asyncio.Task:
+    """Schedule a fire-and-forget coroutine, keeping a strong reference."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
 
 # ── Dashboard ────────────────────────────────────────────────────
 
@@ -74,15 +88,8 @@ async def get_dashboard(session: AsyncSession = Depends(get_session)) -> Dashboa
     except Exception:
         pass
 
-    # Supplement with runner stats
-    try:
-        from zerodev.pipeline.runner import PipelineRunner
-        runner = PipelineRunner.get_instance()
-        stats = runner.stats
-        result.builds_today = max(result.builds_today, stats.get("apps_generated", 0))
-    except Exception:
-        pass
-
+    # builds_today comes from the DB count only -- runner.stats["apps_generated"]
+    # is a lifetime counter and must not inflate a daily metric.
     return result
 
 
@@ -245,9 +252,38 @@ async def approve_demand(
         )
 
     demand.status = DemandStatus.APPROVED
+    demand_payload: dict[str, Any] = {
+        "id": demand.demand_id,
+        "title": demand.title,
+        "description": demand.description,
+        "category": demand.category,
+        "target_users": demand.target_users,
+        "core_features": demand.core_features,
+        "monetization": demand.monetization,
+        "complexity": demand.complexity,
+    }
     await session.commit()
     logger.info("Demand %s manually approved.", demand_id)
-    return MessageResponse(message=f"Demand {demand_id} approved.")
+
+    _spawn_background(_execute_single_demand(demand_payload))
+    return MessageResponse(
+        message=(
+            f"Demand {demand_id} approved; "
+            "generation pipeline dispatched in the background."
+        )
+    )
+
+
+async def _execute_single_demand(demand: dict[str, Any]) -> None:
+    """Run the generate -> build -> publish graph for one approved demand."""
+    from zerodev.pipeline.orchestrator import run_single_demand
+
+    try:
+        await run_single_demand(demand)
+    except Exception:
+        logger.exception(
+            "Background generation for demand %s failed.", demand.get("id")
+        )
 
 
 @router.post("/demands/{demand_id}/reject", response_model=MessageResponse)
@@ -381,10 +417,20 @@ async def rebuild_app(
     app_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> MessageResponse:
-    """Trigger a rebuild for an existing app."""
+    """Trigger a rebuild (pub get + APK build) for an existing app."""
     app = await session.get(AppRegistry, app_id)
     if app is None:
         raise HTTPException(status_code=404, detail="App not found")
+
+    project_path = Path(app.project_path) if app.project_path else None
+    if project_path is None or not project_path.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"App {app_id} has no local project directory; "
+                "rebuild requires a full pipeline run."
+            ),
+        )
 
     from zerodev.models import BuildStep
 
@@ -397,11 +443,48 @@ async def rebuild_app(
     session.add(build)
     app.build_attempts += 1
     await session.commit()
+    await session.refresh(build)
 
-    logger.info("Rebuild queued for app %s (build %s).", app_id, build.build_id)
+    _spawn_background(_execute_rebuild(build.build_id, str(project_path)))
+    logger.info("Rebuild dispatched for app %s (build %s).", app_id, build.build_id)
     return MessageResponse(
-        message=f"Rebuild queued for app {app_id} (build {build.build_id})."
+        message=f"Rebuild started for app {app_id} (build {build.build_id})."
     )
+
+
+async def _execute_rebuild(build_id: int, project_path: str) -> None:
+    """Run flutter pub get + build apk for an existing project, recording the result."""
+    from zerodev.builder.flutter_builder import FlutterBuilder
+    from zerodev.database import get_async_session
+
+    try:
+        async with get_async_session() as db:
+            build = await db.get(BuildLog, build_id)
+            if build is not None:
+                build.status = BuildStatus.RUNNING
+                build.started_at = datetime.datetime.now(datetime.timezone.utc)
+
+        builder = FlutterBuilder()
+        result = await builder.pub_get(project_path)
+        if result.success:
+            result = await builder.build_apk(project_path)
+        success = result.success
+        output = result.output
+        error = "" if success else ("\n".join(result.errors) or result.stderr)
+    except Exception as exc:
+        logger.exception("Rebuild %s crashed.", build_id)
+        success, output, error = False, "", str(exc)
+
+    try:
+        async with get_async_session() as db:
+            build = await db.get(BuildLog, build_id)
+            if build is not None:
+                build.status = BuildStatus.SUCCESS if success else BuildStatus.FAILED
+                build.output = output[:2000] if output else None
+                build.error_message = error[:1000] if error else None
+                build.finished_at = datetime.datetime.now(datetime.timezone.utc)
+    except Exception:
+        logger.exception("Failed to record rebuild result for build %s.", build_id)
 
 
 # ── Builds ───────────────────────────────────────────────────────
@@ -494,42 +577,32 @@ async def get_stats(
 async def get_pipeline_status(thread_id: str) -> dict:
     """Return the current LangGraph checkpoint state for a given pipeline run.
 
-    If the checkpointer is not available or the thread has no state,
-    returns a graceful fallback.
+    Delegates to the orchestrator's working implementation (which uses the
+    configured checkpointer) and maps its result to the API response shape.
     """
-    try:
-        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    from zerodev.pipeline.orchestrator import (
+        get_pipeline_status as orchestrator_pipeline_status,
+    )
 
-        from zerodev.pipeline.graph import build_main_graph
+    result = await orchestrator_pipeline_status(thread_id)
 
-        checkpointer = AsyncSqliteSaver.from_conn_string("checkpoints.db")
-        graph = build_main_graph(checkpointer=checkpointer)
-        config = {"configurable": {"thread_id": thread_id}}
-        state = await graph.aget_state(config)
-        if state and state.values:
-            return {
-                "thread_id": thread_id,
-                "status": "found",
-                "stage": state.values.get("stage", "unknown"),
-                "values": {
-                    k: v
-                    for k, v in state.values.items()
-                    if k
-                    not in (
-                        "demands_raw",
-                        "demands_structured",
-                        "demands_evaluated",
-                    )
-                },
-            }
-        return {"thread_id": thread_id, "status": "not_found", "values": {}}
-    except Exception as exc:
-        logger.warning("Could not fetch pipeline state for %s: %s", thread_id, exc)
+    if result.get("error"):
         return {
             "thread_id": thread_id,
             "status": "error",
-            "message": str(exc),
+            "message": str(result["error"]),
         }
+    if not result.get("found"):
+        return {"thread_id": thread_id, "status": "not_found", "values": {}}
+
+    return {
+        "thread_id": thread_id,
+        "status": "found",
+        "stage": result.get("stage", "unknown"),
+        "values": {
+            k: v for k, v in result.items() if k not in ("thread_id", "found")
+        },
+    }
 
 
 @router.post("/pipeline/trigger", response_model=PipelineTriggerResponse)
@@ -544,13 +617,41 @@ async def trigger_pipeline(
 
     logger.info("Pipeline run %s triggered manually.", run.run_id)
 
-    # In production this would dispatch Celery tasks; for now we just
-    # record the run and return immediately.
+    _spawn_background(_execute_pipeline_run(run.run_id))
     return PipelineTriggerResponse(
         run_id=run.run_id,
         status="started",
-        message="Pipeline run triggered successfully.",
+        message="Pipeline run started in the background.",
     )
+
+
+async def _execute_pipeline_run(run_id: int) -> None:
+    """Execute one full pipeline cycle and record the outcome on PipelineRun."""
+    from zerodev.pipeline.orchestrator import run_pipeline
+
+    status = "failed"
+    summary = None
+    try:
+        summary = await run_pipeline()
+        status = "failed" if summary.errors else "completed"
+    except Exception:
+        logger.exception("Pipeline run %s failed.", run_id)
+    finally:
+        try:
+            from zerodev.database import get_async_session
+
+            async with get_async_session() as db:
+                run = await db.get(PipelineRun, run_id)
+                if run is not None:
+                    run.status = status
+                    run.finished_at = datetime.datetime.now(datetime.timezone.utc)
+                    if summary is not None:
+                        run.demands_crawled = summary.demands_crawled
+                        run.demands_approved = summary.demands_approved
+                        run.demands_rejected = summary.demands_rejected
+                        run.builds_triggered = summary.demands_built
+        except Exception:
+            logger.exception("Failed to record result for pipeline run %s.", run_id)
 
 
 # ── Pipeline Loop Control ────────────────────────────────────
@@ -642,6 +743,10 @@ SETTINGS_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "settin
 
 _SENSITIVE_KEYWORDS = ("key", "secret", "password", "token")
 
+# Shape produced by _mask_value: leading asterisks plus at most 4 trailing
+# characters. Used to recognize masked values round-tripped by the frontend.
+_MASK_PATTERN = re.compile(r"\*+.{0,4}")
+
 
 def _mask_value(value: str) -> str:
     """Mask a sensitive string, showing only last 4 characters."""
@@ -651,8 +756,14 @@ def _mask_value(value: str) -> str:
 
 
 def _is_sensitive(field_name: str) -> bool:
-    """Return True if the field name suggests a sensitive value."""
+    """Return True if the field name suggests a sensitive value.
+
+    Fields whose name ends with "Path" (e.g. googlePlayKeyPath) are file
+    paths, not secrets -- masking them would make them uneditable in the UI.
+    """
     lower = field_name.lower()
+    if lower.endswith("path"):
+        return False
     return any(kw in lower for kw in _SENSITIVE_KEYWORDS)
 
 
@@ -777,17 +888,24 @@ async def get_settings_api() -> dict[str, Any]:
 
 @router.post("/settings")
 async def save_settings_api(body: dict[str, Any]) -> MessageResponse:
-    """Save settings to data/settings.json."""
-    # Strip out masked values -- don't overwrite real secrets with mask strings
+    """Save settings to data/settings.json.
+
+    Only values that differ from the env/config defaults (or were already
+    customized in the file) are persisted -- otherwise the full merged form
+    posted by the frontend would freeze current env values into the file and
+    shadow later .env changes.
+    """
     current = _load_settings_file()
+    defaults = _get_defaults()
     cleaned: dict[str, Any] = {}
     for k, v in body.items():
-        if isinstance(v, str) and v.startswith("*"):
-            # Keep existing value if the user didn't change a masked field
+        if isinstance(v, str) and _MASK_PATTERN.fullmatch(v):
+            # Masked secret round-tripped unchanged -- keep the stored value.
             if k in current:
                 cleaned[k] = current[k]
-            # else: skip, don't store the mask
-        else:
+            # else: the mask came from an env default; don't store it.
+            continue
+        if k in current or v != defaults.get(k):
             cleaned[k] = v
 
     _save_settings_file(cleaned)

@@ -9,9 +9,13 @@ from zerodev.config import Settings
 
 
 def _patch_settings(monkeypatch: pytest.MonkeyPatch, **overrides) -> None:
-    """Replace llm.get_settings with one returning a custom Settings."""
+    """Replace llm.get_settings with one returning a custom Settings.
+
+    Also isolates tests from any real data/settings.json on the machine.
+    """
     settings = Settings(**overrides)
     monkeypatch.setattr(llm, "get_settings", lambda: settings)
+    monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {})
 
 
 def test_oauth_token_preferred_over_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -275,3 +279,45 @@ def test_compat_response_shape() -> None:
     data = {"model": "m", "choices": [{"message": {"role": "assistant", "content": "out"}}]}
     resp = llm._parse_chat_response(data, "X")
     assert resp.content[0].text == "out"
+
+
+# ── Compat response handling ────────────────────────────────────────
+
+
+def _chat_data(text, finish="stop"):
+    return {"model": "m", "choices": [{"message": {"role": "assistant", "content": text}, "finish_reason": finish}]}
+
+
+def test_parse_strips_leading_think_block() -> None:
+    resp = llm._parse_chat_response(_chat_data("<think>chain of thought</think>\n{\"a\": 1}"), "X")
+    assert resp.content[0].text == '{"a": 1}'
+
+
+def test_parse_raises_on_empty_content() -> None:
+    with pytest.raises(llm.LLMError, match="empty content"):
+        llm._parse_chat_response(_chat_data("", finish="length"), "X")
+
+
+def test_parse_raises_on_null_content() -> None:
+    data = {"model": "m", "choices": [{"message": {"role": "assistant", "content": None}, "finish_reason": "stop"}]}
+    with pytest.raises(llm.LLMError):
+        llm._parse_chat_response(data, "X")
+
+
+def test_prefill_extracted_from_trailing_assistant_message() -> None:
+    msgs = [{"role": "user", "content": "write main.dart"}, {"role": "assistant", "content": "import"}]
+    assert llm._extract_prefill(msgs) == "import"
+    assert llm._extract_prefill([{"role": "user", "content": "hi"}]) == ""
+
+
+def test_prefill_duplicate_prefix_stripped() -> None:
+    # Compat model restarted the file including the prefill: strip it so the
+    # caller's `prefill + response` reconstruction has no duplication.
+    assert llm._apply_prefill("import", "import 'package:flutter/material.dart';") == " 'package:flutter/material.dart';"
+    # Model behaved like a continuation: leave untouched.
+    assert llm._apply_prefill("import", " 'dart:async';") == " 'dart:async';"
+    assert llm._apply_prefill("", "anything") == "anything"
+
+
+def test_llm_error_is_runtime_error() -> None:
+    assert issubclass(llm.LLMError, RuntimeError)

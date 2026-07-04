@@ -9,13 +9,11 @@ Phase 2 - ``flutter build apk --debug`` loop (up to 3 rounds):
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import subprocess
 from pathlib import Path
 
-import anthropic
 
 from zerodev.config import get_settings
 
@@ -78,10 +76,10 @@ class AutoFixer:
     """Iteratively fix Dart analysis and build errors using Claude."""
 
     def __init__(self) -> None:
-        from zerodev.llm import get_llm_client
+        from zerodev.llm import get_llm_client, get_llm_model
         settings = get_settings()
         self._client = get_llm_client()
-        self._model = settings.claude_model
+        self._model = get_llm_model()
         self._dart_bin = settings.dart_bin
         self._flutter_bin = settings.flutter_bin
 

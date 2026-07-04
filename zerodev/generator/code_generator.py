@@ -16,6 +16,7 @@ from typing import Any
 import anthropic
 
 from zerodev.config import get_settings
+from zerodev.llm import LLMError
 from zerodev.generator.prd_generator import PRD
 from zerodev.generator.templates import TEMPLATE_REGISTRY
 
@@ -234,9 +235,9 @@ class CodeGenerator:
 
     def __init__(self) -> None:
         settings = get_settings()
-        from zerodev.llm import get_llm_client
+        from zerodev.llm import get_llm_client, get_llm_model
         self._client = get_llm_client()
-        self._model = settings.claude_model
+        self._model = get_llm_model()
         self._workspace_dir = settings.workspace_dir
 
     async def plan_files(self, prd: str) -> list[str]:
@@ -405,8 +406,8 @@ class CodeGenerator:
                     system=SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": prompt}],
                 )
-            except anthropic.APIError as exc:
-                error_msg = f"Claude API error generating {file_path}: {exc}"
+            except (anthropic.APIError, LLMError) as exc:
+                error_msg = f"LLM API error generating {file_path}: {exc}"
                 logger.error(error_msg)
                 errors.append(error_msg)
                 continue

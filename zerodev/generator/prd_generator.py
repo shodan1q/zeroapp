@@ -12,10 +12,11 @@ import logging
 import re
 from typing import Any
 
-from zerodev.llm import get_llm_client
+import anthropic
+
+from zerodev.llm import LLMError, get_llm_client, get_llm_model
 from pydantic import BaseModel, Field
 
-from zerodev.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -202,9 +203,8 @@ class PRDGenerator:
     """Generate a PRD from a structured demand using Claude."""
 
     def __init__(self) -> None:
-        settings = get_settings()
         self._client = get_llm_client()
-        self._model = settings.claude_model
+        self._model = get_llm_model()
 
     async def generate(
         self,
@@ -245,8 +245,8 @@ class PRDGenerator:
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-        except anthropic.APIError:
-            logger.exception("Claude API call failed during PRD generation")
+        except (anthropic.APIError, LLMError):
+            logger.exception("LLM API call failed during PRD generation")
             raise
 
         raw_text = response.content[0].text.strip()

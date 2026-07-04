@@ -21,6 +21,7 @@ import httpx
 from PIL import Image  # type: ignore[import-untyped]
 
 from zerodev.config import get_settings
+from zerodev.llm import get_llm_model
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class IconGenerator:
         settings = get_settings()
         self._openai_key = openai_api_key or settings.dalle_api_key
         self._claude_key = claude_api_key or settings.claude_api_key
-        self._claude_model = settings.claude_model
+        self._claude_model = get_llm_model()
 
     # ------------------------------------------------------------------
     # Public API

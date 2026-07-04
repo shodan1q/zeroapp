@@ -10,7 +10,7 @@ from typing import Any, Dict
 import anthropic
 
 from zerodev.config import get_settings
-from zerodev.llm import get_llm_client
+from zerodev.llm import get_llm_model
 
 FEASIBILITY_PROMPT = """Evaluate the technical feasibility of building this mobile app as a Flutter application.
 
@@ -51,39 +51,6 @@ class FeasibilityResult:
     reasoning: str
 
 
-class FeasibilityEvaluator:
-    """Evaluate whether a demand can be realistically built."""
-
-    def __init__(self) -> None:
-        settings = get_settings()
-        self._client = get_llm_client()
-        self._model = settings.claude_model
-
-    async def evaluate(self, title: str, description: str, features: list[str]) -> dict:
-        """Return feasibility assessment for a demand.
-
-        Returns:
-            Dict with feasibility_score, reasoning, blockers, estimated_complexity.
-        """
-        prompt = FEASIBILITY_PROMPT.format(
-            title=title,
-            description=description,
-            features=", ".join(features) if features else "not specified",
-        )
-
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        text = response.content[0].text.strip()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return {"feasibility_score": 0.5, "reasoning": "Failed to parse LLM response", "blockers": [], "estimated_complexity": "medium"}
-
-
 def _strip_markdown_fences(text: str) -> str:
     """Remove markdown code fences from LLM output."""
     text = text.strip()
@@ -98,33 +65,49 @@ async def evaluate_feasibility(
     *,
     api_key: str = "",
 ) -> FeasibilityResult:
-    """Convenience async function to evaluate feasibility via Claude.
+    """Convenience async function to evaluate feasibility via the configured LLM.
 
     Args:
         demand: Dict with title, description, core_features keys.
-        api_key: Anthropic API key.
+        api_key: Optional explicit Anthropic API key. When omitted, the call
+            goes through the configured provider (settings.json / env), same
+            as every other LLM call in the pipeline.
 
     Returns:
         FeasibilityResult dataclass.
 
     Raises:
-        ValueError: If Claude returns non-JSON.
+        ValueError: If the model returns non-JSON.
     """
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-    settings = get_settings()
+    if api_key:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        model = get_settings().claude_model
+    else:
+        from zerodev.llm import get_llm_async_client
+
+        client = get_llm_async_client()
+        model = get_llm_model()
 
     title = demand.get("title", "")
     description = demand.get("description", "")
     features = demand.get("core_features", [])
+    # core_features can arrive as a JSON string (DB column / fallback paths);
+    # joining a string would join its characters.
+    if isinstance(features, str):
+        try:
+            parsed = json.loads(features)
+            features = parsed if isinstance(parsed, list) else [features]
+        except json.JSONDecodeError:
+            features = [f.strip() for f in features.split(",") if f.strip()]
 
     prompt = FEASIBILITY_PROMPT.format(
         title=title,
         description=description,
-        features=", ".join(features) if features else "not specified",
+        features=", ".join(str(f) for f in features) if features else "not specified",
     )
 
     response = await client.messages.create(
-        model=settings.claude_model,
+        model=model,
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )

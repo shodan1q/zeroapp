@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-import pytest
 
 from zerodev.evaluator.competition import CompetitionResult
 from zerodev.evaluator.feasibility import FeasibilityResult

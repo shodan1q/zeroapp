@@ -110,6 +110,13 @@ export default function AppsPage() {
       ]);
       setData(appsRes);
       setGeneratedApps(genRes.apps);
+      // Clamp current page when the result shrinks (e.g. after filtering)
+      const total = Math.ceil(appsRes.total / appsRes.page_size);
+      if (appsRes.total > 0 && page > total) {
+        setPage(total);
+      } else if (appsRes.items.length === 0 && page > 1) {
+        setPage(page - 1);
+      }
     } catch (err) {
       console.error("Failed to load apps", err);
     } finally {
@@ -174,8 +181,9 @@ export default function AppsPage() {
 
       addToast(`${t("apps.running_on")} ${platformLabel[platform]}...`, "info");
       const result = await runAppOnDevice(appPath, platform);
-      if (result.status === "success") {
-        addToast(result.message, "success");
+      // Backend returns {status:"building"} when the run kicks off successfully
+      if (result.status === "success" || result.status === "building") {
+        addToast(result.message, result.status === "building" ? "info" : "success");
       } else {
         addToast(result.message, "error");
       }
@@ -514,7 +522,8 @@ export default function AppsPage() {
               <ChevronLeft className="h-4 w-4" />
             </button>
             {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
-              const pageNum = i + 1;
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              const pageNum = start + i;
               return (
                 <button
                   key={pageNum}

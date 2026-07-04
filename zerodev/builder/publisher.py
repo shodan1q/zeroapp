@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from zerodev.config import get_settings
+from zerodev.settings_store import effective_setting
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,10 @@ class GooglePlayPublisher(BasePublisher):
         self, project_path: str, app_info: AppInfo
     ) -> PublishResult:
         settings = get_settings()
-        json_key = settings.google_play_json_key_path
+        # Dashboard-saved key path takes precedence over env config.
+        json_key = effective_setting(
+            "googlePlayKeyPath", settings.google_play_json_key_path
+        )
         if not json_key:
             return PublishResult(
                 success=False,
@@ -185,11 +189,15 @@ class AppStorePublisher(BasePublisher):
                 message=f"IPA not found under {ipa_dir}. Run build_ipa first.",
             )
 
+        # Dashboard-saved key path takes precedence over env config.
+        api_key_path = effective_setting(
+            "appStoreKeyPath", settings.apple_api_key_path
+        )
         args = [
             "fastlane",
             "deliver",
             "--ipa", str(ipas[0]),
-            "--api_key_path", settings.apple_api_key_path,
+            "--api_key_path", api_key_path,
             "--skip_screenshots", "true",
             "--skip_metadata", "false",
             "--force", "true",
@@ -321,9 +329,16 @@ class HarmonyOSPublisher(BasePublisher):
         app_id: str = "",
     ) -> None:
         settings = get_settings()
-        self.client_id = client_id or settings.huawei_agc_client_id
-        self.client_secret = client_secret or settings.huawei_agc_client_secret
-        self.app_id = app_id or settings.huawei_agc_app_id
+        # Explicit args win; then Dashboard-saved settings; then env config.
+        self.client_id = client_id or effective_setting(
+            "huaweiAgcClientId", settings.huawei_agc_client_id
+        )
+        self.client_secret = client_secret or effective_setting(
+            "huaweiAgcClientSecret", settings.huawei_agc_client_secret
+        )
+        self.app_id = app_id or effective_setting(
+            "huaweiAgcAppId", settings.huawei_agc_app_id
+        )
 
     @staticmethod
     def _locate_hap(project_path: str) -> Path | None:

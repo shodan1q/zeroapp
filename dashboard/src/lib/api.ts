@@ -48,28 +48,11 @@ function qs(params: Record<string, string | number | boolean | undefined>): stri
 }
 
 /* ------------------------------------------------------------------ */
-/*  Default values                                                     */
-/* ------------------------------------------------------------------ */
-
-const DEFAULT_DASHBOARD: DashboardSummary = {
-  total_apps: 0,
-  live_apps: 0,
-  reviewing_apps: 0,
-  developing_apps: 0,
-  total_demands: 0,
-  pending_demands: 0,
-  approved_today: 0,
-  rejected_today: 0,
-  builds_today: 0,
-};
-
-/* ------------------------------------------------------------------ */
 /*  Dashboard                                                         */
 /* ------------------------------------------------------------------ */
 
-export async function fetchDashboard(): Promise<DashboardSummary> {
-  const res = await request<DashboardSummary>("/dashboard");
-  return res ?? DEFAULT_DASHBOARD;
+export async function fetchDashboard(): Promise<DashboardSummary | null> {
+  return request<DashboardSummary>("/dashboard");
 }
 
 /* ------------------------------------------------------------------ */

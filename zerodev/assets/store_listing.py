@@ -11,10 +11,10 @@ import logging
 import re
 from typing import List, Optional
 
-import anthropic
 from pydantic import BaseModel, Field
 
 from zerodev.config import get_settings
+from zerodev.llm import get_llm_model
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class StoreListingGenerator:
     ) -> None:
         settings = get_settings()
         self._api_key = api_key or settings.claude_api_key
-        self._model = model or settings.claude_model
+        self._model = model or get_llm_model()
 
     # ------------------------------------------------------------------
     # Public API

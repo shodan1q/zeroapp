@@ -57,6 +57,7 @@ async def run_pipeline(
     *,
     thread_id: str | None = None,
     target_platforms: list[str] | None = None,
+    human_review: bool = False,
 ) -> PipelineRunSummary:
     """Execute one full pipeline cycle and return a summary.
 
@@ -69,6 +70,14 @@ async def run_pipeline(
     target_platforms : list[str], optional
         Build targets for this run (subset of android/ios/ohos).  Falls back to
         ``settings.target_platforms`` when omitted.
+    human_review : bool, optional
+        The graph is compiled with ``interrupt_before=["fan_out_approved"]``,
+        so it pauses after the decide step.  With the default ``False`` the
+        run resumes past that interrupt automatically (fully unattended
+        operation; the decide node already auto-approves/rejects by score).
+        Pass ``True`` to keep the pause for manual review -- the run then
+        stops before generate/build/publish and can be continued later via
+        ``resume_pipeline(thread_id)`` (CLI ``resume``).
 
     Returns
     -------
@@ -130,6 +139,28 @@ async def run_pipeline(
                 }
 
             final_state = await graph.ainvoke(initial_input, config=config)
+
+            # The graph interrupts before fan_out_approved.  Unless the caller
+            # asked for a human review pause, resume automatically so
+            # unattended runs actually reach generate/build/publish.
+            snapshot = await graph.aget_state(config)
+            paused_before_fan_out = bool(
+                snapshot and snapshot.next and "fan_out_approved" in snapshot.next
+            )
+            if paused_before_fan_out:
+                if human_review:
+                    logger.info(
+                        "Pipeline %s paused before fan_out_approved for human review; "
+                        "resume with thread_id=%s.",
+                        run_id,
+                        thread_id,
+                    )
+                else:
+                    logger.info(
+                        "Pipeline %s auto-resuming past fan_out_approved interrupt.",
+                        run_id,
+                    )
+                    final_state = await graph.ainvoke(None, config=config)
 
             # Extract summary from final state.
             summary.demands_crawled = final_state.get("demands_crawled_count", 0)
@@ -234,15 +265,30 @@ async def run_loop(
 ) -> None:
     """Run the pipeline in a continuous loop.
 
-    Sleeps for ``interval_hours`` between cycles (defaults to settings).
-    Cancel the awaited task to stop the loop.
+    Sleeps between cycles.  When ``interval_hours`` is given it is used as a
+    fixed interval; otherwise the interval is re-resolved each cycle from the
+    Dashboard-saved ``crawlInterval`` (data/settings.json), falling back to
+    ``settings.pipeline_crawl_interval_hours``, so Dashboard changes take
+    effect without a restart.  Cancel the awaited task to stop the loop.
     """
+    from zerodev.settings_store import effective_float
+
     settings = get_settings()
-    interval = (interval_hours or settings.pipeline_crawl_interval_hours) * 3600
+
+    def _interval_seconds() -> float:
+        if interval_hours is not None:
+            hours = max(0.1, float(interval_hours))
+        else:
+            hours = effective_float(
+                "crawlInterval",
+                settings.pipeline_crawl_interval_hours,
+                minimum=0.1,
+            )
+        return hours * 3600
 
     logger.info(
-        "Starting continuous pipeline loop (interval=%dh).",
-        interval // 3600,
+        "Starting continuous pipeline loop (interval=%.1fh).",
+        _interval_seconds() / 3600,
     )
 
     while True:
@@ -251,13 +297,13 @@ async def run_loop(
             logger.info(
                 "Loop cycle %s complete. Next run in %ds.",
                 summary.run_id,
-                interval,
+                int(_interval_seconds()),
             )
         except Exception:
             logger.exception("Pipeline cycle failed; will retry next cycle.")
 
         try:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(_interval_seconds())
         except asyncio.CancelledError:
             logger.info("Pipeline loop cancelled.")
             break
@@ -335,7 +381,7 @@ async def _persist_run(summary: PipelineRunSummary) -> None:
     try:
         from zerodev.database import get_async_session
 
-        async with get_async_session() as session:
+        async with get_async_session():
             logger.info(
                 "Persisting pipeline run %s: crawled=%d approved=%d built=%d published=%d.",
                 summary.run_id,

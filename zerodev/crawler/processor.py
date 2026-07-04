@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from zerodev.config import get_settings
 from zerodev.crawler.base import RawDemand
-from zerodev.llm import get_llm_client
+from zerodev.llm import get_llm_client, get_llm_model
 
 EXTRACTION_PROMPT = """You are analyzing a post from {source} to determine if it describes a viable mobile app idea.
 
@@ -33,9 +32,8 @@ class DemandProcessor:
     """Process raw crawled data into structured demands using Claude."""
 
     def __init__(self) -> None:
-        settings = get_settings()
         self._client = get_llm_client()
-        self._model = settings.claude_model
+        self._model = get_llm_model()
 
     async def extract(self, raw: RawDemand) -> dict[str, Any] | None:
         """Use Claude to extract structured demand from raw post.

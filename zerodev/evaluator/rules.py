@@ -7,7 +7,7 @@ from typing import Any, Dict, Tuple
 from zerodev.config import get_settings
 from zerodev.evaluator.feasibility import FeasibilityResult
 from zerodev.evaluator.competition import CompetitionResult
-from zerodev.evaluator.scorer import calculate_score, _feasibility_score
+from zerodev.evaluator.scorer import calculate_score
 
 
 # Categories that are automatically rejected

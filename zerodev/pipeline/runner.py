@@ -12,6 +12,7 @@ from pathlib import Path
 
 from zerodev.config import get_settings
 from zerodev.api.events import emit_error, emit_pipeline_summary, emit_stage_change
+from zerodev.llm import get_llm_async_client, get_llm_model
 from zerodev.pipeline.validator import is_valid_dart_code, is_valid_yaml, parse_multi_file_output
 
 logger = logging.getLogger(__name__)
@@ -578,6 +579,7 @@ class PipelineRunner:
         self._stage_timings: dict[str, float] = {}  # stage -> seconds
         self._stage_start: float | None = None
         self._current_run_id: str | None = None
+        self._queue: list[tuple[str, str]] = []  # (run_id, theme) pending custom generations
         self._stats = {
             "started_at": None,
             "cycles": 0,
@@ -673,14 +675,11 @@ class PipelineRunner:
 
     async def start_concurrent(self, theme: str) -> dict:
         """Queue a custom generation. Runs sequentially if another is active (LLM proxy limitation)."""
-        if not hasattr(self, "_queue"):
-            self._queue: list[str] = []
-
         run_id = uuid.uuid4().hex[:12]
 
         if self.is_running:
-            # Queue it for later
-            self._queue.append(theme)
+            # Queue it for later; carry the run_id so the caller can correlate events at dequeue
+            self._queue.append((run_id, theme))
             await self._log(f"[队列] 已加入队列 (位置 {len(self._queue)}): {theme[:50]}", "stage_change")
             return {
                 "status": "queued",
@@ -713,11 +712,18 @@ class PipelineRunner:
             self._stats["errors"] += 1
             logger.exception("Pipeline cycle failed")
             await self._log(f"生成错误: {e}", "error")
+        finally:
+            await self._maybe_start_next()
+            self._running = False
+            self._current_run_id = None
 
-        # Process queue
-        while hasattr(self, "_queue") and self._queue:
-            next_theme = self._queue.pop(0)
-            self._current_run_id = uuid.uuid4().hex[:12]
+    async def _maybe_start_next(self) -> None:
+        """Drain queued custom generations. Called when any run finishes, so items
+        queued by start_concurrent() are processed regardless of which entry point
+        (start / start_custom / start_concurrent) owned the running task."""
+        while self._running and self._queue:
+            next_run_id, next_theme = self._queue.pop(0)
+            self._current_run_id = next_run_id
             self._stats["cycles"] += 1
             await self._log(f"[队列] 开始处理队列中的下一个: {next_theme[:50]}", "stage_change")
             try:
@@ -726,10 +732,8 @@ class PipelineRunner:
                 break
             except Exception as e:
                 self._stats["errors"] += 1
+                logger.exception("Pipeline cycle failed")
                 await self._log(f"生成错误: {e}", "error")
-
-        self._running = False
-        self._current_run_id = None
 
     async def _run_custom_wrapper(self, theme: str) -> None:
         """Wrapper that runs the custom cycle and cleans up afterwards."""
@@ -746,6 +750,7 @@ class PipelineRunner:
             except Exception:
                 pass
         finally:
+            await self._maybe_start_next()
             self._running = False
             self._current_run_id = None
 
@@ -774,6 +779,9 @@ class PipelineRunner:
                     await emit_error("pipeline", str(e))
                 except Exception:
                     pass
+
+            # Drain any custom generations queued while this cycle was running
+            await self._maybe_start_next()
 
             if self._running:
                 await self._log(
@@ -824,7 +832,6 @@ class PipelineRunner:
         run_id = self._current_run_id
         env = {**os.environ, "NO_PROXY": "127.0.0.1,localhost"}
 
-        from zerodev.llm import get_llm_async_client
         client = get_llm_async_client()
 
         # ── Stage: crawl -- 生成 App 创意 ─────────────────────────────
@@ -833,7 +840,7 @@ class PipelineRunner:
         await self._log("正在生成 App 创意...", "stage_change")
 
         resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=1200,
             system=(
                 "You are a creative app product designer who specializes in small, "
@@ -909,7 +916,7 @@ class PipelineRunner:
         await self._log("正在生成产品需求文档 (PRD)...", "stage_change")
 
         prd_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=2000,
             system=(
                 "You are a senior product manager and UX designer who creates detailed, "
@@ -958,7 +965,7 @@ class PipelineRunner:
         await self._log("正在规划项目文件结构...", "stage_change")
 
         plan_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=2000,
             system="You are a Flutter project architect. Return JSON only. No markdown fences.",
             messages=[{"role": "user", "content": (
@@ -1110,7 +1117,7 @@ class PipelineRunner:
                 code = ""
                 for attempt in range(2):
                     resp = await client.messages.create(
-                        model=settings.claude_model,
+                        model=get_llm_model(),
                         max_tokens=8192,
                         system=system_prompt,
                         messages=[{"role": "user", "content": user_prompt}],
@@ -1187,7 +1194,14 @@ class PipelineRunner:
             "flutter", "create", "--org", "com.zerodev", str(app_dir),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
         )
-        await proc.wait()
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            create_err = (stderr.decode() or stdout.decode())[-300:]
+            await self._log(f"flutter create 失败: {create_err}", "error")
+            await emit_stage_change("build", run_id, "failed", {"message": "flutter create 失败"})
+            await _save_build_log(demand_id, "build_apk", "failed", create_err, error_msg="flutter create failed")
+            await _update_demand_status(demand_id, "failed")
+            raise RuntimeError(f"flutter create 失败: {create_err}")
         await self._log(f"Flutter 项目已创建: {app_dir}", "info")
 
         # Remove default test file
@@ -1221,7 +1235,10 @@ class PipelineRunner:
         # After pub get, if it failed, try fixing versions
         if proc.returncode != 0:
             pub_output = stdout.decode() + stderr.decode()
-            await self._log("pub get 失败，尝试自动修复依赖版本...", "stage_change")
+            await self._log(
+                f"pub get 失败，尝试自动修复依赖版本... 输出尾部: {pub_output[-300:].strip()}",
+                "stage_change",
+            )
 
             # Common fixes: update intl, remove version constraints that conflict
             pubspec_path = app_dir / "pubspec.yaml"
@@ -1297,7 +1314,7 @@ class PipelineRunner:
                     source_context = source_context[:12000] + "\n... (truncated)"
 
                 fix_resp = await client.messages.create(
-                    model=settings.claude_model,
+                    model=get_llm_model(),
                     max_tokens=16384,
                     system=(
                         "You are fixing Flutter/Dart compilation errors. "
@@ -1375,15 +1392,8 @@ class PipelineRunner:
         self._start_stage_timer("layout_check")
         await self._log("正在检查路由和布局合理性...", "stage_change")
 
-        # Collect all generated code for review
-        all_code_summary = "\n".join(
-            f"--- {p} ---\n{c[:80]}...\n"
-            for p, c in generated_files.items()
-            if p.endswith(".dart")
-        )
-
         review_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=8192,
             system=(
                 "You are a Flutter code reviewer. Check for layout and routing issues. "
@@ -1501,7 +1511,7 @@ class PipelineRunner:
                         compile_source_context = compile_source_context[:12000] + "\n... (truncated)"
 
                     compile_fix_resp = await client.messages.create(
-                        model=settings.claude_model,
+                        model=get_llm_model(),
                         max_tokens=16384,
                         system=(
                             "You are fixing Flutter build errors. "
@@ -1578,7 +1588,7 @@ class PipelineRunner:
         )
 
         test_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=8192,
             system=(
                 "You are a Flutter test engineer. Generate widget tests.\n"
@@ -1637,7 +1647,7 @@ class PipelineRunner:
                     current_tests[rel] = tf.read_text(encoding="utf-8")
 
             test_fix_resp = await client.messages.create(
-                model=settings.claude_model,
+                model=get_llm_model(),
                 max_tokens=8192,
                 system=(
                     "You are fixing failing Flutter widget tests. "
@@ -1691,26 +1701,41 @@ class PipelineRunner:
         self._start_stage_timer("publish")
         await self._log("正在推送到 GitHub...", "stage_change")
 
-        await self._push_to_github(app_dir, app_id, idea)
+        pushed = await self._push_to_github(app_dir, app_id, idea)
 
         gh_org = settings.github_org or "shodan1q"
         github_url = f"https://github.com/{gh_org}/zerogenerate/tree/main/{app_id}"
 
-        await emit_stage_change("publish", run_id, "completed", {
-            "message": f"已推送: {github_url}"
-        })
-        await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
-        await _save_build_log(demand_id, "publish_google", "success", github_url)
+        publish_ok = compile_ok and pushed
+        if publish_ok:
+            await emit_stage_change("publish", run_id, "completed", {
+                "message": f"已推送: {github_url}"
+            })
+            await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
+            await _save_build_log(demand_id, "publish_google", "success", github_url)
+        else:
+            fail_reasons = []
+            if not compile_ok:
+                fail_reasons.append("编译失败")
+            if not pushed:
+                fail_reasons.append("GitHub 推送失败")
+            fail_reason = "、".join(fail_reasons)
+            await emit_stage_change("publish", run_id, "failed", {
+                "message": f"发布失败: {fail_reason}"
+            })
+            await self._log(f"发布失败: {fail_reason}", "error")
+            await _save_build_log(demand_id, "publish_google", "failed", fail_reason)
 
         await emit_pipeline_summary(run_id, {
             "app_name": app_name, "app_id": app_id,
             "description": idea["description"], "path": str(app_dir),
-            "github_url": github_url, "status": "completed",
-            "message": f"周期完成: {app_name}",
+            "github_url": github_url,
+            "status": "completed" if publish_ok else "failed",
+            "message": f"周期完成: {app_name}" if publish_ok else f"周期失败: {app_name} ({fail_reason})",
         })
 
         # Save app to database and update demand status
-        await _update_demand_status(demand_id, "published")
+        await _update_demand_status(demand_id, "published" if publish_ok else "failed")
         db_app_id = await _save_app(demand_id, idea, app_id, str(app_dir), github_url)
         if db_app_id:
             await self._log(f"  应用已保存到数据库 (ID: {db_app_id})", "info")
@@ -1739,7 +1764,6 @@ class PipelineRunner:
         run_id = self._current_run_id
         env = {**os.environ, "NO_PROXY": "127.0.0.1,localhost"}
 
-        from zerodev.llm import get_llm_async_client
         client = get_llm_async_client()
 
         # ── Stage: crawl -- 根据用户主题生成 App 规格 ─────────────────
@@ -1747,7 +1771,7 @@ class PipelineRunner:
         await self._log(f"正在根据用户主题生成 App 规格: {theme[:80]}...", "stage_change")
 
         resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=1200,
             system=(
                 "You are a creative app product designer who specializes in small, "
@@ -1797,7 +1821,7 @@ class PipelineRunner:
         await self._log("正在生成产品需求文档 (PRD)...", "stage_change")
 
         prd_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=2000,
             system=(
                 "You are a senior product manager and UX designer who creates detailed, "
@@ -1836,7 +1860,7 @@ class PipelineRunner:
         await self._log("正在规划项目文件结构...", "stage_change")
 
         plan_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=2000,
             system="You are a Flutter project architect. Return JSON only. No markdown fences.",
             messages=[{"role": "user", "content": (
@@ -1940,7 +1964,7 @@ class PipelineRunner:
             "followed by the actual YAML content. Do NOT describe what you are doing."
         )
         blueprint_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=16384,
             system=blueprint_system,
             messages=[
@@ -2059,7 +2083,7 @@ class PipelineRunner:
             for attempt in range(1, max_retries + 1):
                 try:
                     resp = await client.messages.create(
-                        model=settings.claude_model,
+                        model=get_llm_model(),
                         max_tokens=8192,
                         system=impl_system,
                         messages=[
@@ -2068,11 +2092,16 @@ class PipelineRunner:
                         ],
                     )
                     raw = resp.content[0].text
-                    # The prefill was sent as an assistant turn; prepend it to
-                    # reconstruct the full response, but only if the model
-                    # continued with code (starts with quote, punctuation, or
-                    # a known code token) rather than prose.
-                    full = prefill + raw
+                    # The prefill was sent as an assistant turn. Anthropic-style
+                    # APIs return only the continuation, but compat providers may
+                    # return the complete file already starting with the prefill
+                    # token -- only prepend when it is actually missing, otherwise
+                    # we would produce garbage like "importimport ...".
+                    # The validation/retry loop below stays the final arbiter.
+                    if raw.lstrip().startswith(prefill.strip()):
+                        full = raw.lstrip()
+                    else:
+                        full = prefill + raw
                     candidate = _strip_fences(full)
 
                     # Validate output is actual code, not prose
@@ -2122,7 +2151,14 @@ class PipelineRunner:
             "flutter", "create", "--org", "com.zerodev", str(app_dir),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
         )
-        await proc.wait()
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            create_err = (stderr.decode() or stdout.decode())[-300:]
+            await self._log(f"flutter create 失败: {create_err}", "error")
+            await emit_stage_change("build", run_id, "failed", {"message": "flutter create 失败"})
+            await _save_build_log(demand_id, "build_apk", "failed", create_err, error_msg="flutter create failed")
+            await _update_demand_status(demand_id, "failed")
+            raise RuntimeError(f"flutter create 失败: {create_err}")
         await self._log(f"Flutter 项目已创建: {app_dir}", "info")
 
         default_test = app_dir / "test" / "widget_test.dart"
@@ -2152,7 +2188,10 @@ class PipelineRunner:
         # After pub get, if it failed, try fixing versions
         if proc.returncode != 0:
             pub_output = stdout.decode() + stderr.decode()
-            await self._log("pub get 失败，尝试自动修复依赖版本...", "stage_change")
+            await self._log(
+                f"pub get 失败，尝试自动修复依赖版本... 输出尾部: {pub_output[-300:].strip()}",
+                "stage_change",
+            )
 
             # Common fixes: update intl, remove version constraints that conflict
             pubspec_path = app_dir / "pubspec.yaml"
@@ -2223,7 +2262,7 @@ class PipelineRunner:
                     source_context = source_context[:12000] + "\n... (truncated)"
 
                 fix_resp = await client.messages.create(
-                    model=settings.claude_model,
+                    model=get_llm_model(),
                     max_tokens=16384,
                     system=(
                         "You are fixing Flutter/Dart compilation errors. "
@@ -2293,7 +2332,7 @@ class PipelineRunner:
         await self._log("正在检查路由和布局合理性...", "stage_change")
 
         review_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=8192,
             system=(
                 "You are a Flutter code reviewer. Check for layout and routing issues. "
@@ -2403,7 +2442,7 @@ class PipelineRunner:
                         compile_source_context = compile_source_context[:12000] + "\n... (truncated)"
 
                     compile_fix_resp = await client.messages.create(
-                        model=settings.claude_model,
+                        model=get_llm_model(),
                         max_tokens=16384,
                         system=(
                             "You are fixing Flutter build errors. "
@@ -2466,7 +2505,7 @@ class PipelineRunner:
         )[:10000]
 
         test_resp = await client.messages.create(
-            model=settings.claude_model,
+            model=get_llm_model(),
             max_tokens=8192,
             system=(
                 "You are a Flutter test engineer. Generate widget tests.\n"
@@ -2524,7 +2563,7 @@ class PipelineRunner:
                     current_tests[rel] = tf.read_text(encoding="utf-8")
 
             test_fix_resp = await client.messages.create(
-                model=settings.claude_model,
+                model=get_llm_model(),
                 max_tokens=8192,
                 system=(
                     "You are fixing failing Flutter widget tests. "
@@ -2574,25 +2613,40 @@ class PipelineRunner:
         await emit_stage_change("publish", run_id, "active", {"message": "正在推送到 GitHub..."})
         await self._log("正在推送到 GitHub...", "stage_change")
 
-        await self._push_to_github(app_dir, app_id, idea)
+        pushed = await self._push_to_github(app_dir, app_id, idea)
 
         gh_org = settings.github_org or "shodan1q"
         github_url = f"https://github.com/{gh_org}/zerogenerate/tree/main/{app_id}"
 
-        await emit_stage_change("publish", run_id, "completed", {
-            "message": f"已推送: {github_url}"
-        })
-        await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
-        await _save_build_log(demand_id, "publish_google", "success", github_url)
+        publish_ok = compile_ok and pushed
+        if publish_ok:
+            await emit_stage_change("publish", run_id, "completed", {
+                "message": f"已推送: {github_url}"
+            })
+            await self._log(f"已推送到 GitHub: {github_url}", "stage_change")
+            await _save_build_log(demand_id, "publish_google", "success", github_url)
+        else:
+            fail_reasons = []
+            if not compile_ok:
+                fail_reasons.append("编译失败")
+            if not pushed:
+                fail_reasons.append("GitHub 推送失败")
+            fail_reason = "、".join(fail_reasons)
+            await emit_stage_change("publish", run_id, "failed", {
+                "message": f"发布失败: {fail_reason}"
+            })
+            await self._log(f"发布失败: {fail_reason}", "error")
+            await _save_build_log(demand_id, "publish_google", "failed", fail_reason)
 
         await emit_pipeline_summary(run_id, {
             "app_name": app_name, "app_id": app_id,
             "description": idea["description"], "path": str(app_dir),
-            "github_url": github_url, "status": "completed",
-            "message": f"自定义生成完成: {app_name}",
+            "github_url": github_url,
+            "status": "completed" if publish_ok else "failed",
+            "message": f"自定义生成完成: {app_name}" if publish_ok else f"自定义生成失败: {app_name} ({fail_reason})",
         })
 
-        await _update_demand_status(demand_id, "published")
+        await _update_demand_status(demand_id, "published" if publish_ok else "failed")
         db_app_id = await _save_app(demand_id, idea, app_id, str(app_dir), github_url)
         if db_app_id:
             await self._log(f"  应用已保存到数据库 (ID: {db_app_id})", "info")
@@ -2609,8 +2663,8 @@ class PipelineRunner:
         await self._log(f"  分析: {analyze_status}", "info")
         await self._log("===================================", "stage_change")
 
-    async def _push_to_github(self, app_dir: Path, app_id: str, idea: dict):
-        """Copy app into the zerogenerate monorepo and push."""
+    async def _push_to_github(self, app_dir: Path, app_id: str, idea: dict) -> bool:
+        """Copy app into the zerogenerate monorepo and push. Returns True only when the push succeeded."""
         import shutil
 
         settings = get_settings()
@@ -2629,7 +2683,10 @@ class PipelineRunner:
                 cwd=str(monorepo_dir), env=env,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
-            await proc.wait()
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                await self._log(f"git pull 失败（继续使用本地副本）: {stderr.decode()[-200:]}", "error")
+                logger.warning("git pull failed for %s: %s", monorepo_dir, stderr.decode()[-500:])
         else:
             # Clone the repo
             proc = await asyncio.create_subprocess_exec(
@@ -2649,7 +2706,10 @@ class PipelineRunner:
                         *cmd, cwd=str(monorepo_dir), env=env,
                         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                     )
-                    await p.wait()
+                    p_stdout, p_stderr = await p.communicate()
+                    if p.returncode != 0:
+                        await self._log(f"{' '.join(cmd)} 失败: {p_stderr.decode()[-200:]}", "error")
+                        logger.warning("%s failed for %s: %s", " ".join(cmd), monorepo_dir, p_stderr.decode()[-500:])
 
         # Copy app into monorepo as a subdirectory
         target_dir = monorepo_dir / app_id
@@ -2680,7 +2740,8 @@ class PipelineRunner:
         if proc.returncode == 0:
             self._stats["apps_pushed"] += 1
             await self._log(f"已推送到 {gh_org}/{repo_name}/{app_id}", "info")
-        else:
-            err = stderr.decode()
-            await self._log(f"GitHub 推送失败: {err[:200]}", "error")
-            logger.error("GitHub push failed for %s: %s", app_id, err)
+            return True
+        err = stderr.decode()
+        await self._log(f"GitHub 推送失败: {err[:200]}", "error")
+        logger.error("GitHub push failed for %s: %s", app_id, err)
+        return False
