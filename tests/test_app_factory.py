@@ -30,23 +30,34 @@ MINIMAL_ASSETS = {
     "index.html": '<!doctype html><meta name="viewport" content="viewport-fit=cover"><body></body>',
     "styles.css": ":root{}",
     "data.js": "window.APP_DATA={};",
-    "app.js": "(function(){window.APP_DATA;})();",
+    "core.js": "window.APP={};",
+    "charts.js": "APP.charts={};",
+    "views.js": "APP.views={};",
+    "features.js": "APP.features={};APP.boot();",
 }
 
 
 class _StubGenerator:
-    """Stands in for the LLM-backed generator."""
+    """Stands in for the LLM-backed generator, matching its two-phase API."""
 
     def __init__(self, assets: dict[str, str] | None = None, error: Exception | None = None) -> None:
         self._assets = assets or MINIMAL_ASSETS
         self._error = error
         self.calls: list[str] = []
+        self.icon_calls = 0
 
-    async def generate(self, spec) -> dict[str, str]:
+    async def plan(self, spec) -> dict:
         self.calls.append(spec.app_name)
         if self._error:
             raise self._error
+        return {"views": [{"id": "home"}], "collections": [{"name": "items"}], "design": {}}
+
+    async def generate_files(self, spec, plan) -> dict[str, str]:
         return dict(self._assets)
+
+    async def design_icon(self, spec, plan):
+        self.icon_calls += 1
+        return None
 
 
 # ── Request handling ────────────────────────────────────────────
@@ -280,3 +291,37 @@ def test_preflight_reports_missing_artifact(tmp_path: Path) -> None:
 def test_auto_submit_can_be_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("zerodev.builder.publisher.effective_setting", lambda key, env="", default="": "false")
     assert HarmonyOSPublisher().auto_submit is False
+
+
+def test_icon_design_runs_alongside_asset_generation(tmp_path: Path) -> None:
+    # Both only need the plan, so serialising them would waste a whole round.
+    generator = _StubGenerator()
+    asyncio.run(
+        create_webview_app(
+            WebviewAppRequest(app_name="记账本", description="d", slug="ledger"),
+            workspace=tmp_path,
+            build=False,
+            generator=generator,
+        )
+    )
+    assert generator.icon_calls == 1
+
+
+def test_scaffold_falls_back_when_no_icon_design(tmp_path: Path) -> None:
+    # design_icon returning None must still yield a real icon, not a crash.
+    from PIL import Image
+
+    result = asyncio.run(
+        create_webview_app(
+            WebviewAppRequest(app_name="记账本", description="d", slug="ledger"),
+            workspace=tmp_path,
+            build=False,
+            generator=_StubGenerator(),
+        )
+    )
+    media = Path(result.project_path) / "entry/src/main/resources/base/media"
+    for name in ("background.png", "foreground.png", "startIcon.png"):
+        assert Image.open(media / name).size == (1024, 1024)
+    # The splash icon is the flat composite, so it must be fully opaque rather
+    # than the transparent foreground layer.
+    assert Image.open(media / "startIcon.png").convert("RGBA").getchannel("A").getextrema() == (255, 255)

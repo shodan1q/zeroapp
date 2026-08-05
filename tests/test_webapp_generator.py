@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+
 import pytest
 
 from zerodev.generator.webapp_generator import (
     ASSET_FILES,
+    SCRIPT_ORDER,
     WebAppGenerationError,
+    WebAppGenerator,
     WebAppSpec,
+    _parse_json_array,
     _parse_json_object,
     strip_code_fence,
     validate_assets,
@@ -18,11 +24,17 @@ GOOD_HTML = (
     '<!doctype html><html lang="zh-CN"><head>'
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
     '<link rel="stylesheet" href="styles.css"></head>'
-    '<body><main id="list"></main><script src="data.js"></script><script src="app.js"></script></body></html>'
+    '<body><main id="list"></main>'
+    '<script src="data.js"></script><script src="core.js"></script>'
+    '<script src="charts.js"></script><script src="views.js"></script>'
+    '<script src="features.js"></script></body></html>'
 )
 GOOD_CSS = ":root{--bg:#fff}@media (prefers-color-scheme: dark){:root{--bg:#000}}body{padding:env(safe-area-inset-top)}"
 GOOD_DATA = "window.APP_DATA = { items: [] };"
-GOOD_APP = "(function(){ var d = window.APP_DATA; document.getElementById('list'); })();"
+GOOD_CORE = "(function(){ window.APP = { data: window.APP_DATA, views: {}, features: {}, charts: {} }; })();"
+GOOD_CHARTS = "(function(){ APP.charts.bar = function(n, s){ return n && s; }; })();"
+GOOD_VIEWS = "(function(){ APP.views.home = function(){ document.getElementById('list'); }; })();"
+GOOD_FEATURES = "(function(){ APP.features.search = function(){}; APP.boot(); })();"
 
 
 def _assets(**overrides) -> dict[str, str]:
@@ -30,7 +42,10 @@ def _assets(**overrides) -> dict[str, str]:
         "index.html": GOOD_HTML,
         "styles.css": GOOD_CSS,
         "data.js": GOOD_DATA,
-        "app.js": GOOD_APP,
+        "core.js": GOOD_CORE,
+        "charts.js": GOOD_CHARTS,
+        "views.js": GOOD_VIEWS,
+        "features.js": GOOD_FEATURES,
     }
     base.update(overrides)
     return base
@@ -101,12 +116,12 @@ def test_math_notation_survives_validation() -> None:
 
 
 def test_es_modules_rejected() -> None:
-    problems = validate_file("app.js", "import x from './y.js';\n" + GOOD_APP)
+    problems = validate_file("views.js", "import x from './y.js';\n" + GOOD_VIEWS)
     assert any("import/export" in p for p in problems)
 
 
 def test_remote_fetch_rejected() -> None:
-    problems = validate_file("app.js", GOOD_APP + '\nfetch("https://api.example.com/x");')
+    problems = validate_file("features.js", GOOD_FEATURES + '\nfetch("https://api.example.com/x");')
     assert any("fetch" in p for p in problems)
 
 
@@ -116,9 +131,9 @@ def test_data_js_must_define_global() -> None:
 
 
 def test_html_must_reference_every_asset() -> None:
-    stripped = GOOD_HTML.replace('<script src="app.js"></script>', "")
+    stripped = GOOD_HTML.replace('<script src="features.js"></script>', "")
     problems = validate_file("index.html", stripped)
-    assert any("app.js" in p for p in problems)
+    assert any("features.js" in p for p in problems)
 
 
 def test_html_requires_viewport_fit_cover() -> None:
@@ -133,7 +148,7 @@ def test_css_requires_dark_mode_and_safe_area() -> None:
 
 
 def test_empty_file_rejected() -> None:
-    assert validate_file("app.js", "   ") == ["app.js is empty."]
+    assert validate_file("core.js", "   ") == ["core.js is empty."]
 
 
 # ── Cross-file checks ───────────────────────────────────────────
@@ -145,21 +160,48 @@ def test_valid_asset_set_passes() -> None:
 
 def test_missing_file_reported() -> None:
     incomplete = _assets()
-    del incomplete["app.js"]
-    assert any("app.js" in p for p in validate_assets(incomplete))
+    del incomplete["features.js"]
+    assert any("features.js" in p for p in validate_assets(incomplete))
 
 
 def test_dangling_element_id_reported() -> None:
     # The most common cause of a blank screen inside the packaged app.
-    broken = _assets(app_js=None)
-    broken["app.js"] = "(function(){ window.APP_DATA; document.getElementById('does-not-exist'); })();"
+    broken = _assets()
+    broken["views.js"] = "(function(){ APP.views.home = function(){ APP.mount('does-not-exist'); }; })();"
     problems = validate_assets(broken)
     assert any("does-not-exist" in p for p in problems)
 
 
-def test_asset_files_order_puts_data_before_app() -> None:
-    # app.js is generated last so it can see the real data shape.
-    assert ASSET_FILES.index("data.js") < ASSET_FILES.index("app.js")
+def test_script_order_respects_dependencies() -> None:
+    # Each module builds on the global the previous one installed.
+    assert SCRIPT_ORDER == ("data.js", "core.js", "charts.js", "views.js", "features.js")
+    assert set(SCRIPT_ORDER) <= set(ASSET_FILES)
+
+
+def test_html_script_order_is_enforced() -> None:
+    swapped = GOOD_HTML.replace(
+        '<script src="core.js"></script><script src="charts.js"></script>',
+        '<script src="charts.js"></script><script src="core.js"></script>',
+    )
+    assert any("out of order" in p for p in validate_file("index.html", swapped))
+
+
+def test_core_must_create_the_namespace() -> None:
+    assert any("window.APP" in p for p in validate_file("core.js", "(function(){ var x = 1; })();"))
+
+
+def test_features_must_boot() -> None:
+    problems = validate_file("features.js", "(function(){ APP.features.search = function(){}; })();")
+    assert any("APP.boot()" in p for p in problems)
+
+
+@pytest.mark.parametrize(
+    ("module", "member"),
+    [("charts.js", "charts"), ("views.js", "views"), ("features.js", "features")],
+)
+def test_modules_must_attach_to_the_namespace(module: str, member: str) -> None:
+    problems = validate_file(module, "(function(){ var local = {}; APP.boot(); })();")
+    assert any(f"APP.{member}" in p for p in problems)
 
 
 # ── Parsing ─────────────────────────────────────────────────────
@@ -202,3 +244,106 @@ def test_spec_from_prd_flattens_pages() -> None:
     assert spec.app_name == "Focus"
     assert spec.pages == ["Home: start a session"]
     assert spec.design_notes == "calm"
+
+
+# ── Concurrency and content assembly ────────────────────────────
+
+CONTRACT = {
+    "app_name": "测试应用",
+    "tagline": "标语",
+    "design": {"css_classes": ["card"]},
+    "views": [{"id": "home", "title": "首页", "sections": [{"mount_id": "list", "collection": "items"}]}],
+    "collections": [
+        {"name": "items", "purpose": "条目", "min_entries": 12, "fields": [{"name": "id", "type": "string"}]},
+        {"name": "notes", "purpose": "笔记", "min_entries": 10, "fields": [{"name": "id", "type": "string"}]},
+    ],
+    "element_ids": ["list"],
+}
+
+
+class _RecordingGenerator(WebAppGenerator):
+    """Stubs the transport only, so the real semaphore still governs overlap."""
+
+    def __init__(self, replies: dict[str, str], **kwargs) -> None:
+        kwargs.setdefault("verify_runtime", False)
+        super().__init__(model="stub", **kwargs)
+        self._replies = replies
+        self.labels: list[str] = []
+        self.max_in_flight = 0
+        self._in_flight = 0
+
+    async def _raw_complete(self, prompt: str, *, label: str, max_tokens: int | None = None) -> str:
+        self.labels.append(label)
+        self._in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self._in_flight)
+        try:
+            await asyncio.sleep(0.01)  # let siblings start before this one resolves
+            for key, reply in self._replies.items():
+                if label.startswith(key):
+                    return reply
+            raise AssertionError(f"no stub reply for {label}")
+        finally:
+            self._in_flight -= 1
+
+
+def _replies() -> dict[str, str]:
+    return {
+        "app-copy": '{"name": "测试应用", "tagline": "标语"}',
+        "content:": '[{"id": "a"}, {"id": "b"}]',
+        "styles.css": GOOD_CSS,
+        "index.html": GOOD_HTML,
+        "core.js": GOOD_CORE,
+        "charts.js": GOOD_CHARTS,
+        "views.js": GOOD_VIEWS,
+        "features.js": GOOD_FEATURES,
+    }
+
+
+def test_files_and_content_are_generated_concurrently() -> None:
+    gen = _RecordingGenerator(_replies())
+    assets = asyncio.run(gen.generate_files(WebAppSpec(app_name="测试应用", description="d"), CONTRACT))
+
+    assert set(assets) == set(ASSET_FILES)
+    # 6 code files + app copy + 2 collections must overlap, not run one by one.
+    assert gen.max_in_flight > 1
+    assert len(gen.labels) == 9
+
+
+def test_concurrency_is_bounded_by_the_semaphore() -> None:
+    gen = _RecordingGenerator(_replies(), concurrency=2)
+    asyncio.run(gen.generate_files(WebAppSpec(app_name="测试应用", description="d"), CONTRACT))
+    assert gen.max_in_flight <= 2
+
+
+def test_data_js_is_assembled_not_generated() -> None:
+    gen = _RecordingGenerator(_replies())
+    assets = asyncio.run(gen.generate_files(WebAppSpec(app_name="测试应用", description="d"), CONTRACT))
+
+    # No worker is asked to write data.js -- it is built from the JSON shards,
+    # so it cannot come back with a syntax error.
+    assert not any(label.startswith("data.js") for label in gen.labels)
+    assert assets["data.js"].startswith("window.APP_DATA = {")
+    payload = json.loads(assets["data.js"].split("=", 1)[1].strip().rstrip(";"))
+    assert set(payload) == {"app", "items", "notes"}
+    assert payload["items"] == [{"id": "a"}, {"id": "b"}]
+    assert validate_file("data.js", assets["data.js"]) == []
+
+
+def test_plan_without_collections_is_rejected() -> None:
+    gen = _RecordingGenerator({"plan": json.dumps({"views": [{"id": "a"}]})})
+    with pytest.raises(WebAppGenerationError, match="collections"):
+        asyncio.run(gen.plan(WebAppSpec(app_name="A", description="d")))
+
+
+def test_content_shard_array_parsed() -> None:
+    assert _parse_json_array('前言\n[{"id": "x"}]\n结尾') == [{"id": "x"}]
+
+
+def test_content_shard_object_wrapper_unwrapped() -> None:
+    # Models sometimes wrap the array; unwrapping beats failing the whole app.
+    assert _parse_json_array('{"records": [{"id": "x"}]}') == [{"id": "x"}]
+
+
+def test_content_shard_garbage_raises() -> None:
+    with pytest.raises(WebAppGenerationError):
+        _parse_json_array("I cannot do that")

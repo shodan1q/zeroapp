@@ -74,3 +74,7 @@ docs/superpowers/
 
 # 本机生成的 launchd 配置（含绝对路径，因机器而异）
 scripts/*.plist
+
+# 验收 harness 的依赖（npm 装的，26MB，不入库）
+tools/webverify/node_modules/
+tools/webverify/package-lock.json

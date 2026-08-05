@@ -17,13 +17,13 @@ project, verified against the SDK bundled with DevEco Studio (API 24).
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,9 @@ class OhosAppSpec:
     # Declared so the shell can load remote content or call APIs from JS.
     permissions: tuple[str, ...] = ("ohos.permission.INTERNET",)
     module_name: str = "entry"
+    # An LLM-designed icon (zerodev.generator.icon_designer.IconSpec). Left
+    # unset, the scaffolder falls back to a deterministic geometric mark.
+    icon_spec: Any = None
     extra_files: dict[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
@@ -124,86 +127,22 @@ def _parse_hex_color(value: str, fallback: tuple[int, int, int] = (10, 132, 255)
         return fallback
 
 
-def _icon_glyph(app_name: str) -> str:
-    """Pick 1-2 characters to stamp on the generated icon."""
-    stripped = app_name.strip()
-    if not stripped:
-        return "A"
-    first = stripped[0]
-    # CJK characters read well alone; latin words read better as two letters.
-    if ord(first) > 0x2E80:
-        return first
-    letters = re.sub(r"[^A-Za-z0-9]", "", stripped)
-    return (letters[:2] or first).upper()
+def render_icon_layers(spec: OhosAppSpec, size: int = 1024) -> tuple[bytes, bytes, bytes]:
+    """Render ``(background_png, foreground_png, composite_png)`` for the icon.
 
-
-def render_icon_layers(spec: OhosAppSpec, size: int = 1024) -> tuple[bytes, bytes]:
-    """Render ``(background_png, foreground_png)`` for the layered app icon.
-
-    HarmonyOS layered icons composite a full-bleed background under a
-    transparent foreground, so the launcher can animate them independently.
+    Delegates to :mod:`zerodev.generator.icon_designer`. When the pipeline has
+    an LLM-designed mark on the spec it is used; otherwise a deterministic
+    geometric fallback keyed on the app name stands in. Either way the artwork
+    is a composition, not a character stamped on a gradient.
     """
-    from PIL import Image, ImageDraw  # noqa: PLC0415 - optional heavy import
-
-    base = _parse_hex_color(spec.theme_color)
-    # A subtle vertical gradient reads as intentional design rather than a flat
-    # placeholder, and stays legible behind the foreground glyph.
-    top = tuple(min(255, int(c * 0.75 + 60)) for c in base)
-    bottom = tuple(int(c * 0.62) for c in base)
-
-    background = Image.new("RGB", (size, size), base)
-    draw = ImageDraw.Draw(background)
-    for y in range(size):
-        ratio = y / max(1, size - 1)
-        draw.line(
-            [(0, y), (size, y)],
-            fill=tuple(int(top[i] + (bottom[i] - top[i]) * ratio) for i in range(3)),
-        )
-
-    foreground = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    fdraw = ImageDraw.Draw(foreground)
-    glyph = _icon_glyph(spec.app_name)
-    font = _load_icon_font(int(size * (0.40 if len(glyph) > 1 else 0.46)))
-    if font is not None:
-        box = fdraw.textbbox((0, 0), glyph, font=font)
-        fdraw.text(
-            ((size - (box[2] - box[0])) / 2 - box[0], (size - (box[3] - box[1])) / 2 - box[1]),
-            glyph,
-            font=font,
-            fill=(255, 255, 255, 235),
-        )
-    else:
-        # No usable font: fall back to a geometric mark so the icon is never blank.
-        inset = size * 0.3
-        fdraw.ellipse([inset, inset, size - inset, size - inset], outline=(255, 255, 255, 235), width=int(size * 0.05))
-
-    return _png_bytes(background), _png_bytes(foreground)
-
-
-def _load_icon_font(px: int):
-    """Load a font that can render CJK, falling back through common macOS paths."""
-    from PIL import ImageFont  # noqa: PLC0415
-
-    candidates = (
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Medium.ttc",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+    from zerodev.generator.icon_designer import (  # noqa: PLC0415 - optional heavy import
+        fallback_spec,
+        fit_to_safe_zone,
+        render_layers,
     )
-    for path in candidates:
-        if Path(path).exists():
-            try:
-                return ImageFont.truetype(path, px)
-            except OSError:
-                continue
-    return None
 
-
-def _png_bytes(image) -> bytes:
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue()
+    design = spec.icon_spec or fallback_spec(spec.app_name, spec.theme_color)
+    return render_layers(fit_to_safe_zone(design), spec.theme_color, size=size)
 
 
 # ---------------------------------------------------------------------------
@@ -652,12 +591,14 @@ def scaffold_ohos_project(
         _json5({"layered-image": {"background": "$media:background", "foreground": "$media:foreground"}}),
     )
 
-    background_png, foreground_png = render_icon_layers(spec)
+    background_png, foreground_png, composite_png = render_icon_layers(spec)
     for target in (resources / "base" / "media", root / "AppScope" / "resources" / "base" / "media"):
         (target / "background.png").write_bytes(background_png)
         (target / "foreground.png").write_bytes(foreground_png)
-    # startWindowIcon must be a plain (non-layered) image.
-    (resources / "base" / "media" / "startIcon.png").write_bytes(foreground_png)
+    # startWindowIcon is a single flat image, not a layered pair -- using the
+    # transparent foreground here would show the mark with no background behind
+    # it on the splash screen.
+    (resources / "base" / "media" / "startIcon.png").write_bytes(composite_png)
 
     # -- web assets --------------------------------------------------------
     written = 0

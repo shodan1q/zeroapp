@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -92,9 +93,7 @@ def generate(
 ) -> None:
     """Generate Flutter app code for approved demands."""
     platforms = _resolve_platforms(platform)
-    console.print(
-        f"[cyan]Generating Flutter app code (platforms={platforms or 'default'})...[/cyan]"
-    )
+    console.print(f"[cyan]Generating Flutter app code (platforms={platforms or 'default'})...[/cyan]")
     from zerodev.pipeline.orchestrator import run_pipeline
 
     asyncio.run(run_pipeline(target_platforms=platforms))
@@ -157,9 +156,7 @@ def pipeline_loop(
     interval: int = typer.Option(None, help="Hours between cycles (default: from settings)"),
 ) -> None:
     """Run the pipeline in continuous loop mode."""
-    console.print(
-        Panel("[bold green]Starting continuous pipeline loop[/bold green]", title="ZeroDev")
-    )
+    console.print(Panel("[bold green]Starting continuous pipeline loop[/bold green]", title="ZeroDev"))
     asyncio.run(_run_loop(interval_hours=interval))
 
 
@@ -302,9 +299,20 @@ def factory_doctor() -> None:
 
     try:
         toolchain = find_toolchain()
-        table.add_row("HarmonyOS toolchain", "[green]ready[/green]", f"{toolchain.deveco_home} (API {toolchain.api_version})")
+        table.add_row(
+            "HarmonyOS toolchain", "[green]ready[/green]", f"{toolchain.deveco_home} (API {toolchain.api_version})"
+        )
     except OhosToolchainError as exc:
         table.add_row("HarmonyOS toolchain", "[red]missing[/red]", str(exc)[:90])
+
+    from zerodev.generator.runtime_verifier import harness_available
+
+    ready, reason = harness_available()
+    table.add_row(
+        "Runtime gate",
+        "[green]armed[/green]" if ready else "[red]OFF[/red]",
+        "generated apps are executed before shipping" if ready else reason[:90],
+    )
 
     signing = OhosSigningConfig.from_settings()
     if signing is None:
@@ -355,6 +363,78 @@ def factory_build(
     if result.hap_path:
         console.print(f"\n[bold green]Artifact:[/bold green] {result.hap_path}")
     raise typer.Exit(code=0 if result.success else 1)
+
+
+@factory_app.command("batch")
+def factory_batch(
+    file: str = typer.Option(..., "--file", help="JSON file holding an array of app briefs"),
+    concurrency: int = typer.Option(3, "--concurrency", help="How many apps to build at once"),
+    max_rounds: int = typer.Option(2, "--max-rounds", help="Rework attempts before giving up on an app"),
+    publish: bool = typer.Option(False, "--publish", help="Submit accepted apps to AppGallery"),
+    no_build: bool = typer.Option(False, "--no-build", help="Generate only; skip hvigor builds"),
+) -> None:
+    """Build several apps concurrently under supervision (LangGraph batch graph).
+
+    Each app is scored on measured signals -- did it run, how many views and
+    features registered, how much content it holds -- and either accepted,
+    rebuilt, or rejected. Nothing is published on the strength of compiling.
+    """
+    import json as _json
+
+    from zerodev.pipeline.factory_graph import run_factory_batch
+
+    briefs = _json.loads(Path(file).read_text(encoding="utf-8"))
+    if isinstance(briefs, dict):
+        briefs = briefs.get("apps", [])
+    console.print(
+        Panel(
+            f"[bold cyan]{len(briefs)} app(s)[/bold cyan] concurrency={concurrency} rounds={max_rounds}",
+            title="Factory batch",
+        )
+    )
+
+    report = asyncio.run(
+        run_factory_batch(
+            briefs,
+            build=not no_build,
+            publish=publish,
+            max_rounds=max_rounds,
+            concurrency=concurrency,
+        )
+    )
+    _print_batch_report(report)
+    raise typer.Exit(code=0 if report.get("accepted") else 1)
+
+
+def _print_batch_report(report: dict) -> None:
+    table = Table(title="Batch result")
+    table.add_column("App", style="cyan")
+    table.add_column("Verdict")
+    table.add_column("Score", justify="right")
+    table.add_column("Views", justify="right")
+    table.add_column("Features", justify="right")
+    table.add_column("Records", justify="right")
+    table.add_column("Artifact")
+
+    colours = {"accept": "green", "rework": "yellow", "reject": "red"}
+    for app in report.get("apps", []):
+        metrics = app.get("metrics") or {}
+        verdict = app.get("verdict", "?")
+        table.add_row(
+            str(app.get("app_name", "?")),
+            f"[{colours.get(verdict, 'white')}]{verdict}[/{colours.get(verdict, 'white')}]",
+            f"{app.get('score', 0):.0f}",
+            str(metrics.get("views", "-")),
+            str(metrics.get("features", "-")),
+            str(metrics.get("records", "-")),
+            (app.get("hap") or app.get("error") or "-")[-46:],
+        )
+    console.print(table)
+    console.print(
+        f"[bold]{report.get('accepted', 0)} accepted, {report.get('rejected', 0)} rejected, "
+        f"average score {report.get('average_score', 0)}[/bold] "
+        f"(attempts: {report.get('attempts', 0)})"
+    )
 
 
 @factory_app.command("run")
@@ -409,7 +489,9 @@ def factory_status() -> None:
         recent.add_column("App")
         recent.add_column("Result")
         for entry in reversed(history):
-            mark = "[green]ok[/green]" if entry.get("success") else f"[red]{entry.get('failed_stage') or 'failed'}[/red]"
+            mark = (
+                "[green]ok[/green]" if entry.get("success") else f"[red]{entry.get('failed_stage') or 'failed'}[/red]"
+            )
             recent.add_row(str(entry.get("at", ""))[:19], str(entry.get("app_name", "")), mark)
         console.print(recent)
 

@@ -15,12 +15,14 @@ broke and with what, rather than surfacing a bare exception.
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import hashlib
 import json
 import logging
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -107,6 +109,9 @@ class WebviewAppResult:
     assets: dict[str, str] = field(default_factory=dict)
     hap_path: str = ""
     publish_result: PublishResult | None = None
+    # Objective signals the supervisor scores on: what the runtime harness
+    # counted, whether it passed, and how large the result is.
+    metrics: dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
     @property
@@ -139,6 +144,7 @@ class WebviewAppResult:
             "project_path": self.project_path,
             "hap_path": self.hap_path,
             "assets": sorted(self.assets),
+            "metrics": self.metrics,
             "stages": [
                 {"name": s.name, "ok": s.ok, "seconds": round(s.seconds, 2), "detail": s.detail} for s in self.stages
             ],
@@ -195,20 +201,28 @@ async def create_webview_app(
     result.project_path = str(project_path)
 
     # -- 1. web assets -----------------------------------------------------
+    icon_spec: Any = None
     try:
         with _Stopwatch(result, "generate") as watch:
             gen = generator or WebAppGenerator()
-            assets = await gen.generate(
-                WebAppSpec(
-                    app_name=request.app_name,
-                    description=request.description,
-                    features=request.features,
-                    pages=request.pages,
-                    target_users=request.target_users,
-                    design_notes=request.design_notes,
-                )
+            web_spec = WebAppSpec(
+                app_name=request.app_name,
+                description=request.description,
+                features=request.features,
+                pages=request.pages,
+                target_users=request.target_users,
+                design_notes=request.design_notes,
+            )
+            # The two phases are explicit here (rather than gen.generate()) so
+            # the icon design can run concurrently with the asset fan-out --
+            # both only need the plan.
+            plan = await gen.plan(web_spec)
+            assets, icon_spec = await asyncio.gather(
+                gen.generate_files(web_spec, plan),
+                gen.design_icon(web_spec, plan),
             )
             result.assets = assets
+            result.metrics = _collect_metrics(gen, assets)
             watch.detail = asset_summary(assets)
     except (WebAppGenerationError, RuntimeError) as exc:
         result.error = f"web asset generation failed: {exc}"
@@ -225,6 +239,7 @@ async def create_webview_app(
                 version_code=request.version_code,
                 theme_color=request.theme_color,
                 immersive=request.immersive,
+                icon_spec=icon_spec,
             )
             scaffold_ohos_project(project_path, spec, result.assets)
             watch.detail = f"bundle {spec.bundle_name}"
@@ -247,6 +262,7 @@ async def create_webview_app(
             if not build_result.success:
                 raise RuntimeError("; ".join(build_result.errors[:5]) or "hvigor build failed")
             result.hap_path = build_result.artifact_path or ""
+            result.metrics["hap_bytes"] = Path(result.hap_path).stat().st_size if result.hap_path else 0
             watch.detail = Path(result.hap_path).name if result.hap_path else ""
     except OhosToolchainError as exc:
         result.error = str(exc)
@@ -287,6 +303,38 @@ async def create_webview_app(
 
 class _PublishIncompleteError(RuntimeError):
     """Store upload did not finish; the built artifact is still usable."""
+
+
+def _collect_metrics(generator: Any, assets: Mapping[str, str]) -> dict[str, Any]:
+    """Summarise what was actually produced, for scoring and reporting.
+
+    Counts come from the runtime harness where possible -- it counted what the
+    app really registered at boot, which is harder to fake than counting
+    declarations in the plan.
+    """
+    report = getattr(generator, "last_runtime_report", None)
+    plan = getattr(generator, "last_plan", {}) or {}
+    checks = getattr(report, "checks", {}) or {}
+
+    collections = checks.get("data_collections") or []
+    metrics: dict[str, Any] = {
+        "views": checks.get("views_registered") or len(plan.get("views", []) or []),
+        "features": checks.get("features_registered") or len(plan.get("features", []) or []),
+        "charts": checks.get("charts_registered", 0),
+        "collections": len(collections) or len(plan.get("collections", []) or []),
+        "records": sum(c.get("records", 0) for c in collections),
+        "asset_bytes": sum(len(v.encode("utf-8")) for v in assets.values()),
+        "files": len(assets),
+    }
+    if report is None:
+        metrics["runtime_ok"] = None
+    elif not getattr(report, "available", False):
+        metrics["runtime_ok"] = None
+        metrics["runtime_note"] = getattr(report, "skipped", "")
+    else:
+        metrics["runtime_ok"] = bool(getattr(report, "ok", False))
+        metrics["runtime_summary"] = report.summary()
+    return metrics
 
 
 # ---------------------------------------------------------------------------

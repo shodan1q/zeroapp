@@ -1,0 +1,8 @@
+{
+  "name": "zerodev-webverify",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Headless DOM harness that actually runs a generated web app before it ships.",
+  "type": "module",
+  "dependencies": { "jsdom": "^30.0.0" }
+}
