@@ -45,6 +45,20 @@ const FALLBACK_PROVIDERS: LlmProviderSpec[] = [
     keyHint: "sk-...",
   },
   {
+    id: "relay",
+    label: "中转站 (OpenAI 兼容)",
+    description:
+      "第三方 API 中转/聚合服务，走 OpenAI 兼容端点。Base URL 与模型名由服务商决定，配置后用 `zerodev llm probe` 拉取可用模型列表确认。",
+    kind: "openai_compat",
+    // Deliberately blank: a relay's endpoint and model aliases are site-specific,
+    // so a guessed default would point the key somewhere the user never chose.
+    defaultModel: "",
+    suggestedModels: [],
+    defaultBaseUrl: "",
+    requiresApiKey: true,
+    keyHint: "中转站控制台签发的 key，通常不是 sk-proj- 开头的官方格式",
+  },
+  {
     id: "gemini",
     label: "Google Gemini",
     description: "Google AI Studio，走官方 OpenAI 兼容端点",
@@ -115,6 +129,7 @@ const FALLBACK_PROVIDERS: LlmProviderSpec[] = [
 const PROVIDER_CHIP: Record<string, { initials: string; gradient: string }> = {
   claude: { initials: "CL", gradient: "from-orange-400 to-amber-600" },
   openai: { initials: "GP", gradient: "from-emerald-400 to-teal-600" },
+  relay: { initials: "RL", gradient: "from-rose-400 to-pink-600" },
   gemini: { initials: "GM", gradient: "from-sky-400 to-blue-600" },
   deepseek: { initials: "DS", gradient: "from-indigo-400 to-violet-600" },
   qwen: { initials: "QW", gradient: "from-purple-400 to-fuchsia-600" },
@@ -560,14 +575,14 @@ export default function SettingsPage() {
                   value={providerCfg[`${llmProvider}Model`] ?? activeSpec.defaultModel}
                   onChange={(v) => setCfg(`${llmProvider}Model`, v)}
                   list={`models-${llmProvider}`}
-                  placeholder={activeSpec.defaultModel}
+                  placeholder={activeSpec.defaultModel || "由服务商决定，必填"}
                 />
               </Field>
               <Field label={t("settings.provider_base_url")}>
                 <TextInput
                   value={providerCfg[`${llmProvider}BaseUrl`] ?? activeSpec.defaultBaseUrl}
                   onChange={(v) => setCfg(`${llmProvider}BaseUrl`, v)}
-                  placeholder={activeSpec.defaultBaseUrl}
+                  placeholder={activeSpec.defaultBaseUrl || "https://your-relay.example.com/v1"}
                 />
               </Field>
             </div>

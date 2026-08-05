@@ -62,6 +62,23 @@ PROVIDERS: dict[str, ProviderSpec] = {
             key_hint="sk-...，从 platform.openai.com 获取",
         ),
         ProviderSpec(
+            id="relay",
+            label="中转站 (OpenAI 兼容)",
+            description=(
+                "第三方 API 中转/聚合服务，走 OpenAI 兼容端点。Base URL 与模型名由服务商决定，"
+                "配置后用 `zerodev llm probe` 拉取可用模型列表确认。"
+            ),
+            kind="openai_compat",
+            # Intentionally blank: a relay's endpoint and model aliases are
+            # site-specific, so guessing a default would silently send the key
+            # somewhere the user never chose.
+            default_base_url="",
+            default_model="",
+            suggested_models=(),
+            max_tokens_param="max_completion_tokens",
+            key_hint="中转站控制台签发的 key，通常不是 sk-proj- 开头的官方格式",
+        ),
+        ProviderSpec(
             id="gemini",
             label="Google Gemini",
             description="Google AI Studio，走官方 OpenAI 兼容端点",

@@ -32,7 +32,7 @@ import logging
 import random
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -165,7 +165,7 @@ def _build_client_kwargs(resolved: ResolvedLLM | None = None) -> dict[str, Any]:
         logger.info("Using Claude API key authentication")
         kwargs["api_key"] = api_key
     else:
-        raise RuntimeError(
+        raise LLMConfigError(
             "No Claude credentials configured. Set CLAUDE_OAUTH_TOKEN "
             "(from `claude setup-token`) or CLAUDE_API_KEY in your environment, "
             "or fill them in on the Dashboard settings page."
@@ -250,6 +250,23 @@ class LLMError(RuntimeError):
     implement per-item resilience should catch ``(anthropic.APIError, LLMError)``
     so both the Claude path and the compat path degrade the same way.
     """
+
+    # Consumed by zerodev.pipeline.retry: a transient request failure is worth
+    # another attempt.
+    retryable = True
+
+
+class LLMConfigError(LLMError):
+    """The provider is not configured well enough to make any request.
+
+    Distinct from a request failure because no amount of retrying fixes a
+    missing base URL or API key -- the pipeline should surface it immediately
+    instead of burning the retry budget on a backoff schedule. Still an
+    ``LLMError`` (and therefore a ``RuntimeError``) so every existing handler
+    keeps working.
+    """
+
+    retryable = False
 
 
 class _CompatTextBlock:
@@ -378,113 +395,422 @@ def _should_retry(status_code: int) -> bool:
     return status_code == 429 or status_code >= 500
 
 
-class _CompatMessages:
+# The output-token cap is spelled differently across OpenAI API generations:
+# older chat models take ``max_tokens``, the GPT-5 series takes
+# ``max_completion_tokens``. Relays and aggregators front a mix of both and the
+# registry default cannot know which, so a rejection on this parameter is
+# recovered by swapping the name once rather than failing the whole run.
+_MAX_TOKENS_ALIASES: dict[str, str] = {
+    "max_tokens": "max_completion_tokens",
+    "max_completion_tokens": "max_tokens",
+}
+
+
+def _swap_max_tokens_param(payload: dict[str, Any], response_body: str) -> str | None:
+    """Rewrite ``payload`` to use the other token-cap parameter name.
+
+    Returns the new parameter name when the swap applies, ``None`` otherwise
+    (so the caller can surface the original error untouched).
+    """
+    lowered = response_body.lower()
+    if "max_tokens" not in lowered and "max_completion_tokens" not in lowered:
+        return None
+    for current, replacement in _MAX_TOKENS_ALIASES.items():
+        if current in payload:
+            payload[replacement] = payload.pop(current)
+            return replacement
+    return None
+
+
+# Streaming is the default on this path, and that is a robustness decision
+# rather than a UX one. Relays, API gateways and corporate proxies commonly
+# buffer a non-streaming completion end to end, so nothing crosses the wire
+# until the model has finished. Any idle timeout in that chain then kills the
+# connection, and a long generation becomes a 502 or a hang that no retry can
+# fix. An SSE stream keeps bytes flowing, so the same request completes.
+# Measured against one relay: a 16k-token request hung past 400s unstreamed and
+# finished in ~74s streamed.
+_STREAM_BY_DEFAULT = True
+
+_SSE_DONE = "[DONE]"
+
+# Streaming timeouts are per-operation, not per-request: `read` bounds the gap
+# between chunks, so a generation may run far longer than any single value here
+# as long as it keeps producing output.
+_STREAM_TIMEOUT = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
+
+# Body markers that mean "this endpoint does not do SSE", so the client should
+# drop back to a plain request instead of retrying the same way.
+_NO_STREAM_MARKERS = ("stream", "sse", "not supported", "unsupported")
+
+
+class _HTTPFailureError(Exception):
+    """A non-2xx response, carried so the retry loop can inspect it."""
+
+    def __init__(self, status: int, body: str) -> None:
+        super().__init__(f"HTTP {status}")
+        self.status = status
+        self.body = body
+
+
+class _StreamAccumulator:
+    """Reassemble an SSE chat-completion stream into a single response."""
+
+    def __init__(self) -> None:
+        self._chunks: list[str] = []
+        self.model = ""
+        self.finish_reason = ""
+        self.saw_chunk = False
+
+    def feed(self, raw_line: str) -> bool:
+        """Consume one SSE line; returns True once the stream is complete."""
+        line = raw_line.strip()
+        # Blank lines separate events and ``:`` lines are keep-alive comments.
+        if not line or line.startswith(":") or not line.startswith("data:"):
+            return False
+        body = line[5:].strip()
+        if body == _SSE_DONE:
+            return True
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            # A partial or vendor-specific frame is not worth failing the whole
+            # generation over; the stream carries its own completion signal.
+            logger.debug("Skipping unparseable SSE frame: %s", body[:120])
+            return False
+
+        self.saw_chunk = True
+        if payload.get("model"):
+            self.model = str(payload["model"])
+        for choice in payload.get("choices") or []:
+            delta = choice.get("delta") or {}
+            text = delta.get("content")
+            if isinstance(text, str):
+                self._chunks.append(text)
+            if choice.get("finish_reason"):
+                self.finish_reason = str(choice["finish_reason"])
+        return False
+
+    def to_response(self, provider_label: str) -> _CompatResponse:
+        text = "".join(self._chunks)
+        if not text.strip():
+            detail = "no frames received" if not self.saw_chunk else f"finish_reason={self.finish_reason or 'unset'}"
+            # An empty completion is treated as a transport-level failure so the
+            # retry loop gets a chance; the most common cause is a reasoning
+            # model spending the entire token cap before emitting any content.
+            raise LLMError(f"{provider_label} returned an empty stream ({detail}).")
+        return _CompatResponse(text, self.model, {"stream": True, "finish_reason": self.finish_reason})
+
+
+def _stream_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {**payload, "stream": True}
+
+
+def _looks_like_streaming_unsupported(status: int, body: str) -> bool:
+    """Whether a rejection means the endpoint cannot stream at all."""
+    if status not in (400, 404, 405, 501):
+        return False
+    lowered = body.lower()
+    return any(marker in lowered for marker in _NO_STREAM_MARKERS)
+
+
+class _CompatTransportMixin:
+    """Retry/fallback policy shared by the sync and async compat clients."""
+
+    _cfg: ResolvedLLM
+
+    def _prepare(self, kwargs: dict[str, Any]) -> tuple[str, dict[str, str], dict[str, Any], str]:
+        cfg = self._cfg
+        prefill = _extract_prefill(kwargs.get("messages") or [])
+        payload = _build_chat_payload(cfg.spec, **kwargs)
+        url = f"{cfg.base_url.rstrip('/')}/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if cfg.api_key:
+            headers["Authorization"] = f"Bearer {cfg.api_key}"
+        return url, headers, payload, prefill
+
+    def _handle_failure(self, exc: _HTTPFailureError, payload: dict[str, Any], state: dict[str, Any]) -> Exception:
+        """Classify a non-2xx response, mutating ``payload``/``state`` to adapt.
+
+        Returns the error to record for the retry loop, or raises when the
+        failure is terminal.
+        """
+        label = self._cfg.spec.label
+        if state["stream"] and _looks_like_streaming_unsupported(exc.status, exc.body):
+            state["stream"] = False
+            logger.info("%s rejected streaming (%d); falling back to a plain request.", label, exc.status)
+            return LLMError(f"{label} rejected streaming ({exc.status})")
+
+        if not _should_retry(exc.status):
+            if not state["swapped"]:
+                renamed = _swap_max_tokens_param(payload, exc.body)
+                if renamed:
+                    state["swapped"] = True
+                    logger.info("%s rejected the token-cap parameter; retrying with %s.", label, renamed)
+                    return LLMError(f"{label} rejected the token-cap parameter")
+            raise LLMError(f"{label} request failed ({exc.status}): {exc.body[:500]}")
+
+        return LLMError(f"{label} request failed ({exc.status}): {exc.body[:200]}")
+
+
+class _CompatMessages(_CompatTransportMixin):
     """Sync ``messages`` facade over an OpenAI-compatible endpoint."""
 
     def __init__(self, cfg: ResolvedLLM) -> None:
         self._cfg = cfg
 
+    def _send(self, url: str, headers: dict[str, str], payload: dict[str, Any], stream: bool) -> _CompatResponse:
+        label = self._cfg.spec.label
+        if not stream:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT)
+            if resp.status_code >= 400:
+                raise _HTTPFailureError(resp.status_code, resp.text)
+            try:
+                data = resp.json()
+            except json.JSONDecodeError as exc:
+                # e.g. a proxy returning HTML with 200 -- retryable.
+                raise LLMError(f"{label} returned non-JSON body: {exc}") from exc
+            return _parse_chat_response(data, label)
+
+        with httpx.stream(
+            "POST", url, json=_stream_request_payload(payload), headers=headers, timeout=_STREAM_TIMEOUT
+        ) as resp:
+            if resp.status_code >= 400:
+                resp.read()
+                raise _HTTPFailureError(resp.status_code, resp.text)
+            accumulator = _StreamAccumulator()
+            for line in resp.iter_lines():
+                if accumulator.feed(line):
+                    break
+        return accumulator.to_response(label)
+
     def create(self, **kwargs: Any) -> _CompatResponse:
-        cfg = self._cfg
-        prefill = _extract_prefill(kwargs.get("messages") or [])
-        payload = _build_chat_payload(cfg.spec, **kwargs)
-        url = f"{cfg.base_url.rstrip('/')}/chat/completions"
-        headers = {"Content-Type": "application/json"}
-        if cfg.api_key:
-            headers["Authorization"] = f"Bearer {cfg.api_key}"
+        label = self._cfg.spec.label
+        url, headers, payload, prefill = self._prepare(kwargs)
+        state = {"stream": _STREAM_BY_DEFAULT, "swapped": False}
 
         last_error: Exception | None = None
         for attempt in range(_DEFAULT_MAX_RETRIES + 1):
             try:
-                resp = httpx.post(url, json=payload, headers=headers, timeout=_DEFAULT_TIMEOUT)
-            except httpx.HTTPError as exc:
+                result = self._send(url, headers, payload, state["stream"])
+            except _HTTPFailureError as exc:
+                last_error = self._handle_failure(exc, payload, state)
+            except (httpx.HTTPError, LLMError) as exc:
                 last_error = exc
             else:
-                if resp.status_code < 400:
-                    try:
-                        data = resp.json()
-                    except json.JSONDecodeError as exc:
-                        # e.g. a proxy returning HTML with 200 -- retryable.
-                        last_error = LLMError(f"{cfg.spec.label} returned non-JSON body: {exc}")
-                    else:
-                        result = _parse_chat_response(data, cfg.spec.label)
-                        result.content[0].text = _apply_prefill(prefill, result.content[0].text)
-                        return result
-                elif not _should_retry(resp.status_code):
-                    raise LLMError(
-                        f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:500]}"
-                    )
-                else:
-                    last_error = LLMError(
-                        f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:200]}"
-                    )
+                result.content[0].text = _apply_prefill(prefill, result.content[0].text)
+                return result
+
             if attempt < _DEFAULT_MAX_RETRIES:
                 delay = _retry_delay(attempt)
-                logger.warning("%s call failed (%s); retry %d in %.1fs", cfg.spec.label, last_error, attempt + 1, delay)
+                logger.warning("%s call failed (%s); retry %d in %.1fs", label, last_error, attempt + 1, delay)
                 time.sleep(delay)
-        raise LLMError(f"{cfg.spec.label} request failed after retries") from last_error
+        raise LLMError(f"{label} request failed after retries") from last_error
 
 
-class _CompatAsyncMessages:
+class _CompatAsyncMessages(_CompatTransportMixin):
     """Async ``messages`` facade over an OpenAI-compatible endpoint."""
 
     def __init__(self, cfg: ResolvedLLM) -> None:
         self._cfg = cfg
 
+    async def _send(
+        self, url: str, headers: dict[str, str], payload: dict[str, Any], stream: bool
+    ) -> _CompatResponse:
+        label = self._cfg.spec.label
+        if not stream:
+            async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as http:
+                resp = await http.post(url, json=payload, headers=headers)
+            if resp.status_code >= 400:
+                raise _HTTPFailureError(resp.status_code, resp.text)
+            try:
+                data = resp.json()
+            except json.JSONDecodeError as exc:
+                raise LLMError(f"{label} returned non-JSON body: {exc}") from exc
+            return _parse_chat_response(data, label)
+
+        accumulator = _StreamAccumulator()
+        async with httpx.AsyncClient(timeout=_STREAM_TIMEOUT) as http:
+            async with http.stream(
+                "POST", url, json=_stream_request_payload(payload), headers=headers
+            ) as resp:
+                if resp.status_code >= 400:
+                    await resp.aread()
+                    raise _HTTPFailureError(resp.status_code, resp.text)
+                async for line in resp.aiter_lines():
+                    if accumulator.feed(line):
+                        break
+        return accumulator.to_response(label)
+
     async def create(self, **kwargs: Any) -> _CompatResponse:
         import asyncio
 
-        cfg = self._cfg
-        prefill = _extract_prefill(kwargs.get("messages") or [])
-        payload = _build_chat_payload(cfg.spec, **kwargs)
-        url = f"{cfg.base_url.rstrip('/')}/chat/completions"
-        headers = {"Content-Type": "application/json"}
-        if cfg.api_key:
-            headers["Authorization"] = f"Bearer {cfg.api_key}"
+        label = self._cfg.spec.label
+        url, headers, payload, prefill = self._prepare(kwargs)
+        state = {"stream": _STREAM_BY_DEFAULT, "swapped": False}
 
         last_error: Exception | None = None
         for attempt in range(_DEFAULT_MAX_RETRIES + 1):
             try:
-                async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as http:
-                    resp = await http.post(url, json=payload, headers=headers)
-            except httpx.HTTPError as exc:
+                result = await self._send(url, headers, payload, state["stream"])
+            except _HTTPFailureError as exc:
+                last_error = self._handle_failure(exc, payload, state)
+            except (httpx.HTTPError, LLMError) as exc:
                 last_error = exc
             else:
-                if resp.status_code < 400:
-                    try:
-                        data = resp.json()
-                    except json.JSONDecodeError as exc:
-                        last_error = LLMError(f"{cfg.spec.label} returned non-JSON body: {exc}")
-                    else:
-                        result = _parse_chat_response(data, cfg.spec.label)
-                        result.content[0].text = _apply_prefill(prefill, result.content[0].text)
-                        return result
-                elif not _should_retry(resp.status_code):
-                    raise LLMError(
-                        f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:500]}"
-                    )
-                else:
-                    last_error = LLMError(
-                        f"{cfg.spec.label} request failed ({resp.status_code}): {resp.text[:200]}"
-                    )
+                result.content[0].text = _apply_prefill(prefill, result.content[0].text)
+                return result
+
             if attempt < _DEFAULT_MAX_RETRIES:
                 delay = _retry_delay(attempt)
-                logger.warning("%s call failed (%s); retry %d in %.1fs", cfg.spec.label, last_error, attempt + 1, delay)
+                logger.warning("%s call failed (%s); retry %d in %.1fs", label, last_error, attempt + 1, delay)
                 await asyncio.sleep(delay)
-        raise LLMError(f"{cfg.spec.label} request failed after retries") from last_error
+        raise LLMError(f"{label} request failed after retries") from last_error
 
 
 class _CompatClient:
     """Anthropic-shaped client backed by an OpenAI-compatible endpoint."""
 
     def __init__(self, cfg: ResolvedLLM, *, is_async: bool) -> None:
-        if cfg.spec.requires_api_key and not cfg.api_key:
-            raise RuntimeError(
-                f"No API key configured for {cfg.spec.label}. Set {cfg.provider.upper()}_API_KEY "
-                "in your environment or fill it in on the Dashboard settings page."
-            )
+        for problem in describe_config_gaps(cfg):
+            raise LLMConfigError(problem)
         self._cfg = cfg
         self.messages = _CompatAsyncMessages(cfg) if is_async else _CompatMessages(cfg)
+
+
+def describe_config_gaps(cfg: ResolvedLLM) -> list[str]:
+    """Return actionable messages for anything missing from ``cfg``.
+
+    Providers with blank registry defaults (relays) need an explicit base URL
+    and model, so failing here with a specific instruction beats a confusing
+    404 or "model not found" from the far end.
+    """
+    prefix = cfg.provider.upper()
+    gaps: list[str] = []
+
+    if cfg.spec.kind == "anthropic":
+        if not (cfg.api_key or cfg.oauth_token):
+            gaps.append(
+                "No Claude credential configured. Set CLAUDE_OAUTH_TOKEN (from `claude setup-token`, "
+                "billed to a Pro/Max subscription) or CLAUDE_API_KEY (metered Anthropic API)."
+            )
+        return gaps
+
+    if cfg.spec.requires_api_key and not cfg.api_key:
+        gaps.append(
+            f"No API key configured for {cfg.spec.label}. Set {prefix}_API_KEY in your "
+            "environment or fill it in on the Dashboard settings page."
+        )
+    if not cfg.base_url:
+        gaps.append(
+            f"No base URL configured for {cfg.spec.label}. Set {prefix}_BASE_URL to the "
+            "endpoint your provider documents (it must end in the OpenAI-compatible path, "
+            "usually /v1)."
+        )
+    if not cfg.model:
+        gaps.append(
+            f"No model configured for {cfg.spec.label}. Set {prefix}_MODEL, or run "
+            "`zerodev llm probe` to list the model names this endpoint actually serves."
+        )
+    return gaps
+
+
+# ---------------------------------------------------------------------------
+# Connectivity probe
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ProbeResult:
+    """Outcome of checking that the configured provider actually answers."""
+
+    provider: str
+    label: str
+    base_url: str
+    model: str
+    models_available: list[str] = field(default_factory=list)
+    models_error: str = ""
+    chat_ok: bool = False
+    chat_reply: str = ""
+    chat_error: str = ""
+    config_gaps: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.chat_ok and not self.config_gaps
+
+    def suggest_models(self, hint: str = "") -> list[str]:
+        """Model ids from the endpoint that look like ``hint``, best first."""
+        if not self.models_available:
+            return []
+        if not hint:
+            return self.models_available[:20]
+        needle = re.sub(r"[^a-z0-9.]", "", hint.lower())
+        scored: list[tuple[int, str]] = []
+        for name in self.models_available:
+            flat = re.sub(r"[^a-z0-9.]", "", name.lower())
+            if flat == needle:
+                scored.append((0, name))
+            elif needle and needle in flat:
+                scored.append((1, name))
+            elif flat and flat in needle:
+                scored.append((2, name))
+        return [name for _, name in sorted(scored)]
+
+
+async def aprobe_provider(*, list_models: bool = True, smoke_test: bool = True) -> ProbeResult:
+    """Check the configured provider end to end without running a pipeline.
+
+    Lists the endpoint's models (so a relay's real aliases become visible) and
+    sends a one-token chat request to prove the credential and model work.
+    """
+    cfg = resolve_llm_config()
+    result = ProbeResult(
+        provider=cfg.provider,
+        label=cfg.spec.label,
+        base_url=cfg.base_url or ("(official endpoint)" if cfg.spec.kind == "anthropic" else "(unset)"),
+        model=cfg.model,
+        config_gaps=describe_config_gaps(cfg),
+    )
+
+    if cfg.spec.kind == "openai_compat" and list_models and cfg.base_url:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as http:
+                resp = await http.get(
+                    f"{cfg.base_url.rstrip('/')}/models",
+                    headers={"Authorization": f"Bearer {cfg.api_key}"} if cfg.api_key else {},
+                )
+            if resp.status_code >= 400:
+                result.models_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
+            else:
+                payload = resp.json()
+                entries = payload.get("data", payload) if isinstance(payload, dict) else payload
+                result.models_available = sorted(
+                    str(item.get("id", "")) for item in entries if isinstance(item, dict) and item.get("id")
+                )
+        except (httpx.HTTPError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+            result.models_error = str(exc)
+
+    if smoke_test and not result.config_gaps:
+        try:
+            reply = await acomplete(
+                "Reply with the single word: ready",
+                max_tokens=64,
+                model=cfg.model or None,
+            )
+            result.chat_ok = bool(reply.strip())
+            result.chat_reply = reply.strip()[:200]
+        except (LLMError, RuntimeError, anthropic.APIError) as exc:
+            result.chat_error = str(exc)[:500]
+
+    return result
+
+
+def probe_provider(*, list_models: bool = True, smoke_test: bool = True) -> ProbeResult:
+    """Synchronous wrapper around :func:`aprobe_provider`."""
+    import asyncio
+
+    return asyncio.run(aprobe_provider(list_models=list_models, smoke_test=smoke_test))
 
 
 # ---------------------------------------------------------------------------

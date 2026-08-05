@@ -23,6 +23,17 @@ logger = logging.getLogger(__name__)
 NodeFn = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
 
 
+def _is_retryable(exc: BaseException) -> bool:
+    """Whether retrying ``exc`` could plausibly succeed.
+
+    Duck-typed on a ``retryable`` attribute so any exception class can opt out
+    without this module importing it (``zerodev.llm.LLMConfigError`` is the
+    first user). Anything that does not declare the attribute is retried, which
+    preserves the previous behaviour.
+    """
+    return getattr(exc, "retryable", True) is not False
+
+
 def with_retry(
     func: NodeFn | None = None,
     *,
@@ -54,8 +65,10 @@ def with_retry(
         async def wrapper(state: Dict[str, Any]) -> Dict[str, Any]:
             errors: list[str] = list(state.get("errors") or [])
             retry_count: int = state.get("retry_count", 0)
+            attempts_made = 0
 
             for attempt in range(policy.max_retries + 1):
+                attempts_made = attempt + 1
                 try:
                     result = await fn(state)
                     # Success -- reset retry_count for the next node.
@@ -67,6 +80,13 @@ def with_retry(
                     logger.warning(error_msg)
                     logger.debug("Traceback:\n%s", tb)
                     errors.append(error_msg)
+
+                    if not _is_retryable(exc):
+                        # A missing API key or base URL will still be missing
+                        # after a backoff, so fail fast and surface it rather
+                        # than spending the whole retry budget on it.
+                        logger.error("[%s] Not retryable; failing immediately: %s", name, exc)
+                        break
 
                     if attempt < policy.max_retries:
                         delay = policy.delay_for_attempt(attempt)
@@ -85,10 +105,10 @@ def with_retry(
                             policy.max_retries + 1,
                         )
 
-            # All retries failed.
+            # Retries exhausted, or the failure was not worth retrying.
             return {
                 "errors": errors,
-                "retry_count": retry_count + policy.max_retries + 1,
+                "retry_count": retry_count + attempts_made,
                 "failed": True,
             }
 

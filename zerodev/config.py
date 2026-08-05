@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # (data/settings.json -> llmProvider) overrides this env default.
     llm_provider: str = Field(
         default="claude",
-        description="AI provider: claude / openai / gemini / deepseek / qwen / zhipu / moonshot / ollama",
+        description="AI provider: claude / relay / openai / gemini / deepseek / qwen / zhipu / moonshot / ollama",
     )
 
     # ── Claude API ──────────────────────────────────────────────
@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", description="OpenAI API key")
     openai_model: str = Field(default="", description="OpenAI model override")
     openai_base_url: str = Field(default="", description="OpenAI base URL override")
+
+    # Third-party relay / aggregator speaking the OpenAI Chat Completions API.
+    # Base URL and model are mandatory here: relays use site-specific endpoints
+    # and model aliases, so there is no safe default to fall back to.
+    relay_api_key: str = Field(default="", description="Relay/aggregator API key")
+    relay_model: str = Field(default="", description="Relay model alias, e.g. the vendor's GPT-5 series name")
+    relay_base_url: str = Field(default="", description="Relay base URL, e.g. https://your-relay.example.com/v1")
 
     gemini_api_key: str = Field(default="", description="Google Gemini API key (AI Studio)")
     gemini_model: str = Field(default="", description="Gemini model override")

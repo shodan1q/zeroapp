@@ -11,9 +11,12 @@ from zerodev.config import Settings
 def _patch_settings(monkeypatch: pytest.MonkeyPatch, **overrides) -> None:
     """Replace llm.get_settings with one returning a custom Settings.
 
+    ``_env_file=None`` stops pydantic-settings from reading the developer's real
+    ``.env``; without it a machine configured for a different provider (or with
+    a real API key on disk) silently changes what these tests assert.
     Also isolates tests from any real data/settings.json on the machine.
     """
-    settings = Settings(**overrides)
+    settings = Settings(_env_file=None, **overrides)
     monkeypatch.setattr(llm, "get_settings", lambda: settings)
     monkeypatch.setattr(llm, "_load_dashboard_settings", lambda: {})
 

@@ -53,10 +53,50 @@
 
 ---
 
+## WebView 应用工厂（推荐生产线）
+
+面向「无人值守、连续出货」的一条生产线：**LLM 生成一整套精美的离线 HTML 页面，装进鸿蒙原生 ArkTS 壳，直接产出 `.hap` 并自动上架 AppGallery**。
+
+为什么另起一条线：
+
+| | WebView 线 | Flutter 线 |
+|---|---|---|
+| 工具链 | **只需 DevEco Studio**（自带 SDK / hvigor / ohpm / Node） | Flutter SDK + flutter-ohos 分支 + 独立 OHOS SDK，约 10GB |
+| 构建耗时 | 约 20 秒 | 数分钟 |
+| 失败面 | 无 Dart 编译、无插件解析、无三端插件适配 | 依赖解析、插件 OHOS 移植、Dart 版本约束 |
+| UI 质量 | HTML/CSS 自由度高，LLM 产出观感好 | 受 Material Design 2 与 Dart 2.19 语法限制 |
+
+生成的页面遵循一套强制设计规范：移动优先、亮/暗自动切换、`env(safe-area-inset-*)` 安全区、44px 最小点击区、系统字体栈、图标一律内联 SVG、动效尊重 `prefers-reduced-motion`。
+
+并且**完全离线**：任何 `src=` / `url()` / `@import` 指向 http(s) 都会被判为缺陷并触发重写——打包后没有网络保证，外链在真机上就是白屏。生成的 JS 还会用 node `--check` 过一遍语法，因为 ArkWeb 没有可见控制台，语法错误只表现为白屏、而构建照样成功。
+
+```bash
+zerodev factory doctor                          # 先体检
+zerodev llm probe --match <模型名>              # 验证 AI 提供商，列出真实可用模型
+zerodev factory build --name 晨间习惯 --desc "五分钟晨间练习"   # 单个应用跑通全链路
+zerodev factory run                             # 7x24 连续生产
+zerodev factory status                          # 看进度与最近战绩
+zerodev factory service                         # 生成开机自启配置
+```
+
+`zerodev factory run` 的需求来源优先级：**队列文件 → 已审批 demand → LLM 自己想创意**，所以凌晨队列空了也不会闲着。单个应用失败只记录不中断循环；连续失败会指数退避（30s → 1h），避免坏掉的 key 把额度烧干。状态原子写入 `data/factory/`，重启后接着跑。
+
+### 上架
+
+`HarmonyOSPublisher` 实现了完整的 AGC Publishing API 六步：取 token → 申请上传地址 → multipart 上传 `.hap` → 绑定文件 → 写商店文案 → 提交审核。没配凭证时走 dry-run，明确报告断在哪一步。
+
+两个前提：
+
+- **必须签名**。AppGallery 拒收 `*-unsigned.hap`，需在 `.env` 配齐 `OHOS_SIGN_*` 六项（从 AGC 后台下载证书与 Profile）。
+- **必须有 AGC 凭证**。在 AppGallery Connect 建 HarmonyOS 应用、开通 Connect API，取得 `HUAWEI_AGC_CLIENT_ID` / `_SECRET` / `_APP_ID`。
+
+想只上传不提交审核，设 `AGC_AUTO_SUBMIT=false`。
+
 ## 鸿蒙优先 (HarmonyOS First)
 
 ZeroDev 把鸿蒙作为**第一目标平台**，而非附属端：
 
+- **两条鸿蒙生产线**：WebView 线走原生 ArkTS + hvigor（见上），只需 DevEco Studio；Flutter 线走 flutter-ohos 工具链，需额外 SDK。
 - **适配鸿蒙 7（HarmonyOS 7）**：生成的应用面向 HarmonyOS 7 / OHOS，通过 flutter-ohos 工具链真实产出 `.hap` 安装包。
 - **鸿蒙兼容的代码生成约束**：强制 Dart 2.19 / Flutter 3.7+、Material Design 2，禁用 Dart 3.x 语法（super 参数、records、patterns、sealed classes）与 `ColorScheme.fromSeed()`，从源头保证 OHOS 兼容性。
 - **可单独生产鸿蒙应用**：`zerodev generate --platform ohos` 即可只产出鸿蒙包，无需构建其它端（详见 [按平台构建](#按平台构建)）。
@@ -165,6 +205,7 @@ Claude 走官方 Anthropic SDK；其余提供商统一走各家**官方 OpenAI �
 |--------|----------------|----------|----------|
 | Claude（默认） | `claude` | `CLAUDE_OAUTH_TOKEN` / `CLAUDE_API_KEY` | `claude-opus-4-8` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-5.1` |
+| 第三方中转站 | `relay` | `RELAY_API_KEY` + **必填** `RELAY_BASE_URL` / `RELAY_MODEL` | 无默认 |
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | `gemini-2.5-pro` |
 | DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-chat` |
 | 通义千问 Qwen | `qwen` | `QWEN_API_KEY`（百炼 DashScope） | `qwen-max` |
@@ -173,6 +214,14 @@ Claude 走官方 Anthropic SDK；其余提供商统一走各家**官方 OpenAI �
 | Ollama 本地 | `ollama` | 无需密钥 | `llama3.1` |
 
 - 每家提供商还支持 `{PROVIDER}_MODEL` / `{PROVIDER}_BASE_URL` 覆盖模型与端点。
+- **`relay` 刻意不提供默认 base URL 和模型名**：中转站各家的路径与模型别名都不同，内置一个猜测值等于把密钥发到你没有选择的地方。配好之后先验证：
+
+  ```bash
+  zerodev llm probe --match <你要用的模型名>   # 列出该端点真实支持的模型 + 冒烟对话
+  zerodev llm probe --match <模型名> --save-model  # 确认后写入 data/settings.json
+  ```
+
+- 输出长度参数在各代 OpenAI API 中拼写不同（`max_tokens` 与 `max_completion_tokens`），中转站前面挂的模型往往混杂两种。被拒绝时客户端会自动换用另一个名字重试，不会让整轮生成失败。
 - **推荐直接在 Dashboard「设置 → AI 模型接入」中切换提供商并填写密钥**：
   保存到 `data/settings.json` 后立即生效（优先级：Dashboard 设置 > 环境变量 > 内置默认）。
 - 所有业务调用统一通过 `get_llm_client()` / `get_llm_async_client()` 获得
@@ -269,28 +318,36 @@ zeroapp/
 ├── zerodev/                    # Python 主包
 │   ├── api/                    # FastAPI 后端（路由、WebSocket、事件）
 │   ├── assets/                 # 资源生成（图标、截图、商店文案）
-│   ├── builder/                # Flutter 构建与发布
-│   │   ├── flutter_builder.py  # 三端构建（apk/aab/ipa/hap）
-│   │   ├── publisher.py        # 商店上架（Google Play / App Store / AppGallery）
+│   ├── builder/                # 构建与发布
+│   │   ├── flutter_builder.py  # Flutter 三端构建（apk/aab/ipa/hap）
+│   │   ├── ohos_builder.py     # 鸿蒙原生构建：探测 DevEco，驱动 hvigor 出 .hap
+│   │   ├── publisher.py        # 商店上架（Google Play / App Store / AppGallery 完整 AGC 流程）
 │   │   └── platforms.py        # 平台解析与运行时平台来源
 │   ├── crawler/                # 需求采集爬虫
 │   ├── evaluator/              # 需求评估与决策
-│   ├── generator/              # 代码生成（PRD、模板、逐文件生成）
+│   ├── generator/              # 代码生成
+│   │   ├── code_generator.py   # Flutter 逐文件生成
+│   │   ├── webapp_generator.py # WebView 富页面生成（设计系统 + 内容计划 + 离线校验）
+│   │   ├── ohos_project.py     # 鸿蒙 ArkTS 工程脚手架（Stage 模型 + Web 组件 + 图标）
 │   │   └── templates/          # Flutter 项目模板注册表
 │   ├── models/                 # SQLAlchemy 数据模型
 │   ├── monitor/                # 运营监控
-│   ├── pipeline/               # LangGraph 流水线（图、状态、checkpoint、重试）
+│   ├── pipeline/               # 流水线
+│   │   ├── graph.py            # Flutter 线：LangGraph 有向图
+│   │   ├── webview_app.py      # WebView 线：generate→scaffold→build→publish 四阶段编排
+│   │   └── daemon.py           # 7x24 无人值守工厂（需求来源、退避、心跳、状态持久化）
 │   ├── tasks/                  # Celery 异步任务
 │   ├── config.py               # 配置（pydantic-settings）
 │   ├── database.py             # 数据库引擎
-│   ├── llm.py                  # 统一 LLM 接入（多提供商 + OAuth 注入 + complete/acomplete 助手）
-│   ├── providers.py            # AI 提供商注册表（8 家：Claude/OpenAI/Gemini/DeepSeek/Qwen/GLM/Kimi/Ollama）
+│   ├── llm.py                  # 统一 LLM 接入（多提供商 + OAuth 注入 + 连通性探测 + complete/acomplete）
+│   ├── providers.py            # AI 提供商注册表（9 家，含第三方中转站）
 │   └── main.py                 # CLI 入口（typer）
 ├── dashboard/                  # Next.js 15 前端
 ├── alembic/                    # 数据库迁移
+├── scripts/                    # run-factory.sh（launchd 启动器）
 ├── tests/                      # 测试
-├── workspace/                  # 生成的 Flutter 项目（git 忽略）
-├── data/                       # SQLite checkpoint 数据（git 忽略）
+├── workspace/                  # 生成的应用工程（git 忽略）
+├── data/                       # SQLite checkpoint + 工厂状态 data/factory/（git 忽略）
 ├── pyproject.toml              # Python 项目配置
 ├── Makefile                    # 常用命令
 └── flutter_agent_requirements.md  # 完整需求清单
@@ -311,6 +368,23 @@ zerodev pipeline run     # 运行一次完整流水线
 # 按平台构建（android / ios / ohos，可多选）
 zerodev generate --platform ohos            # 仅鸿蒙
 zerodev pipeline run --platform android,ohos # 安卓 + 鸿蒙
+```
+
+WebView 应用工厂（鸿蒙原生 ArkTS + 离线 HTML）：
+
+```bash
+zerodev factory doctor       # 体检：AI 提供商 / 鸿蒙工具链 / 签名材料 / AGC 凭证
+zerodev factory build --name 晨间习惯 --desc "五分钟晨间练习" --theme "#3F6AE8"
+zerodev factory build --name 记账本 --no-build   # 只生成页面与工程，不编译
+zerodev factory run --max-apps 5                # 连续生产 5 个后停
+zerodev factory run --publish                   # 连续生产并自动上架
+zerodev factory queue --name 单词卡 --desc "考研词汇记忆"   # 塞进队列，守护进程优先消费
+zerodev factory status                          # 当前进度 + 最近战绩
+zerodev factory service                         # 生成 launchd 开机自启配置
+
+# AI 提供商
+zerodev llm providers        # 列出全部提供商及默认端点
+zerodev llm probe            # 验证当前提供商，列出可用模型
 ```
 
 ## API 端点
