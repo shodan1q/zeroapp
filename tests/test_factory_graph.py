@@ -25,9 +25,12 @@ BRIEFS = [
 
 
 class _FakeResult:
-    def __init__(self, name: str, slug: str, metrics: dict, hap: str = "") -> None:
+    def __init__(self, name: str, slug: str, metrics: dict, hap: str = "", error: str = "") -> None:
         self.metrics = metrics
         self.hap_path = hap
+        # The real result always carries this; the supervisor reads it to tell a
+        # generation failure apart from a merely thin app.
+        self.error = error
         self._name = name
         self._slug = slug
 
@@ -175,3 +178,41 @@ def test_graph_topology_has_the_supervision_loop() -> None:
     assert ("build_app", "supervise") in edges
     assert ("supervise", "build_app") in edges  # the rework loop
     assert ("supervise", "report") in edges
+
+
+def test_a_generation_failure_is_retried_before_being_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A truncated response or a saturated provider produces no assets at all,
+    # which scores near zero on every dimension. Rejecting that outright throws
+    # away an app that a second attempt usually produces fine.
+    attempts = {"n": 0}
+
+    async def _create(request, **kwargs):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            result = _FakeResult(request.app_name, request.resolved_slug(), {})
+            result.to_dict = lambda: {
+                "app_name": request.app_name,
+                "slug": request.resolved_slug(),
+                "success": False,
+                "error": "web asset generation failed: shard truncated",
+                "metrics": {},
+            }
+            result.error = "web asset generation failed: shard truncated"
+            return result
+        good = _FakeResult(request.app_name, request.resolved_slug(), GOOD, hap="/tmp/x.hap")
+        good.error = ""
+        return good
+
+    monkeypatch.setattr(factory_graph, "create_webview_app", _create)
+    report = asyncio.run(run_factory_batch([BRIEFS[0]], build=True, max_rounds=2, checkpointer=False))
+    assert attempts["n"] == 2
+    assert report["accepted"] == 1
+
+
+def test_report_shows_what_happened_not_what_the_scorer_preferred() -> None:
+    # An app the scorer wanted reworked but that ran out of rounds is rejected;
+    # the report must say rejected, not carry the scorer's unmet preference.
+    results = [{"app_name": "a", "round": 1, "score": {"verdict": REWORK, "reasons": []}, "brief": {}}]
+    out = asyncio.run(node_supervise({"results": results, "round": 1, "max_rounds": 1}))
+    assert out["rejected"][0]["disposition"] == REJECT
+    assert out["rejected"][0]["score"]["verdict"] == REWORK

@@ -325,3 +325,24 @@ def test_scaffold_falls_back_when_no_icon_design(tmp_path: Path) -> None:
     # The splash icon is the flat composite, so it must be fully opaque rather
     # than the transparent foreground layer.
     assert Image.open(media / "startIcon.png").convert("RGBA").getchannel("A").getextrema() == (255, 255)
+
+
+def test_immersive_default_is_not_silently_overridden(tmp_path: Path) -> None:
+    # The request default flows straight into OhosAppSpec, so a stale False here
+    # would cancel the immersive shell and bring the white system-bar bands back.
+    from zerodev.generator.ohos_project import OhosAppSpec
+
+    assert WebviewAppRequest(app_name="A", description="d").immersive is OhosAppSpec(
+        app_name="A", bundle_name="com.a.b"
+    ).immersive
+
+    result = asyncio.run(
+        create_webview_app(
+            WebviewAppRequest(app_name="A", description="d", slug="a"),
+            workspace=tmp_path,
+            build=False,
+            generator=_StubGenerator(),
+        )
+    )
+    page = (Path(result.project_path) / "entry/src/main/ets/pages/Index.ets").read_text(encoding="utf-8")
+    assert "expandSafeArea" in page

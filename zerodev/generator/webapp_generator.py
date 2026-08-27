@@ -32,11 +32,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import shutil
 import subprocess
 import tempfile
 import time
+import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -62,6 +64,27 @@ ASSET_FILES: tuple[str, ...] = (
 # on the global the earlier ones installed.
 SCRIPT_ORDER: tuple[str, ...] = ("data.js", "core.js", "charts.js", "views.js", "features.js")
 
+# In-flight LLM calls allowed across the WHOLE process, not per generator.
+# A per-instance limit is not a limit at all once the batch graph builds several
+# apps at once: three apps each fanning out six calls put twenty requests on one
+# relay, which answered with empty streams until the batch collapsed.
+LLM_MAX_CONCURRENCY = max(1, int(os.environ.get("LLM_MAX_CONCURRENCY", "6")))
+
+# Keyed by event loop so a semaphore is never awaited from a loop it was not
+# created in (pytest builds a fresh loop per test).
+_GLOBAL_GATES: weakref.WeakKeyDictionary[Any, asyncio.Semaphore] = weakref.WeakKeyDictionary()
+
+
+def _global_llm_gate() -> asyncio.Semaphore:
+    """The process-wide cap on concurrent LLM calls."""
+    loop = asyncio.get_running_loop()
+    gate = _GLOBAL_GATES.get(loop)
+    if gate is None:
+        gate = asyncio.Semaphore(LLM_MAX_CONCURRENCY)
+        _GLOBAL_GATES[loop] = gate
+    return gate
+
+
 MAX_REPAIR_ROUNDS = 2
 
 # Runtime rework rounds. Fewer than the static ones on purpose: a static defect
@@ -69,6 +92,11 @@ MAX_REPAIR_ROUNDS = 2
 # run after two rewrites with real stack traces in hand is not going to on a
 # third -- better to fail loudly and let the daemon move on.
 MAX_RUNTIME_ROUNDS = 2
+
+# Records requested per content call. Sized so a chunk of richly annotated
+# entries stays well inside the output cap -- one call for thirty of them
+# came back truncated mid-array.
+RECORDS_PER_CALL = 12
 
 # Emoji are banned project-wide because they render inconsistently across
 # HarmonyOS system font versions. The test is Unicode's Emoji_Presentation
@@ -155,8 +183,17 @@ class WebAppSpec:
 DESIGN_SYSTEM_RULES = """\
 DESIGN SYSTEM (non-negotiable):
   - Mobile-first. Design for a 390x844 logical viewport, scaling gracefully to tablets.
-  - Respect the device safe areas: the page must use env(safe-area-inset-top/bottom/left/right)
-    for its outermost padding. Content must never sit under a status bar or home indicator.
+  - The page is drawn EDGE TO EDGE, underneath the status bar and the home indicator.
+    Handling the safe area is therefore not decoration, it is the difference between a
+    readable header and a title with the clock printed on top of it.
+      * Any element that is position:fixed or position:sticky owns its own inset. A fixed
+        header needs padding-top: calc(<its padding> + env(safe-area-inset-top)); a fixed
+        bottom bar needs padding-bottom: calc(<its padding> + env(safe-area-inset-bottom)).
+        Inheriting the body's padding does NOT reach them -- they are out of flow.
+      * The scrolling content area needs its own top and bottom padding so the first and
+        last items clear the fixed bars AND the system bars.
+      * Give every inset a fallback: env(safe-area-inset-top, 0px).
+    Nothing readable -- text, icons, controls -- may sit inside the inset regions.
   - Support light and dark automatically via @media (prefers-color-scheme: dark).
     Define every colour as a CSS custom property on :root and override the set in the dark block.
   - Typography: system stack only --
@@ -552,7 +589,9 @@ class WebAppGenerator:
         """Rate-limited completion. The gate lives here, the call in
         :meth:`_raw_complete`, so a subclass can stub the transport and still be
         subject to the same concurrency bound."""
-        async with self._gate:
+        # Both gates: the global one protects the provider, the per-instance
+        # one keeps a single app from monopolising the global budget.
+        async with _global_llm_gate(), self._gate:
             started = time.monotonic()
             raw = await self._raw_complete(prompt, label=label, max_tokens=max_tokens)
             logger.info("%s done in %.0fs (%d chars)", label, time.monotonic() - started, len(raw))
@@ -727,25 +766,82 @@ class WebAppGenerator:
         """Fan out per collection, then assemble ``data.js`` deterministically."""
         collections = [c for c in plan.get("collections", []) if isinstance(c, dict) and c.get("name")]
         jobs = [self._generate_app_copy(spec, plan)]
-        jobs += [self._generate_shard(spec, plan, c) for c in collections]
+        jobs += [self._generate_collection(spec, plan, c) for c in collections]
 
         results = await asyncio.gather(*jobs, return_exceptions=True)
-        for outcome in results:
-            if isinstance(outcome, BaseException):
-                raise outcome
+
+        # The interface copy is required; without it nothing has labels.
+        if isinstance(results[0], BaseException):
+            raise results[0]
 
         payload: dict[str, Any] = {"app": results[0]}
+        failed: list[str] = []
         for collection, records in zip(collections, results[1:], strict=True):
-            payload[str(collection["name"])] = records
-            logger.info("collection %s: %d record(s)", collection["name"], len(records))
+            name = str(collection["name"])
+            if isinstance(records, BaseException):
+                if name in _referenced_collections(plan):
+                    # Dropping a collection the UI is built around leaves an app
+                    # whose views all point at data that is not there -- worse
+                    # than no app, because it looks like it worked.
+                    raise WebAppGenerationError(
+                        f"collection {name!r} failed and the views depend on it: {records}"
+                    ) from records
+                failed.append(name)
+                logger.warning("collection %s failed (%s); no view depends on it, continuing", name, records)
+                continue
+            payload[name] = records
+            logger.info("collection %s: %d record(s)", name, len(records))
+
+        if failed and len(failed) == len(collections):
+            raise WebAppGenerationError("every content shard failed: " + ", ".join(failed))
 
         # Serialising with json guarantees valid JavaScript, so the model never
         # gets a chance to emit a syntax error in the largest data file.
         body = json.dumps(payload, ensure_ascii=False, indent=2)
         return f"window.APP_DATA = {body};\n"
 
-    async def _generate_shard(
+    async def _generate_collection(
         self, spec: WebAppSpec, plan: Mapping[str, Any], collection: Mapping[str, Any]
+    ) -> list[Any]:
+        """Produce one collection, in concurrent chunks when it is large.
+
+        A single call for thirty richly-annotated records runs past the output
+        cap and comes back truncated mid-array -- which is not a model mistake,
+        it is asking for more than one response can hold. Chunking keeps every
+        response comfortably inside the cap and adds parallelism for free.
+        """
+        wanted = _wanted_entries(collection)
+        chunks = max(1, -(-wanted // RECORDS_PER_CALL))
+        per_chunk = -(-wanted // chunks)
+
+        results = await asyncio.gather(
+            *(self._generate_shard(spec, plan, collection, per_chunk, index, chunks) for index in range(chunks)),
+            return_exceptions=True,
+        )
+
+        records: list[Any] = []
+        failures = 0
+        for outcome in results:
+            if isinstance(outcome, BaseException):
+                failures += 1
+                logger.warning("chunk of %s failed: %s", collection.get("name"), outcome)
+                continue
+            records.extend(outcome)
+
+        if not records:
+            raise WebAppGenerationError(
+                f"every chunk of collection {collection.get('name')!r} failed ({failures}/{chunks})"
+            )
+        return _dedupe_records(records)
+
+    async def _generate_shard(
+        self,
+        spec: WebAppSpec,
+        plan: Mapping[str, Any],
+        collection: Mapping[str, Any],
+        per_chunk: int,
+        index: int = 0,
+        chunks: int = 1,
     ) -> list[Any]:
         fields = collection.get("fields") or []
         rendered_fields = (
@@ -757,11 +853,13 @@ class WebAppGenerator:
             or "    - id (string), title (string), description (string)"
         )
 
-        min_entries = collection.get("min_entries")
-        try:
-            min_entries = max(10, int(min_entries))
-        except (TypeError, ValueError):
-            min_entries = 20
+        categories = [str(c) for c in (collection.get("categories") or [])]
+        # Each chunk is steered at a different slice of the subject so the
+        # concurrent workers do not all write the same obvious records.
+        if chunks > 1 and categories:
+            slice_of = categories[index :: max(1, chunks)] or categories
+            categories = slice_of
+        min_entries = per_chunk
 
         prompt = CONTENT_SHARD_PROMPT.format(
             app_name=spec.app_name,
@@ -769,11 +867,12 @@ class WebAppGenerator:
             description=spec.description or spec.app_name,
             name=collection.get("name"),
             purpose=collection.get("purpose", ""),
-            categories=", ".join(str(c) for c in (collection.get("categories") or [])) or "由你合理划分",
+            categories=", ".join(categories) or "由你合理划分",
             fields=rendered_fields,
             min_entries=min_entries,
         )
-        raw = await self._complete(prompt, label=f"content:{collection.get('name')}")
+        label = f"content:{collection.get('name')}" + (f"#{index + 1}/{chunks}" if chunks > 1 else "")
+        raw = await self._complete(prompt, label=label)
         records = _parse_json_array(raw)
         if not records:
             raise WebAppGenerationError(f"Collection {collection.get('name')!r} came back empty.")
@@ -1001,9 +1100,13 @@ def validate_assets(assets: Mapping[str, str]) -> list[str]:
         for name, body in assets.items():
             if not name.endswith(".js"):
                 continue
-            js_ids = set(re.findall(r"""getElementById\(\s*['"]([^'"]+)['"]""", body))
-            js_ids |= set(re.findall(r"""APP\s*\.\s*mount\(\s*['"]([^'"]+)['"]""", body))
-            js_ids |= set(re.findall(r"""APP\s*\.\s*on\(\s*['"]([^'"]+)['"]""", body))
+            # Only *complete* string-literal lookups can be checked. An id
+            # built by concatenation -- getElementById("view-" + id) -- yields
+            # the literal prefix "view-", which is not an element id at all;
+            # reporting it blocked a perfectly good app three runs in a row.
+            js_ids = set(re.findall(r"""getElementById\(\s*['"]([^'"]+)['"]\s*\)""", body))
+            js_ids |= set(re.findall(r"""APP\s*\.\s*mount\(\s*['"]([^'"]+)['"]\s*\)""", body))
+            js_ids |= set(re.findall(r"""APP\s*\.\s*on\(\s*['"]([^'"]+)['"]\s*,""", body))
             missing = sorted(js_ids - html_ids)
             if missing:
                 problems.append(f"{name} looks up element id(s) absent from index.html: " + ", ".join(missing[:8]))
@@ -1019,6 +1122,37 @@ def strip_code_fence(text: str) -> str:
     """Remove a wrapping markdown fence the model may have added anyway."""
     match = _FENCE_RE.match(text.strip())
     return (match.group(1) if match else text).strip() + "\n"
+
+
+def _wanted_entries(collection: Mapping[str, Any]) -> int:
+    try:
+        return max(10, int(collection.get("min_entries")))
+    except (TypeError, ValueError):
+        return 20
+
+
+def _referenced_collections(plan: Mapping[str, Any]) -> set[str]:
+    """Collection names some view section is built on."""
+    names: set[str] = set()
+    for view in plan.get("views", []) or []:
+        for section in (view or {}).get("sections", []) or []:
+            if isinstance(section, dict) and section.get("collection"):
+                names.add(str(section["collection"]))
+    return names
+
+
+def _dedupe_records(records: list[Any]) -> list[Any]:
+    """Drop duplicate ids across concurrently generated chunks."""
+    seen: set[str] = set()
+    unique: list[Any] = []
+    for record in records:
+        key = str(record.get("id")) if isinstance(record, dict) and record.get("id") else None
+        if key is not None:
+            if key in seen:
+                continue
+            seen.add(key)
+        unique.append(record)
+    return unique
 
 
 def _parse_json_array(text: str) -> list[Any]:

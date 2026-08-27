@@ -70,7 +70,10 @@ class WebviewAppRequest:
     version_name: str = "1.0.0"
     version_code: int = 1000000
     build_mode: str = "release"
-    immersive: bool = False
+    # Matches OhosAppSpec: the page owns its safe-area insets. Leaving this
+    # False here would silently override the shell default and reinstate the
+    # white bands the immersive shell exists to remove.
+    immersive: bool = True
     publish: bool = False
 
     def resolved_slug(self) -> str:
@@ -231,9 +234,19 @@ async def create_webview_app(
     # -- 2. ArkTS project --------------------------------------------------
     try:
         with _Stopwatch(result, "scaffold") as watch:
+            # The shell's colour shows through wherever the web view does not
+            # paint -- the splash, an overscroll bounce, the moment before the
+            # page loads. Taking it from the app's own palette is what stops a
+            # beige app from flashing a white frame around itself.
+            palette = (plan.get("design") or {}) if isinstance(plan, dict) else {}
+            light = palette.get("light") or {}
+            dark = palette.get("dark") or {}
+
             spec = OhosAppSpec(
                 app_name=request.app_name,
                 bundle_name=make_bundle_name(slug),
+                start_background=str(light.get("bg") or "#FFFFFF"),
+                start_background_dark=str(dark.get("bg") or "#000000"),
                 description=request.description,
                 version_name=request.version_name,
                 version_code=request.version_code,

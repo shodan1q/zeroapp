@@ -72,7 +72,13 @@ class QualityScore:
         }
 
 
-def score_app(metrics: dict[str, Any], *, built: bool, build_required: bool = True) -> QualityScore:
+def score_app(
+    metrics: dict[str, Any],
+    *,
+    built: bool,
+    build_required: bool = True,
+    generation_failed: bool = False,
+) -> QualityScore:
     """Score one generated app from its measured metrics.
 
     ``metrics`` is what :func:`zerodev.pipeline.webview_app.create_webview_app`
@@ -115,11 +121,18 @@ def score_app(metrics: dict[str, Any], *, built: bool, build_required: bool = Tr
     score.breakdown = breakdown
     score.total = sum(breakdown.values())
     score.reasons = reasons
-    score.verdict = _verdict(score.total, runtime_ok)
+    score.verdict = _verdict(score.total, runtime_ok, generation_failed=generation_failed)
     return score
 
 
-def _verdict(total: float, runtime_ok: Any) -> str:
+def _verdict(total: float, runtime_ok: Any, *, generation_failed: bool = False) -> str:
+    # An app that never produced assets scores near zero on every dimension and
+    # would be rejected outright -- but that failure is often transient (a
+    # truncated response, a saturated provider), which is exactly what another
+    # attempt fixes. Give it one, and let the round cap stop the bleeding.
+    if generation_failed:
+        return REWORK
+
     # A failed runtime check is disqualifying on its own: shipping a blank
     # screen is worse than shipping nothing, however rich the data behind it.
     if runtime_ok is False:

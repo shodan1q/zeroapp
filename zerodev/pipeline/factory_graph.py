@@ -148,6 +148,7 @@ async def node_build_app(payload: dict[str, Any]) -> dict[str, Any]:
             result.metrics,
             built=bool(result.hap_path),
             build_required=bool(payload.get("build", True)),
+            generation_failed=bool(result.error),
         )
     except Exception as exc:  # noqa: BLE001 - a batch must survive any single app
         logger.exception("[build] %s crashed", request.app_name)
@@ -159,7 +160,7 @@ async def node_build_app(payload: dict[str, Any]) -> dict[str, Any]:
             "brief": brief,
             "metrics": {},
         }
-        score = score_app({}, built=False, build_required=bool(payload.get("build", True)))
+        score = score_app({}, built=False, build_required=bool(payload.get("build", True)), generation_failed=True)
 
     record["round"] = payload.get("round", 1)
     record["score"] = score.to_dict()
@@ -185,6 +186,7 @@ async def node_supervise(state: FactoryBatchState) -> dict[str, Any]:
         verdict = (record.get("score") or {}).get("verdict", REJECT)
         name = record.get("app_name", "?")
         if verdict == ACCEPT:
+            record["disposition"] = ACCEPT
             accepted.append(record)
             logger.info("[supervise] accept %s", name)
         elif verdict == REWORK and round_no < max_rounds:
@@ -195,9 +197,13 @@ async def node_supervise(state: FactoryBatchState) -> dict[str, Any]:
                 "; ".join((record.get("score") or {}).get("reasons", [])[:3]),
             )
         else:
+            # The score may have suggested rework, but the rounds ran out. What
+            # the report shows is what actually happened to the app, not what
+            # the scorer would have preferred.
+            record["disposition"] = REJECT
             rejected.append(record)
             logger.warning(
-                "[supervise] reject %s (%s): %s",
+                "[supervise] reject %s (scored %s): %s",
                 name,
                 verdict,
                 "; ".join((record.get("score") or {}).get("reasons", [])[:3]),
@@ -250,7 +256,8 @@ async def node_report(state: FactoryBatchState) -> dict[str, Any]:
             {
                 "app_name": r.get("app_name"),
                 "slug": r.get("slug"),
-                "verdict": (r.get("score") or {}).get("verdict"),
+                "verdict": r.get("disposition") or (r.get("score") or {}).get("verdict"),
+                "scored": (r.get("score") or {}).get("verdict"),
                 "score": (r.get("score") or {}).get("total"),
                 "hap": r.get("hap_path"),
                 "metrics": r.get("metrics", {}),

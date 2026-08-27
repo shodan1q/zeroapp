@@ -347,3 +347,120 @@ def test_content_shard_object_wrapper_unwrapped() -> None:
 def test_content_shard_garbage_raises() -> None:
     with pytest.raises(WebAppGenerationError):
         _parse_json_array("I cannot do that")
+
+
+# ── Provider protection ─────────────────────────────────────────
+
+
+def test_llm_gate_is_global_not_per_generator() -> None:
+    # Three apps each fanning out six calls put twenty requests on one relay,
+    # which answered with empty streams until the whole batch collapsed. The
+    # cap has to span generator instances, not live inside one.
+    from zerodev.generator import webapp_generator as wg
+
+    peak = {"live": 0, "max": 0}
+
+    class _Counting(WebAppGenerator):
+        def __init__(self) -> None:
+            super().__init__(model="stub", concurrency=99, verify_runtime=False)
+
+        async def _raw_complete(self, prompt: str, *, label: str, max_tokens: int | None = None) -> str:
+            peak["live"] += 1
+            peak["max"] = max(peak["max"], peak["live"])
+            try:
+                await asyncio.sleep(0.01)
+                return GOOD_CSS
+            finally:
+                peak["live"] -= 1
+
+    async def _run() -> None:
+        gens = [_Counting() for _ in range(3)]
+        await asyncio.gather(*(g._complete("p", label=f"x{i}{j}") for i, g in enumerate(gens) for j in range(8)))
+
+    asyncio.run(_run())
+    assert peak["max"] <= wg.LLM_MAX_CONCURRENCY
+
+
+def test_one_failed_content_shard_does_not_lose_the_app() -> None:
+    plan = {
+        "tagline": "t",
+        "collections": [
+            {"name": "good", "purpose": "p", "min_entries": 10, "fields": [{"name": "id"}]},
+            {"name": "bad", "purpose": "p", "min_entries": 10, "fields": [{"name": "id"}]},
+        ],
+        "views": [],
+    }
+
+    class _PartialFailure(WebAppGenerator):
+        def __init__(self) -> None:
+            super().__init__(model="stub", verify_runtime=False)
+
+        async def _raw_complete(self, prompt: str, *, label: str, max_tokens: int | None = None) -> str:
+            if label == "content:bad":
+                raise WebAppGenerationError("shard truncated")
+            if label.startswith("content:"):
+                return '[{"id": "a"}]'
+            return '{"name": "A", "tagline": "t"}'
+
+    data = asyncio.run(_PartialFailure()._generate_content(WebAppSpec(app_name="A", description="d"), plan))
+    payload = json.loads(data.split("=", 1)[1].strip().rstrip(";"))
+    # The surviving collection ships; an app missing one section beats no app.
+    assert "good" in payload and "bad" not in payload
+
+
+def test_all_shards_failing_is_still_fatal() -> None:
+    plan = {
+        "tagline": "t",
+        "collections": [{"name": "only", "purpose": "p", "min_entries": 10, "fields": [{"name": "id"}]}],
+        "views": [],
+    }
+
+    class _TotalFailure(WebAppGenerator):
+        def __init__(self) -> None:
+            super().__init__(model="stub", verify_runtime=False)
+
+        async def _raw_complete(self, prompt: str, *, label: str, max_tokens: int | None = None) -> str:
+            if label.startswith("content:"):
+                raise WebAppGenerationError("shard truncated")
+            return '{"name": "A"}'
+
+    with pytest.raises(WebAppGenerationError, match="every content shard failed"):
+        asyncio.run(_TotalFailure()._generate_content(WebAppSpec(app_name="A", description="d"), plan))
+
+
+def test_dynamic_element_ids_are_not_reported_as_missing() -> None:
+    # getElementById("view-" + id) yields the literal prefix "view-", which is
+    # not an id. Reporting it rejected a working app three runs in a row.
+    assets = _assets()
+    assets["views.js"] = (
+        "(function(){ APP.views.home = function(){"
+        ' document.getElementById("view-" + id);'
+        ' APP.mount("detail-tab-" + n);'
+        ' document.getElementById("list"); }; })();'
+    )
+    assert validate_assets(assets) == []
+
+
+def test_literal_lookups_are_still_checked() -> None:
+    assets = _assets()
+    assets["views.js"] = '(function(){ APP.views.home = function(){ document.getElementById("nope"); }; })();'
+    assert any("nope" in p for p in validate_assets(assets))
+
+
+def test_app_on_handler_ids_are_checked() -> None:
+    assets = _assets()
+    assets["features.js"] = (
+        '(function(){ APP.features.s = function(){ APP.on("ghost", "click", f); }; APP.boot(); })();'
+    )
+    assert any("ghost" in p for p in validate_assets(assets))
+
+
+def test_design_rules_call_out_fixed_element_insets() -> None:
+    # A fixed header does not inherit the body's safe-area padding, so a rule
+    # that only mentions "outermost padding" leaves the title under the clock --
+    # which is exactly what shipped to the device.
+    from zerodev.generator.webapp_generator import DESIGN_SYSTEM_RULES
+
+    assert "position:fixed" in DESIGN_SYSTEM_RULES.replace(" ", "")
+    assert "env(safe-area-inset-top)" in DESIGN_SYSTEM_RULES
+    assert "EDGE TO EDGE" in DESIGN_SYSTEM_RULES

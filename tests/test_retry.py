@@ -76,3 +76,19 @@ def test_config_error_stays_catchable_by_existing_handlers() -> None:
     assert issubclass(LLMConfigError, RuntimeError)
     with pytest.raises(LLMError):
         raise LLMConfigError("x")
+
+
+def test_overload_backs_off_much_harder_than_a_blip() -> None:
+    # An empty SSE stream is how a saturated relay says "too many"; retrying it
+    # on the normal schedule is what turned overload into a collapsed batch.
+    from zerodev.llm import LLMError, LLMOverloadedError, _retry_delay
+
+    assert _retry_delay(1, LLMOverloadedError("empty")) > _retry_delay(1, LLMError("blip")) * 4
+    assert _retry_delay(9, LLMOverloadedError("empty")) <= 120.0
+
+
+def test_overloaded_is_still_retryable() -> None:
+    from zerodev.llm import LLMOverloadedError
+    from zerodev.pipeline.retry import _is_retryable
+
+    assert _is_retryable(LLMOverloadedError("empty")) is True

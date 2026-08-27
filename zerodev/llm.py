@@ -256,6 +256,19 @@ class LLMError(RuntimeError):
     retryable = True
 
 
+class LLMOverloadedError(LLMError):
+    """The provider accepted the request but produced nothing usable.
+
+    Relays under concurrent load answer with an empty SSE stream rather than a
+    429, so this is what rate limiting actually looks like from the client side.
+    It is retryable, but only after backing off far longer than a transient
+    network blip -- retrying hard is what turned an overloaded provider into a
+    collapsed batch.
+    """
+
+    backoff_multiplier = 6.0
+
+
 class LLMConfigError(LLMError):
     """The provider is not configured well enough to make any request.
 
@@ -387,8 +400,15 @@ def _parse_chat_response(data: dict[str, Any], provider_label: str) -> _CompatRe
     return _CompatResponse(text, data.get("model", ""), data)
 
 
-def _retry_delay(attempt: int) -> float:
-    return min(2.0 ** attempt + random.uniform(0, 1), 30.0)
+def _retry_delay(attempt: int, error: BaseException | None = None) -> float:
+    """Backoff for one retry, stretched when the provider signals overload.
+
+    A saturated relay answers with an empty stream rather than a 429, and
+    retrying that on the ordinary schedule is what turns overload into a
+    collapsed batch -- so those errors carry a multiplier.
+    """
+    multiplier = float(getattr(error, "backoff_multiplier", 1.0))
+    return min((2.0**attempt + random.uniform(0, 1)) * multiplier, 120.0)
 
 
 def _should_retry(status_code: int) -> bool:
@@ -496,9 +516,9 @@ class _StreamAccumulator:
         if not text.strip():
             detail = "no frames received" if not self.saw_chunk else f"finish_reason={self.finish_reason or 'unset'}"
             # An empty completion is treated as a transport-level failure so the
-            # retry loop gets a chance; the most common cause is a reasoning
-            # model spending the entire token cap before emitting any content.
-            raise LLMError(f"{provider_label} returned an empty stream ({detail}).")
+            # retry loop gets a chance. Under concurrency this is how a relay
+            # signals overload, so it backs off harder than a normal retry.
+            raise LLMOverloadedError(f"{provider_label} returned an empty stream ({detail}).")
         return _CompatResponse(text, self.model, {"stream": True, "finish_reason": self.finish_reason})
 
 
@@ -602,7 +622,7 @@ class _CompatMessages(_CompatTransportMixin):
                 return result
 
             if attempt < _DEFAULT_MAX_RETRIES:
-                delay = _retry_delay(attempt)
+                delay = _retry_delay(attempt, last_error)
                 logger.warning("%s call failed (%s); retry %d in %.1fs", label, last_error, attempt + 1, delay)
                 time.sleep(delay)
         raise LLMError(f"{label} request failed after retries") from last_error
@@ -662,7 +682,7 @@ class _CompatAsyncMessages(_CompatTransportMixin):
                 return result
 
             if attempt < _DEFAULT_MAX_RETRIES:
-                delay = _retry_delay(attempt)
+                delay = _retry_delay(attempt, last_error)
                 logger.warning("%s call failed (%s); retry %d in %.1fs", label, last_error, attempt + 1, delay)
                 await asyncio.sleep(delay)
         raise LLMError(f"{label} request failed after retries") from last_error

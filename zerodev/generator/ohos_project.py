@@ -62,10 +62,15 @@ class OhosAppSpec:
     compatible_sdk: str = DEFAULT_COMPATIBLE_SDK
     target_sdk: str = DEFAULT_COMPATIBLE_SDK
     device_types: tuple[str, ...] = DEFAULT_DEVICE_TYPES
-    # Draw the web view under the status/navigation bars. The HTML then owns
-    # its own safe-area padding via env(safe-area-inset-*). Off by default so a
-    # generated page can never hide content behind system bars.
-    immersive: bool = False
+    # Draw the web view under the status and navigation bars, letting the page
+    # own its own insets via env(safe-area-inset-*).
+    #
+    # On by default, because the alternative is incoherent: with the web view
+    # confined to the safe area, every env(safe-area-inset-*) the design system
+    # mandates evaluates to zero, and the strips the system bars occupy show the
+    # shell's colour instead of the app's -- which looked exactly like a broken
+    # app on a real device, white bands above and below a beige page.
+    immersive: bool = True
     # Declared so the shell can load remote content or call APIs from JS.
     permissions: tuple[str, ...] = ("ohos.permission.INTERNET",)
     module_name: str = "entry"

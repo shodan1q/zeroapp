@@ -142,13 +142,29 @@ def test_generated_icons_are_valid_pngs(project: Path) -> None:
         assert image.size == (1024, 1024)
 
 
-def test_immersive_flag_expands_safe_area(tmp_path: Path) -> None:
-    project = scaffold_ohos_project(tmp_path / "imm", _spec(immersive=True), {ENTRY_HTML: "<html></html>"})
+def test_immersive_is_the_default(project: Path) -> None:
+    # Confining the web view to the safe area makes every env(safe-area-inset-*)
+    # in the generated CSS evaluate to zero, and leaves the system-bar strips
+    # painted in the shell's colour rather than the app's -- white bands above
+    # and below a beige page on a real device.
     assert "expandSafeArea" in (project / "entry/src/main/ets/pages/Index.ets").read_text(encoding="utf-8")
 
 
-def test_non_immersive_keeps_content_inside_safe_area(project: Path) -> None:
-    assert "expandSafeArea" not in (project / "entry/src/main/ets/pages/Index.ets").read_text(encoding="utf-8")
+def test_immersive_can_be_switched_off(tmp_path: Path) -> None:
+    plain = scaffold_ohos_project(tmp_path / "plain", _spec(immersive=False), {ENTRY_HTML: "<html></html>"})
+    assert "expandSafeArea" not in (plain / "entry/src/main/ets/pages/Index.ets").read_text(encoding="utf-8")
+
+
+def test_shell_background_follows_the_app_palette(tmp_path: Path) -> None:
+    project = scaffold_ohos_project(
+        tmp_path / "tint",
+        _spec(start_background="#F6EFDF", start_background_dark="#14100C"),
+        {ENTRY_HTML: "<html></html>"},
+    )
+    light = json.loads((project / "entry/src/main/resources/base/element/color.json").read_text(encoding="utf-8"))
+    dark = json.loads((project / "entry/src/main/resources/dark/element/color.json").read_text(encoding="utf-8"))
+    assert light["color"][0]["value"] == "#F6EFDF"
+    assert dark["color"][0]["value"] == "#14100C"
 
 
 def test_rescaffold_clears_stale_pages(tmp_path: Path) -> None:
